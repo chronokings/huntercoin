@@ -52,7 +52,9 @@ using namespace json_spirit;
 void ThreadRPCServer2(void* parg);
 Value sendtoaddress(const Array& params, bool fHelp);
 
-int64 nWalletUnlockTime;
+static std::string strRPCUserColonPass;
+
+static int64 nWalletUnlockTime;
 static CCriticalSection cs_nWalletUnlockTime;
 
 void ThreadCleanWalletPassphrase(void* parg);
@@ -3609,12 +3611,7 @@ bool HTTPAuthorized(map<string, string>& mapHeaders)
         return false;
     string strUserPass64 = strAuth.substr(6); boost::trim(strUserPass64);
     string strUserPass = DecodeBase64(strUserPass64);
-    string::size_type nColon = strUserPass.find(":");
-    if (nColon == string::npos)
-        return false;
-    string strUser = strUserPass.substr(0, nColon);
-    string strPassword = strUserPass.substr(nColon+1);
-    return (strUser == mapArgs["-rpcuser"] && strPassword == mapArgs["-rpcpassword"]);
+    return strUserPass == strRPCUserColonPass;
 }
 
 //
@@ -3848,7 +3845,8 @@ void ThreadRPCServer2(void* parg)
 {
     printf("ThreadRPCServer started\n");
 
-    if (mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "")
+    strRPCUserColonPass = mapArgs["-rpcuser"] + ":" + mapArgs["-rpcpassword"];
+    if (strRPCUserColonPass == ":")
     {
         string strWhatAmI = "To use huntercoind";
         if (mapArgs.count("-server"))
