@@ -1248,7 +1248,18 @@ static void pop_lock()
 void CCriticalSection::Enter(const char* pszName, const char* pszFile, int nLine)
 {
     push_lock(this, CLockLocation(pszName, pszFile, nLine));
+#ifdef DEBUG_LOCKCONTENTION
+    bool result = mutex.try_lock();
+    if (!result)
+    {
+        printf("LOCKCONTENTION: %s\n", pszName);
+        printf("Locker: %s:%d\n", pszFile, nLine);
+        mutex.lock();
+        printf("Locked\n");
+    }
+#else
     mutex.lock();
+#endif
 }
 void CCriticalSection::Leave()
 {
@@ -1265,9 +1276,19 @@ bool CCriticalSection::TryEnter(const char* pszName, const char* pszFile, int nL
 
 #else
 
-void CCriticalSection::Enter(const char*, const char*, int)
+void CCriticalSection::Enter(const char* pszName, const char* pszFile, int nLine)
 {
+#ifdef DEBUG_LOCKCONTENTION
+    bool result = mutex.try_lock();
+    if (!result)
+    {
+        printf("LOCKCONTENTION: %s\n", pszName);
+        printf("Locker: %s:%d\n", pszFile, nLine);
+        mutex.lock();
+    }
+#else
     mutex.lock();
+#endif
 }
 
 void CCriticalSection::Leave()
