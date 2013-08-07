@@ -6,12 +6,12 @@
     <name>AboutDialog</name>
     <message>
         <location filename="../forms/aboutdialog.ui" line="+14"/>
-        <source>About Namecoin</source>
+        <source>About Chronocoin</source>
         <translation>關於位元幣</translation>
     </message>
     <message>
         <location line="+39"/>
-        <source>&lt;b&gt;Namecoin&lt;/b&gt; version</source>
+        <source>&lt;b&gt;Chronocoin&lt;/b&gt; version</source>
         <translation>&lt;b&gt;位元幣&lt;/b&gt;版本</translation>
     </message>
     <message>
@@ -36,7 +36,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+0"/>
-        <source>2009-%1 The Bitcoin and Namecoin developers</source>
+        <source>2009-%1 The Bitcoin and Chronocoin developers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -69,7 +69,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="-46"/>
-        <source>These are your Namecoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
+        <source>These are your Chronocoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
         <translation>這些是你用來收款的位元幣位址. 你可以提供不同的位址給不同的付款人, 來追蹤是誰支付給你.</translation>
     </message>
     <message>
@@ -84,7 +84,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+11"/>
-        <source>Sign a message to prove you own a Namecoin address</source>
+        <source>Sign a message to prove you own a Chronocoin address</source>
         <translation>簽署一則訊息來證明一個位元幣位址是你的</translation>
     </message>
     <message>
@@ -99,7 +99,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="-14"/>
-        <source>Verify a message to ensure it was signed with a specified Namecoin address</source>
+        <source>Verify a message to ensure it was signed with a specified Chronocoin address</source>
         <translation>驗證一則訊息以確認它是用指定的位元幣位址簽署的</translation>
     </message>
     <message>
@@ -235,7 +235,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR NAMECOINS&lt;/b&gt;!</source>
+        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR CHRONOCOINS&lt;/b&gt;!</source>
         <translation>警告: 如果將錢包加密後忘記密碼, 你會&lt;b&gt;失去其中所有的位元幣&lt;/b&gt;!</translation>
     </message>
     <message>
@@ -262,7 +262,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="-56"/>
-        <source>Namecoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Namecoins from being stolen by malware infecting your computer.</source>
+        <source>Chronocoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Chronocoins from being stolen by malware infecting your computer.</source>
         <translation type="unfinished">位元幣現在要關閉以完成加密程序. 請記住, 加密錢包無法完全防止入侵電腦的惡意程式偷取你的位元幣.</translation>
     </message>
     <message>
@@ -311,13 +311,13 @@ This product includes software developed by the OpenSSL Project for use in the O
     <name>BitcoinGUI</name>
     <message>
         <location filename="../bitcoin.cpp" line="+118"/>
-        <source>A fatal error occurred. Namecoin can no longer continue safely and will quit.</source>
+        <source>A fatal error occurred. Chronocoin can no longer continue safely and will quit.</source>
         <translation type="unfinished">發生了致命的錯誤. 位元幣程式無法再繼續安全執行, 只好結束.</translation>
     </message>
     <message>
         <location filename="../bitcoingui.cpp" line="+74"/>
         <location line="+565"/>
-        <source>Namecoin</source>
+        <source>Chronocoin</source>
         <translation type="unfinished">位元幣</translation>
     </message>
     <message>
@@ -342,7 +342,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Send coins to a Namecoin address</source>
+        <source>Send coins to a Chronocoin address</source>
         <translation type="unfinished">付錢到一個位元幣位址</translation>
     </message>
     <message>
@@ -382,7 +382,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Manage names registered via Namecoin</source>
+        <source>Manage names registered via Chronocoin</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -397,12 +397,12 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;About Namecoin</source>
+        <source>&amp;About Chronocoin</source>
         <translation type="unfinished">關於位元幣</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Show information about Namecoin</source>
+        <source>Show information about Chronocoin</source>
         <translation type="unfinished">顯示位元幣相關資訊</translation>
     </message>
     <message>
@@ -422,7 +422,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Modify configuration options for Namecoin</source>
+        <source>Modify configuration options for Chronocoin</source>
         <translation type="unfinished">修改位元幣的設定選項</translation>
     </message>
     <message>
@@ -472,7 +472,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Sign messages with your Namecoin addresses to prove you own them</source>
+        <source>Sign messages with your Chronocoin addresses to prove you own them</source>
         <translation type="unfinished">用位元幣位址簽署訊息來證明那是你的</translation>
     </message>
     <message>
@@ -482,7 +482,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Verify messages to ensure they were signed with specified Namecoin addresses</source>
+        <source>Verify messages to ensure they were signed with specified Chronocoin addresses</source>
         <translation type="unfinished">驗證訊息以確認那是用指定的位元幣位址簽署的</translation>
     </message>
     <message>
@@ -539,12 +539,12 @@ This product includes software developed by the OpenSSL Project for use in the O
     <message>
         <location line="-5"/>
         <location line="+5"/>
-        <source>Namecoin client</source>
+        <source>Chronocoin client</source>
         <translation type="unfinished">位元幣客戶端軟體</translation>
     </message>
     <message numerus="yes">
         <location line="+81"/>
-        <source>%n active connection(s) to Namecoin network</source>
+        <source>%n active connection(s) to Chronocoin network</source>
         <translation type="unfinished">
             <numerusform>與位元幣網路有 %n 個連線在使用中</numerusform>
         </translation>
@@ -676,7 +676,7 @@ Address: %4
     <message>
         <location line="-28"/>
         <location line="+28"/>
-        <source>URI can not be parsed! This can be caused by an invalid Namecoin address or malformed URI parameters.</source>
+        <source>URI can not be parsed! This can be caused by an invalid Chronocoin address or malformed URI parameters.</source>
         <translation type="unfinished">無法解析 URI! 也許位元幣位址無效或 URI 參數有誤.</translation>
     </message>
     <message>
@@ -830,7 +830,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location line="+18"/>
-        <source>The Namecoin address to transfer domain to
+        <source>The Chronocoin address to transfer domain to
 (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9).
 Leave empty, if not needed.</source>
         <translation type="unfinished"></translation>
@@ -955,7 +955,7 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="-5"/>
-        <source>The entered address &quot;%1&quot; is not a valid Namecoin address.</source>
+        <source>The entered address &quot;%1&quot; is not a valid Chronocoin address.</source>
         <translation>輸入的位址 &quot;%1&quot; 並不是有效的位元幣位址.</translation>
     </message>
     <message>
@@ -974,7 +974,7 @@ Leave empty, if not needed.</source>
     <message>
         <location filename="../guiutil.cpp" line="+423"/>
         <location line="+12"/>
-        <source>Namecoin-Qt</source>
+        <source>Chronocoin-Qt</source>
         <translation>位元幣-Qt</translation>
     </message>
     <message>
@@ -1028,12 +1028,12 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="+13"/>
-        <source>Enter a name or domain name (prefixed with d/) to be registered via Namecoin.</source>
+        <source>Enter a name or domain name (prefixed with d/) to be registered via Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location line="+16"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Namecoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Chronocoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1184,7 +1184,7 @@ to the network and creates a pending name_firstupdate transaction.</source>
     </message>
     <message>
         <location line="+126"/>
-        <source>Name registered using Namecoin.</source>
+        <source>Name registered using Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1223,12 +1223,12 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+31"/>
-        <source>Automatically start Namecoin after logging in to the system.</source>
+        <source>Automatically start Chronocoin after logging in to the system.</source>
         <translation>在登入系統後自動啓動位元幣.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;Start Namecoin on system login</source>
+        <source>&amp;Start Chronocoin on system login</source>
         <translation>系統登入時啟動位元幣</translation>
     </message>
     <message>
@@ -1248,8 +1248,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+6"/>
-        <source>Automatically open the Namecoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
-        <translation>自動在路由器上開啟 Namecoin 的客戶端通訊埠. 只有在你的路由器支援 UPnP 且開啟時才有作用.</translation>
+        <source>Automatically open the Chronocoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
+        <translation>自動在路由器上開啟 Chronocoin 的客戶端通訊埠. 只有在你的路由器支援 UPnP 且開啟時才有作用.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1258,7 +1258,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Connect to the Namecoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
+        <source>Connect to the Chronocoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
         <translation>透過 SOCKS 代理伺服器連線至位元幣網路 (比如說要透過 Tor 連線).</translation>
     </message>
     <message>
@@ -1333,7 +1333,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+13"/>
-        <source>The user interface language can be set here. This setting will take effect after restarting Namecoin.</source>
+        <source>The user interface language can be set here. This setting will take effect after restarting Chronocoin.</source>
         <translation>可以在這裡設定使用者介面的語言. 這個設定在位元幣程式重啓後才會生效.</translation>
     </message>
     <message>
@@ -1348,7 +1348,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+9"/>
-        <source>Whether to show Namecoin addresses in the transaction list or not.</source>
+        <source>Whether to show Chronocoin addresses in the transaction list or not.</source>
         <translation>是否要在交易列表中顯示位元幣位址.</translation>
     </message>
     <message>
@@ -1400,7 +1400,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="-9"/>
         <location line="+9"/>
-        <source>This setting will take effect after restarting Namecoin.</source>
+        <source>This setting will take effect after restarting Chronocoin.</source>
         <translation>這個設定會在位元幣程式重啓後生效.</translation>
     </message>
     <message>
@@ -1419,7 +1419,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+51"/>
         <location line="+183"/>
-        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Namecoin network after a connection is established, but this process has not completed yet.</source>
+        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Chronocoin network after a connection is established, but this process has not completed yet.</source>
         <translation>顯示的資訊可能是過期的. 與位元幣網路的連線建立後, 你的錢包會自動和網路同步, 但這個步驟還沒完成.</translation>
     </message>
     <message>
@@ -1483,7 +1483,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <name>PaymentServer</name>
     <message>
         <location filename="../paymentserver.cpp" line="+108"/>
-        <source>Cannot start namecoin: click-to-pay handler</source>
+        <source>Cannot start chronocoin: click-to-pay handler</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1633,7 +1633,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Show the Namecoin-Qt help message to get a list with possible Namecoin command-line options.</source>
+        <source>Show the Chronocoin-Qt help message to get a list with possible Chronocoin command-line options.</source>
         <translation>顯示位元幣-Qt的求助訊息, 來取得可用的命令列選項列表.</translation>
     </message>
     <message>
@@ -1653,12 +1653,12 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="-104"/>
-        <source>Namecoin - Debug window</source>
+        <source>Chronocoin - Debug window</source>
         <translation>位元幣 - 除錯視窗</translation>
     </message>
     <message>
         <location line="+25"/>
-        <source>Namecoin Core</source>
+        <source>Chronocoin Core</source>
         <translation>位元幣核心</translation>
     </message>
     <message>
@@ -1668,7 +1668,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Open the Namecoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
+        <source>Open the Chronocoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
         <translation>從目前的資料目錄下開啓位元幣的除錯紀錄檔. 當紀錄檔很大時可能要花好幾秒的時間.</translation>
     </message>
     <message>
@@ -1678,7 +1678,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../rpcconsole.cpp" line="-30"/>
-        <source>Welcome to the Namecoin RPC console.</source>
+        <source>Welcome to the Chronocoin RPC console.</source>
         <translation>歡迎使用位元幣 RPC 主控台.</translation>
     </message>
     <message>
@@ -1862,7 +1862,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../sendcoinsentry.cpp" line="+1"/>
-        <source>Enter a Namecoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
         <translation>輸入位元幣位址 (比如說 N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
 </context>
@@ -1927,7 +1927,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+21"/>
-        <source>Sign the message to prove you own this Namecoin address</source>
+        <source>Sign the message to prove you own this Chronocoin address</source>
         <translation>簽署一則訊息來證明一個位元幣位址是你的</translation>
     </message>
     <message>
@@ -1963,7 +1963,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+40"/>
-        <source>Verify the message to ensure it was signed with the specified Namecoin address</source>
+        <source>Verify the message to ensure it was signed with the specified Chronocoin address</source>
         <translation>驗證這則訊息以確認它是用指定的位元幣位址簽署的</translation>
     </message>
     <message>
@@ -1979,7 +1979,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location filename="../signverifymessagedialog.cpp" line="+26"/>
         <location line="+3"/>
-        <source>Enter a Namecoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
         <translation>輸入位元幣位址 (比如說 N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
     <message>
@@ -1989,7 +1989,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+3"/>
-        <source>Enter Namecoin signature</source>
+        <source>Enter Chronocoin signature</source>
         <translation>輸入位元幣簽章</translation>
     </message>
     <message>
@@ -2544,7 +2544,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+38"/>
-        <source>Invalid Namecoin address</source>
+        <source>Invalid Chronocoin address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2564,13 +2564,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
 </context>
 <context>
-    <name>namecoin-core</name>
+    <name>chronocoin-core</name>
     <message>
         <location filename="../bitcoinstrings.cpp" line="+9"/>
         <source>%s, you must set a rpcpassword in the configuration file:
  %s
 It is recommended you use the following random password:
-rpcuser=namecoinrpc
+rpcuser=chronocoinrpc
 rpcpassword=%s
 (you do not need to remember this password)
 The username and password MUST NOT be the same.
@@ -2579,7 +2579,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
         <translation type="unfinished">%s, 你必須要在以下設定檔中設定 RPC 密碼(rpcpassword):
 %s
 建議你使用以下隨機產生的密碼:
-rpcuser=namecoinrpc
+rpcuser=chronocoinrpc
 rpcpassword=%s
 (你不用記住這個密碼)
 使用者名稱(rpcuser)和密碼(rpcpassword)不可以相同!
@@ -2608,7 +2608,7 @@ rpcpassword=%s
     </message>
     <message>
         <location line="+3"/>
-        <source>Cannot obtain a lock on data directory %s. Namecoin is probably already running.</source>
+        <source>Cannot obtain a lock on data directory %s. Chronocoin is probably already running.</source>
         <translation type="unfinished">無法鎖定資料目錄 %s. 也許位元幣已經在執行了.</translation>
     </message>
     <message>
@@ -2663,7 +2663,7 @@ rpcpassword=%s
     </message>
     <message>
         <location line="+3"/>
-        <source>Unable to bind to %s on this computer. Namecoin is probably already running.</source>
+        <source>Unable to bind to %s on this computer. Chronocoin is probably already running.</source>
         <translation type="unfinished">無法和這台電腦上的 %s 繫結. 也許位元幣已經在執行了.</translation>
     </message>
     <message>
@@ -2678,7 +2678,7 @@ rpcpassword=%s
     </message>
     <message>
         <location line="+3"/>
-        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Namecoin will not work properly.</source>
+        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Chronocoin will not work properly.</source>
         <translation type="unfinished">警告: 請檢查電腦時間與日期是否正確! 位元幣無法在時鐘不準的情況下正常運作.</translation>
     </message>
     <message>
@@ -2733,7 +2733,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Namecoin version</source>
+        <source>Chronocoin version</source>
         <translation type="unfinished">位元幣版本</translation>
     </message>
     <message>
@@ -2829,8 +2829,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Error loading wallet.dat: Wallet requires newer version of Namecoin</source>
-        <translation type="unfinished">載入檔案 wallet.dat 失敗: 此錢包需要新版的 Namecoin</translation>
+        <source>Error loading wallet.dat: Wallet requires newer version of Chronocoin</source>
+        <translation type="unfinished">載入檔案 wallet.dat 失敗: 此錢包需要新版的 Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3113,8 +3113,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Send command to -server or namecoind</source>
-        <translation type="unfinished">送指令至 -server 或 namecoind
+        <source>Send command to -server or chronocoind</source>
+        <translation type="unfinished">送指令至 -server 或 chronocoind
 </translation>
     </message>
     <message>
@@ -3189,8 +3189,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Specify pid file (default: namecoind.pid)</source>
-        <translation type="unfinished">指定行程識別碼檔案 (預設: namecoind.pid)
+        <source>Specify pid file (default: chronocoind.pid)</source>
+        <translation type="unfinished">指定行程識別碼檔案 (預設: chronocoind.pid)
 </translation>
     </message>
     <message>
@@ -3288,7 +3288,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Wallet needed to be rewritten: restart Namecoin to complete</source>
+        <source>Wallet needed to be rewritten: restart Chronocoin to complete</source>
         <translation type="unfinished">錢包需要重寫: 請重啟位元幣來完成</translation>
     </message>
     <message>

@@ -9,7 +9,7 @@
 #include "../main.h"
 #include "../hook.h"
 #include "../wallet.h"
-#include "../namecoin.h"
+#include "../chronocoin.h"
 #include "ui_interface.h"
 #include "configurenamedialog.h"
 

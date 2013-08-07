@@ -24,7 +24,7 @@ private:
     CWalletDB *pwalletdbEncryption;
 
 public:
-    // visible for NAMECOIN
+    // visible for CHRONOCOIN
     bool SelectCoins(int64 nTargetValue, std::set<std::pair<const CWalletTx*,unsigned int> >& setCoinsRet, int64& nValueRet) const;
 
     void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlyConfirmed=true) const;

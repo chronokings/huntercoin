@@ -8,7 +8,7 @@
 #include "wallet.h"
 #include "init.h"
 #include "auxpow.h"
-#include "namecoin.h"
+#include "chronocoin.h"
 
 #include "rpc.h"
 
@@ -44,10 +44,10 @@ extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
-const int NAME_COIN_GENESIS_EXTRA = 521;
-uint256 hashNameCoinGenesisBlock("000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770");
+const int CHRONO_COIN_GENESIS_EXTRA = 521;
+uint256 hashChronoCoinGenesisBlock("000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770");
 
-class CNamecoinHooks : public CHooks
+class CChronocoinHooks : public CHooks
 {
 public:
     virtual bool IsStandard(const CScript& scriptPubKey);
@@ -438,7 +438,7 @@ string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, C
     if (fAskFee && !uiInterface.ThreadSafeAskFee(nFeeRequired))
         return "ABORTED";
 #else
-    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "Namecoin", NULL))
+    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "Chronocoin", NULL))
         return "ABORTED";
 #endif
 
@@ -536,7 +536,7 @@ Value sendtoname(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
         throw runtime_error(
-            "sendtoname <namecoinname> <amount> [comment] [comment-to]\n"
+            "sendtoname <chronocoinname> <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.01"
             + HelpRequiringPassphrase());
     
@@ -552,7 +552,7 @@ Value sendtoname(const Array& params, bool fHelp)
     
     uint160 hash160;
     if (!AddressToHash160(strAddress, hash160))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No valid namecoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No valid chronocoin address");
 
     // Amount
     int64 nAmount = AmountFromValue(params[1]);
@@ -621,7 +621,7 @@ Value name_list(const Array& params, bool fHelp)
             if(!txdb.ReadDiskTx(hash, tx, txindex))
                 continue;
 
-            if (tx.nVersion != NAMECOIN_TX_VERSION)
+            if (tx.nVersion != CHRONOCOIN_TX_VERSION)
                 continue;
 
             // name
@@ -1036,7 +1036,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
     }
 
     CWalletTx wtx;
-    wtx.nVersion = NAMECOIN_TX_VERSION;
+    wtx.nVersion = CHRONOCOIN_TX_VERSION;
     
     CRITICAL_BLOCK(cs_main)
     {
@@ -1142,7 +1142,7 @@ Value name_update(const Array& params, bool fHelp)
     vector<unsigned char> vchValue = vchFromValue(params[1]);
 
     CWalletTx wtx;
-    wtx.nVersion = NAMECOIN_TX_VERSION;
+    wtx.nVersion = CHRONOCOIN_TX_VERSION;
     vector<unsigned char> strPubKey = pwalletMain->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
 
@@ -1152,7 +1152,7 @@ Value name_update(const Array& params, bool fHelp)
         uint160 hash160;
         bool isValid = AddressToHash160(strAddress, hash160);
         if (!isValid)
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid namecoin address");
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid chronocoin address");
         scriptPubKeyOrig.SetBitcoinAddress(strAddress);
     }
     else
@@ -1211,7 +1211,7 @@ Value name_new(const Array& params, bool fHelp)
     vector<unsigned char> vchName = vchFromValue(params[0]);
 
     CWalletTx wtx;
-    wtx.nVersion = NAMECOIN_TX_VERSION;
+    wtx.nVersion = CHRONOCOIN_TX_VERSION;
 
     uint64 rand = GetRand((uint64)-1);
     vector<unsigned char> vchRand = CBigNum(rand).getvch();
@@ -1511,7 +1511,7 @@ bool CNameDB::ReconstructNameIndex()
             block.ReadFromDisk(pindex, true);
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
-                if (tx.nVersion != NAMECOIN_TX_VERSION)
+                if (tx.nVersion != CHRONOCOIN_TX_VERSION)
                     continue;
 
                 if(!GetNameOfTx(tx, vchName))
@@ -1566,12 +1566,12 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_clean", &name_clean));
     mapCallTable.insert(make_pair("sendtoname", &sendtoname));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
-    hashGenesisBlock = hashNameCoinGenesisBlock;
-    printf("Setup namecoin genesis block %s\n", hashGenesisBlock.GetHex().c_str());
-    return new CNamecoinHooks();
+    hashGenesisBlock = hashChronoCoinGenesisBlock;
+    printf("Setup chronocoin genesis block %s\n", hashGenesisBlock.GetHex().c_str());
+    return new CChronocoinHooks();
 }
 
-bool CNamecoinHooks::IsStandard(const CScript& scriptPubKey)
+bool CChronocoinHooks::IsStandard(const CScript& scriptPubKey)
 {
     return true;
 }
@@ -1694,13 +1694,13 @@ int IndexOfNameOutput(CWalletTx& wtx)
     return nOut;
 }
 
-void CNamecoinHooks::AddToWallet(CWalletTx& wtx)
+void CChronocoinHooks::AddToWallet(CWalletTx& wtx)
 {
 }
 
-bool CNamecoinHooks::IsMine(const CTransaction& tx)
+bool CChronocoinHooks::IsMine(const CTransaction& tx)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return false;
 
     vector<vector<unsigned char> > vvch;
@@ -1725,9 +1725,9 @@ bool CNamecoinHooks::IsMine(const CTransaction& tx)
     return false;
 }
 
-bool CNamecoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new /*= false*/)
+bool CChronocoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new /*= false*/)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return false;
 
     vector<vector<unsigned char> > vvch;
@@ -1749,9 +1749,9 @@ bool CNamecoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool ig
     return false;
 }
 
-void CNamecoinHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
+void CChronocoinHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return;
 
     if (tx.vout.size() < 1)
@@ -1792,7 +1792,7 @@ int CheckTransactionAtRelativeDepth(CBlockIndex* pindexBlock, CTxIndex& txindex,
 
 bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return false;
     vector<vector<unsigned char> > vvchArgs;
     int op;
@@ -1800,7 +1800,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("GetNameOfTx() : could not decode a namecoin tx");
+        return error("GetNameOfTx() : could not decode a chronocoin tx");
 
     switch (op)
     {
@@ -1814,7 +1814,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 
 bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& name)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return false;
     vector<vector<unsigned char> > vvchArgs;
     int op;
@@ -1822,7 +1822,7 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("IsConflictedTx() : could not decode a namecoin tx");
+        return error("IsConflictedTx() : could not decode a chronocoin tx");
     int nPrevHeight;
     int nDepth;
     int64 nNetFee;
@@ -1838,7 +1838,7 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
     return false;
 }
 
-bool CNamecoinHooks::ConnectInputs(CTxDB& txdb,
+bool CChronocoinHooks::ConnectInputs(CTxDB& txdb,
         map<uint256, CTxIndex>& mapTestPool,
         const CTransaction& tx,
         vector<CTransaction>& vTxPrev,
@@ -1865,12 +1865,12 @@ bool CNamecoinHooks::ConnectInputs(CTxDB& txdb,
         }
     }
 
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
     {
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
         if (found)
-            return error("ConnectInputHook() : a non-namecoin transaction with a namecoin input");
+            return error("ConnectInputHook() : a non-chronocoin transaction with a chronocoin input");
         return true;
     }
 
@@ -1880,7 +1880,7 @@ bool CNamecoinHooks::ConnectInputs(CTxDB& txdb,
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("ConnectInputsHook() : could not decode a namecoin tx");
+        return error("ConnectInputsHook() : could not decode a chronocoin tx");
 
     int nPrevHeight;
     int nDepth;
@@ -1890,7 +1890,7 @@ bool CNamecoinHooks::ConnectInputs(CTxDB& txdb,
     {
         case OP_NAME_NEW:
             if (found)
-                return error("ConnectInputsHook() : name_new tx pointing to previous namecoin tx");
+                return error("ConnectInputsHook() : name_new tx pointing to previous chronocoin tx");
             break;
         case OP_NAME_FIRSTUPDATE:
             nNetFee = GetNameNetFee(tx);
@@ -1994,11 +1994,11 @@ bool CNamecoinHooks::ConnectInputs(CTxDB& txdb,
     return true;
 }
 
-bool CNamecoinHooks::DisconnectInputs(CTxDB& txdb,
+bool CChronocoinHooks::DisconnectInputs(CTxDB& txdb,
         const CTransaction& tx,
         CBlockIndex* pindexBlock)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return true;
 
     vector<vector<unsigned char> > vvchArgs;
@@ -2007,7 +2007,7 @@ bool CNamecoinHooks::DisconnectInputs(CTxDB& txdb,
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("DisconnectInputsHook() : could not decode namecoin tx");
+        return error("DisconnectInputsHook() : could not decode chronocoin tx");
     if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
     {
         CNameDB dbName("cr+", txdb);
@@ -2034,9 +2034,9 @@ bool CNamecoinHooks::DisconnectInputs(CTxDB& txdb,
     return true;
 }
 
-bool CNamecoinHooks::CheckTransaction(const CTransaction& tx)
+bool CChronocoinHooks::CheckTransaction(const CTransaction& tx)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
+    if (tx.nVersion != CHRONOCOIN_TX_VERSION)
         return true;
 
     vector<vector<unsigned char> > vvch;
@@ -2100,7 +2100,7 @@ static string nameFromOp(int op)
     }
 }
 
-bool CNamecoinHooks::ExtractAddress(const CScript& script, string& address)
+bool CChronocoinHooks::ExtractAddress(const CScript& script, string& address)
 {
     if (script.size() == 1 && script[0] == OP_RETURN)
     {
@@ -2133,12 +2133,12 @@ bool CNamecoinHooks::ExtractAddress(const CScript& script, string& address)
     return true;
 }
 
-bool CNamecoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
+bool CChronocoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
 {
     return true;
 }
 
-bool CNamecoinHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
+bool CChronocoinHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
 {
     return true;
 }
@@ -2168,15 +2168,15 @@ bool GenesisBlock(CBlock& block, int extra)
     return true;
 }
 
-bool CNamecoinHooks::GenesisBlock(CBlock& block)
+bool CChronocoinHooks::GenesisBlock(CBlock& block)
 {
     if (fTestNet)
         return false;
 
-    return ::GenesisBlock(block, NAME_COIN_GENESIS_EXTRA);
+    return ::GenesisBlock(block, CHRONO_COIN_GENESIS_EXTRA);
 }
 
-int CNamecoinHooks::LockinHeight()
+int CChronocoinHooks::LockinHeight()
 {
     if (fTestNet)
         return 0;
@@ -2184,7 +2184,7 @@ int CNamecoinHooks::LockinHeight()
     return 112896;
 }
 
-bool CNamecoinHooks::Lockin(int nHeight, uint256 hash)
+bool CChronocoinHooks::Lockin(int nHeight, uint256 hash)
 {
     if (!fTestNet)
         if ((nHeight == 2016 && hash != uint256("0x0000000000660bad0d9fbde55ba7ee14ddf766ed5f527e3fbca523ac11460b92")) ||
@@ -2203,9 +2203,9 @@ bool CNamecoinHooks::Lockin(int nHeight, uint256 hash)
     return true;
 }
 
-string CNamecoinHooks::IrcPrefix()
+string CChronocoinHooks::IrcPrefix()
 {
-    return "namecoin";
+    return "chronocoin";
 }
 
 unsigned short GetDefaultPort()
@@ -2219,12 +2219,12 @@ const char *strDNSSeed[] = { NULL };
 string GetDefaultDataDirSuffix() {
 #ifdef __WXMSW__
     // Windows
-    return string("Namecoin");
+    return string("Chronocoin");
 #else
 #ifdef MAC_OSX
-    return string("Namecoin");
+    return string("Chronocoin");
 #else
-    return string(".namecoin");
+    return string(".chronocoin");
 #endif
 #endif
 }

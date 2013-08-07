@@ -209,12 +209,12 @@ unsigned int pnSeed[] =
 string GetDefaultDataDirSuffix() {
 #ifdef __WXMSW__
     // Windows
-    return string("Namecoin");
+    return string("Chronocoin");
 #else
 #ifdef MAC_OSX
-    return string("Namecoin");
+    return string("Chronocoin");
 #else
-    return string(".namecoin");
+    return string(".chronocoin");
 #endif
 #endif
 }

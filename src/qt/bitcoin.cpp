@@ -107,7 +107,7 @@ static void QueueShutdown()
  */
 static std::string Translate(const char* psz)
 {
-    return QCoreApplication::translate("namecoin-core", psz).toStdString();
+    return QCoreApplication::translate("chronocoin-core", psz).toStdString();
 }
 
 /* Handle runaway exceptions. Shows a message box with the problem and quits the program.
@@ -115,7 +115,7 @@ static std::string Translate(const char* psz)
 static void handleRunawayException(std::exception *e)
 {
     PrintExceptionContinue(e, "Runaway exception");
-    QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. Namecoin can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
+    QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. Chronocoin can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
     exit(1);
 }
 
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
         {
             // This message can not be translated, as translation is not initialized yet
             // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
-            QMessageBox::critical(0, "Namecoin",
+            QMessageBox::critical(0, "Chronocoin",
                                   QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
             return 0;
         }
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
     {
         // This message can not be translated, as translation is not initialized yet
         // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
-        QMessageBox::critical(0, "Namecoin",
+        QMessageBox::critical(0, "Chronocoin",
                               QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
         return 0;
     }
@@ -174,12 +174,12 @@ int main(int argc, char *argv[])
 
     // Application identification (must be set before OptionsModel is initialized,
     // as it is used to locate QSettings)
-    app.setOrganizationName("Namecoin");
+    app.setOrganizationName("Chronocoin");
     app.setOrganizationDomain("dot-bit.org");
     if(GetBoolArg("-testnet")) // Separate UI settings for testnet
-        app.setApplicationName("Namecoin-Qt-testnet");
+        app.setApplicationName("Chronocoin-Qt-testnet");
     else
-        app.setApplicationName("Namecoin-Qt");
+        app.setApplicationName("Chronocoin-Qt");
 
     // ... then GUI settings:
     OptionsModel optionsModel;

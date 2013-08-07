@@ -7,7 +7,7 @@
 #include "../main.h"
 #include "../hook.h"
 #include "../wallet.h"
-#include "../namecoin.h"
+#include "../chronocoin.h"
 
 #include "../json/json_spirit.h"
 #include "../json/json_spirit_utils.h"

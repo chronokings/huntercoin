@@ -357,7 +357,7 @@ p, li { white-space: pre-wrap; }
        <item>
         <widget class="QValidatedLineEdit" name="transferTo">
          <property name="toolTip">
-          <string>The Namecoin address to transfer domain to
+          <string>The Chronocoin address to transfer domain to
 (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9).
 Leave empty, if not needed.</string>
          </property>

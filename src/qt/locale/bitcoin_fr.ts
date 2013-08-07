@@ -6,13 +6,13 @@
     <name>AboutDialog</name>
     <message>
         <location filename="../forms/aboutdialog.ui" line="+14"/>
-        <source>About Namecoin</source>
-        <translation>À propos de Namecoin</translation>
+        <source>About Chronocoin</source>
+        <translation>À propos de Chronocoin</translation>
     </message>
     <message>
         <location line="+39"/>
-        <source>&lt;b&gt;Namecoin&lt;/b&gt; version</source>
-        <translation>&lt;b&gt;Namecoin&lt;/b&gt; version</translation>
+        <source>&lt;b&gt;Chronocoin&lt;/b&gt; version</source>
+        <translation>&lt;b&gt;Chronocoin&lt;/b&gt; version</translation>
     </message>
     <message>
         <location line="+57"/>
@@ -36,7 +36,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+0"/>
-        <source>2009-%1 The Bitcoin and Namecoin developers</source>
+        <source>2009-%1 The Bitcoin and Chronocoin developers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -69,8 +69,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="-46"/>
-        <source>These are your Namecoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
-        <translation>Voici vos adresses Namecoin qui vous permettent de recevoir des paiements. Vous pouvez donner une adresse différente à chaque expéditeur afin de savoir qui vous paye.</translation>
+        <source>These are your Chronocoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
+        <translation>Voici vos adresses Chronocoin qui vous permettent de recevoir des paiements. Vous pouvez donner une adresse différente à chaque expéditeur afin de savoir qui vous paye.</translation>
     </message>
     <message>
         <location line="+60"/>
@@ -84,8 +84,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+11"/>
-        <source>Sign a message to prove you own a Namecoin address</source>
-        <translation>Signer un message pour prouver que vous détenez une adresse Namecoin</translation>
+        <source>Sign a message to prove you own a Chronocoin address</source>
+        <translation>Signer un message pour prouver que vous détenez une adresse Chronocoin</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -99,8 +99,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="-14"/>
-        <source>Verify a message to ensure it was signed with a specified Namecoin address</source>
-        <translation>Vérifier un message pour vous assurer qu&apos;il a bien été signé avec l&apos;adresse Namecoin spécifiée</translation>
+        <source>Verify a message to ensure it was signed with a specified Chronocoin address</source>
+        <translation>Vérifier un message pour vous assurer qu&apos;il a bien été signé avec l&apos;adresse Chronocoin spécifiée</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -235,8 +235,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR NAMECOINS&lt;/b&gt;!</source>
-        <translation>Attention : Si vous chiffrez votre porte-monnaie et perdez votre phrase de passe, vous &lt;b&gt;PERDREZ ACCÈS À TOUS VOS Namecoins&lt;/b&gt; !</translation>
+        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR CHRONOCOINS&lt;/b&gt;!</source>
+        <translation>Attention : Si vous chiffrez votre porte-monnaie et perdez votre phrase de passe, vous &lt;b&gt;PERDREZ ACCÈS À TOUS VOS Chronocoins&lt;/b&gt; !</translation>
     </message>
     <message>
         <location line="+0"/>
@@ -262,8 +262,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="-56"/>
-        <source>Namecoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Namecoins from being stolen by malware infecting your computer.</source>
-        <translation type="unfinished">Namecoin va à présent se fermer pour terminer la procédure de cryptage. N&apos;oubliez pas que le chiffrement de votre porte-monnaie ne peut pas fournir une protection totale contre le vol par des logiciels malveillants qui infecteraient votre ordinateur.</translation>
+        <source>Chronocoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Chronocoins from being stolen by malware infecting your computer.</source>
+        <translation type="unfinished">Chronocoin va à présent se fermer pour terminer la procédure de cryptage. N&apos;oubliez pas que le chiffrement de votre porte-monnaie ne peut pas fournir une protection totale contre le vol par des logiciels malveillants qui infecteraient votre ordinateur.</translation>
     </message>
     <message>
         <location line="+13"/>
@@ -311,14 +311,14 @@ This product includes software developed by the OpenSSL Project for use in the O
     <name>BitcoinGUI</name>
     <message>
         <location filename="../bitcoin.cpp" line="+118"/>
-        <source>A fatal error occurred. Namecoin can no longer continue safely and will quit.</source>
-        <translation type="unfinished">Une erreur fatale est survenue. Namecoin ne peut plus continuer à fonctionner de façon sûre et va s&apos;arrêter.</translation>
+        <source>A fatal error occurred. Chronocoin can no longer continue safely and will quit.</source>
+        <translation type="unfinished">Une erreur fatale est survenue. Chronocoin ne peut plus continuer à fonctionner de façon sûre et va s&apos;arrêter.</translation>
     </message>
     <message>
         <location filename="../bitcoingui.cpp" line="+74"/>
         <location line="+565"/>
-        <source>Namecoin</source>
-        <translation type="unfinished">Namecoin</translation>
+        <source>Chronocoin</source>
+        <translation type="unfinished">Chronocoin</translation>
     </message>
     <message>
         <location line="-565"/>
@@ -342,8 +342,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Send coins to a Namecoin address</source>
-        <translation type="unfinished">Envoyer des pièces à une adresse Namecoin</translation>
+        <source>Send coins to a Chronocoin address</source>
+        <translation type="unfinished">Envoyer des pièces à une adresse Chronocoin</translation>
     </message>
     <message>
         <location line="+6"/>
@@ -382,7 +382,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Manage names registered via Namecoin</source>
+        <source>Manage names registered via Chronocoin</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -397,13 +397,13 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;About Namecoin</source>
-        <translation type="unfinished">À &amp;propos de Namecoin</translation>
+        <source>&amp;About Chronocoin</source>
+        <translation type="unfinished">À &amp;propos de Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Show information about Namecoin</source>
-        <translation type="unfinished">Afficher des informations à propos de Namecoin</translation>
+        <source>Show information about Chronocoin</source>
+        <translation type="unfinished">Afficher des informations à propos de Chronocoin</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -422,8 +422,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Modify configuration options for Namecoin</source>
-        <translation type="unfinished">Modifier les options de configuration de Namecoin</translation>
+        <source>Modify configuration options for Chronocoin</source>
+        <translation type="unfinished">Modifier les options de configuration de Chronocoin</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -472,8 +472,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Sign messages with your Namecoin addresses to prove you own them</source>
-        <translation type="unfinished">Signer les messages avec vos adresses Namecoin pour prouver que vous les détenez</translation>
+        <source>Sign messages with your Chronocoin addresses to prove you own them</source>
+        <translation type="unfinished">Signer les messages avec vos adresses Chronocoin pour prouver que vous les détenez</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -482,8 +482,8 @@ This product includes software developed by the OpenSSL Project for use in the O
     </message>
     <message>
         <location line="+1"/>
-        <source>Verify messages to ensure they were signed with specified Namecoin addresses</source>
-        <translation type="unfinished">Vérifier les messages pour vous assurer qu&apos;ils ont bien été signés avec les adresses Namecoin spécifiées</translation>
+        <source>Verify messages to ensure they were signed with specified Chronocoin addresses</source>
+        <translation type="unfinished">Vérifier les messages pour vous assurer qu&apos;ils ont bien été signés avec les adresses Chronocoin spécifiées</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -539,15 +539,15 @@ This product includes software developed by the OpenSSL Project for use in the O
     <message>
         <location line="-5"/>
         <location line="+5"/>
-        <source>Namecoin client</source>
-        <translation type="unfinished">Client Namecoin</translation>
+        <source>Chronocoin client</source>
+        <translation type="unfinished">Client Chronocoin</translation>
     </message>
     <message numerus="yes">
         <location line="+81"/>
-        <source>%n active connection(s) to Namecoin network</source>
+        <source>%n active connection(s) to Chronocoin network</source>
         <translation type="unfinished">
-            <numerusform>%n connexion active avec le réseau Namecoin</numerusform>
-            <numerusform>%n connexions actives avec le réseau Namecoin</numerusform>
+            <numerusform>%n connexion active avec le réseau Chronocoin</numerusform>
+            <numerusform>%n connexions actives avec le réseau Chronocoin</numerusform>
         </translation>
     </message>
     <message>
@@ -681,8 +681,8 @@ Adresse : %4
     <message>
         <location line="-28"/>
         <location line="+28"/>
-        <source>URI can not be parsed! This can be caused by an invalid Namecoin address or malformed URI parameters.</source>
-        <translation type="unfinished">L&apos;URI ne peut être analysé ! Cela peut être causé par une adresse Namecoin invalide ou par des paramètres d&apos;URI malformés.</translation>
+        <source>URI can not be parsed! This can be caused by an invalid Chronocoin address or malformed URI parameters.</source>
+        <translation type="unfinished">L&apos;URI ne peut être analysé ! Cela peut être causé par une adresse Chronocoin invalide ou par des paramètres d&apos;URI malformés.</translation>
     </message>
     <message>
         <location line="+17"/>
@@ -835,7 +835,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location line="+18"/>
-        <source>The Namecoin address to transfer domain to
+        <source>The Chronocoin address to transfer domain to
 (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9).
 Leave empty, if not needed.</source>
         <translation type="unfinished"></translation>
@@ -960,8 +960,8 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="-5"/>
-        <source>The entered address &quot;%1&quot; is not a valid Namecoin address.</source>
-        <translation>L&apos;adresse fournie « %1 » n&apos;est pas une adresse Namecoin valide.</translation>
+        <source>The entered address &quot;%1&quot; is not a valid Chronocoin address.</source>
+        <translation>L&apos;adresse fournie « %1 » n&apos;est pas une adresse Chronocoin valide.</translation>
     </message>
     <message>
         <location line="+10"/>
@@ -979,8 +979,8 @@ Leave empty, if not needed.</source>
     <message>
         <location filename="../guiutil.cpp" line="+423"/>
         <location line="+12"/>
-        <source>Namecoin-Qt</source>
-        <translation>Namecoin-Qt</translation>
+        <source>Chronocoin-Qt</source>
+        <translation>Chronocoin-Qt</translation>
     </message>
     <message>
         <location line="-12"/>
@@ -1032,12 +1032,12 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="+13"/>
-        <source>Enter a name or domain name (prefixed with d/) to be registered via Namecoin.</source>
+        <source>Enter a name or domain name (prefixed with d/) to be registered via Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location line="+16"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Namecoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Chronocoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1188,7 +1188,7 @@ to the network and creates a pending name_firstupdate transaction.</source>
     </message>
     <message>
         <location line="+126"/>
-        <source>Name registered using Namecoin.</source>
+        <source>Name registered using Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1227,13 +1227,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+31"/>
-        <source>Automatically start Namecoin after logging in to the system.</source>
-        <translation>Démarrer Namecoin automatiquement lors de l&apos;ouverture une session sur l&apos;ordinateur.</translation>
+        <source>Automatically start Chronocoin after logging in to the system.</source>
+        <translation>Démarrer Chronocoin automatiquement lors de l&apos;ouverture une session sur l&apos;ordinateur.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;Start Namecoin on system login</source>
-        <translation>&amp;Démarrer Namecoin lors de l&apos;ouverture d&apos;une session</translation>
+        <source>&amp;Start Chronocoin on system login</source>
+        <translation>&amp;Démarrer Chronocoin lors de l&apos;ouverture d&apos;une session</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -1252,8 +1252,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+6"/>
-        <source>Automatically open the Namecoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
-        <translation>Ouvrir le port du client Namecoin automatiquement sur le routeur. Cela ne fonctionne que si votre routeur supporte l&apos;UPnP et si la fonctionnalité est activée.</translation>
+        <source>Automatically open the Chronocoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
+        <translation>Ouvrir le port du client Chronocoin automatiquement sur le routeur. Cela ne fonctionne que si votre routeur supporte l&apos;UPnP et si la fonctionnalité est activée.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1262,8 +1262,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Connect to the Namecoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
-        <translation>Connexion au réseau Namecoin à travers un proxy SOCKS (par ex. lors d&apos;une connexion via Tor).</translation>
+        <source>Connect to the Chronocoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
+        <translation>Connexion au réseau Chronocoin à travers un proxy SOCKS (par ex. lors d&apos;une connexion via Tor).</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1337,8 +1337,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+13"/>
-        <source>The user interface language can be set here. This setting will take effect after restarting Namecoin.</source>
-        <translation>La langue de l&apos;interface utilisateur peut être définie ici. Ce réglage sera pris en compte après redémarrage de Namecoin.</translation>
+        <source>The user interface language can be set here. This setting will take effect after restarting Chronocoin.</source>
+        <translation>La langue de l&apos;interface utilisateur peut être définie ici. Ce réglage sera pris en compte après redémarrage de Chronocoin.</translation>
     </message>
     <message>
         <location line="+11"/>
@@ -1352,8 +1352,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+9"/>
-        <source>Whether to show Namecoin addresses in the transaction list or not.</source>
-        <translation>Détermine si les adresses Namecoin seront affichées sur la liste des transactions.</translation>
+        <source>Whether to show Chronocoin addresses in the transaction list or not.</source>
+        <translation>Détermine si les adresses Chronocoin seront affichées sur la liste des transactions.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1404,8 +1404,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="-9"/>
         <location line="+9"/>
-        <source>This setting will take effect after restarting Namecoin.</source>
-        <translation>Ce réglage sera pris en compte après un redémarrage de Namecoin.</translation>
+        <source>This setting will take effect after restarting Chronocoin.</source>
+        <translation>Ce réglage sera pris en compte après un redémarrage de Chronocoin.</translation>
     </message>
     <message>
         <location line="+29"/>
@@ -1423,8 +1423,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+51"/>
         <location line="+183"/>
-        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Namecoin network after a connection is established, but this process has not completed yet.</source>
-        <translation>Les informations affichées peuvent être obsolètes. Votre porte-monnaie est automatiquement synchronisé avec le réseau Namecoin lorsque la connexion s&apos;établit, or ce processus n&apos;est pas encore terminé.</translation>
+        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Chronocoin network after a connection is established, but this process has not completed yet.</source>
+        <translation>Les informations affichées peuvent être obsolètes. Votre porte-monnaie est automatiquement synchronisé avec le réseau Chronocoin lorsque la connexion s&apos;établit, or ce processus n&apos;est pas encore terminé.</translation>
     </message>
     <message>
         <location line="-141"/>
@@ -1487,7 +1487,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <name>PaymentServer</name>
     <message>
         <location filename="../paymentserver.cpp" line="+108"/>
-        <source>Cannot start namecoin: click-to-pay handler</source>
+        <source>Cannot start chronocoin: click-to-pay handler</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1637,8 +1637,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Show the Namecoin-Qt help message to get a list with possible Namecoin command-line options.</source>
-        <translation>Afficher le message d&apos;aide de Namecoin-Qt pour obtenir la liste des options de ligne de commande disponibles pour Namecoin.</translation>
+        <source>Show the Chronocoin-Qt help message to get a list with possible Chronocoin command-line options.</source>
+        <translation>Afficher le message d&apos;aide de Chronocoin-Qt pour obtenir la liste des options de ligne de commande disponibles pour Chronocoin.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1657,13 +1657,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="-104"/>
-        <source>Namecoin - Debug window</source>
-        <translation>Namecoin - Fenêtre de débogage</translation>
+        <source>Chronocoin - Debug window</source>
+        <translation>Chronocoin - Fenêtre de débogage</translation>
     </message>
     <message>
         <location line="+25"/>
-        <source>Namecoin Core</source>
-        <translation>Noyau Namecoin</translation>
+        <source>Chronocoin Core</source>
+        <translation>Noyau Chronocoin</translation>
     </message>
     <message>
         <location line="+279"/>
@@ -1672,8 +1672,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Open the Namecoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
-        <translation>Ouvrir le journal de débogage de Namecoin depuis le répertoire de données actuel. Cela peut prendre quelques secondes pour les journaux de grande taille.</translation>
+        <source>Open the Chronocoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
+        <translation>Ouvrir le journal de débogage de Chronocoin depuis le répertoire de données actuel. Cela peut prendre quelques secondes pour les journaux de grande taille.</translation>
     </message>
     <message>
         <location line="+102"/>
@@ -1682,8 +1682,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../rpcconsole.cpp" line="-30"/>
-        <source>Welcome to the Namecoin RPC console.</source>
-        <translation>Bienvenue sur la console RPC de Namecoin.</translation>
+        <source>Welcome to the Chronocoin RPC console.</source>
+        <translation>Bienvenue sur la console RPC de Chronocoin.</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -1866,8 +1866,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../sendcoinsentry.cpp" line="+1"/>
-        <source>Enter a Namecoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Entrez une adresse Namecoin (par ex. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <translation>Entrez une adresse Chronocoin (par ex. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
 </context>
 <context>
@@ -1931,8 +1931,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+21"/>
-        <source>Sign the message to prove you own this Namecoin address</source>
-        <translation>Signer le message pour prouver que vous détenez cette adresse Namecoin</translation>
+        <source>Sign the message to prove you own this Chronocoin address</source>
+        <translation>Signer le message pour prouver que vous détenez cette adresse Chronocoin</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1967,8 +1967,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+40"/>
-        <source>Verify the message to ensure it was signed with the specified Namecoin address</source>
-        <translation>Vérifier le message pour vous assurer qu&apos;il a bien été signé par l&apos;adresse Namecoin spécifiée</translation>
+        <source>Verify the message to ensure it was signed with the specified Chronocoin address</source>
+        <translation>Vérifier le message pour vous assurer qu&apos;il a bien été signé par l&apos;adresse Chronocoin spécifiée</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1983,8 +1983,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location filename="../signverifymessagedialog.cpp" line="+26"/>
         <location line="+3"/>
-        <source>Enter a Namecoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Entrez une adresse Namecoin (par ex. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <translation>Entrez une adresse Chronocoin (par ex. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
     <message>
         <location line="-2"/>
@@ -1993,8 +1993,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+3"/>
-        <source>Enter Namecoin signature</source>
-        <translation>Entrer une signature Namecoin</translation>
+        <source>Enter Chronocoin signature</source>
+        <translation>Entrer une signature Chronocoin</translation>
     </message>
     <message>
         <location line="+82"/>
@@ -2553,7 +2553,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+38"/>
-        <source>Invalid Namecoin address</source>
+        <source>Invalid Chronocoin address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2573,13 +2573,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
 </context>
 <context>
-    <name>namecoin-core</name>
+    <name>chronocoin-core</name>
     <message>
         <location filename="../bitcoinstrings.cpp" line="+9"/>
         <source>%s, you must set a rpcpassword in the configuration file:
  %s
 It is recommended you use the following random password:
-rpcuser=namecoinrpc
+rpcuser=chronocoinrpc
 rpcpassword=%s
 (you do not need to remember this password)
 The username and password MUST NOT be the same.
@@ -2588,7 +2588,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
         <translation type="unfinished">%s, vous devez établir un mot de passe rpc dans le fichier de configuration :
  %s
 Il vous est recommandé d&apos;utiliser le mot de passe aléatoire suivant :
-rcpuser=namecoinrpc
+rcpuser=chronocoinrpc
 rpcpassword=%s
 (vous n&apos;avez pas besoin de mémoriser ce mot de passe)
 Le nom d&apos;utilisateur et le mot de passe NE DOIVENT PAS être identiques.
@@ -2616,8 +2616,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture accordés 
     </message>
     <message>
         <location line="+3"/>
-        <source>Cannot obtain a lock on data directory %s. Namecoin is probably already running.</source>
-        <translation type="unfinished">Impossible d’obtenir un verrou sur le répertoire de données %s. Namecoin fonctionne probablement déjà.</translation>
+        <source>Cannot obtain a lock on data directory %s. Chronocoin is probably already running.</source>
+        <translation type="unfinished">Impossible d’obtenir un verrou sur le répertoire de données %s. Chronocoin fonctionne probablement déjà.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -2671,8 +2671,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture accordés 
     </message>
     <message>
         <location line="+3"/>
-        <source>Unable to bind to %s on this computer. Namecoin is probably already running.</source>
-        <translation type="unfinished">Impossible de se lier à %s sur cet ordinateur. Namecoin fonctionne probablement déjà.</translation>
+        <source>Unable to bind to %s on this computer. Chronocoin is probably already running.</source>
+        <translation type="unfinished">Impossible de se lier à %s sur cet ordinateur. Chronocoin fonctionne probablement déjà.</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -2686,8 +2686,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture accordés 
     </message>
     <message>
         <location line="+3"/>
-        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Namecoin will not work properly.</source>
-        <translation type="unfinished">Attention : veuillez vérifier que l&apos;heure et la date de votre ordinateur sont correctes ! Si votre horloge n&apos;est pas à l&apos;heure, Namecoin ne fonctionnera pas correctement.</translation>
+        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Chronocoin will not work properly.</source>
+        <translation type="unfinished">Attention : veuillez vérifier que l&apos;heure et la date de votre ordinateur sont correctes ! Si votre horloge n&apos;est pas à l&apos;heure, Chronocoin ne fonctionnera pas correctement.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -2740,8 +2740,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture seule acco
     </message>
     <message>
         <location line="+1"/>
-        <source>Namecoin version</source>
-        <translation type="unfinished">Version de Namecoin</translation>
+        <source>Chronocoin version</source>
+        <translation type="unfinished">Version de Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -2835,8 +2835,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture seule acco
     </message>
     <message>
         <location line="+1"/>
-        <source>Error loading wallet.dat: Wallet requires newer version of Namecoin</source>
-        <translation type="unfinished">Erreur lors du chargement de wallet.dat : le porte-monnaie nécessite une version plus récente de Namecoin</translation>
+        <source>Error loading wallet.dat: Wallet requires newer version of Chronocoin</source>
+        <translation type="unfinished">Erreur lors du chargement de wallet.dat : le porte-monnaie nécessite une version plus récente de Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3106,7 +3106,7 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture seule acco
     <message>
         <location line="+1"/>
         <source>SSL options: (see the Bitcoin Wiki for SSL setup instructions)</source>
-        <translation type="unfinished">Options SSL : (cf. le wiki de Namecoin pour les instructions de configuration du SSL)</translation>
+        <translation type="unfinished">Options SSL : (cf. le wiki de Chronocoin pour les instructions de configuration du SSL)</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3115,8 +3115,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture seule acco
     </message>
     <message>
         <location line="+1"/>
-        <source>Send command to -server or namecoind</source>
-        <translation type="unfinished">Envoyer une commande à -server ou à namecoind</translation>
+        <source>Send command to -server or chronocoind</source>
+        <translation type="unfinished">Envoyer une commande à -server ou à chronocoind</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3185,8 +3185,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture seule acco
     </message>
     <message>
         <location line="+1"/>
-        <source>Specify pid file (default: namecoind.pid)</source>
-        <translation type="unfinished">Spécifier le fichier PID (par défaut : namecoind.pid)</translation>
+        <source>Specify pid file (default: chronocoind.pid)</source>
+        <translation type="unfinished">Spécifier le fichier PID (par défaut : chronocoind.pid)</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3280,8 +3280,8 @@ Si le fichier n&apos;existe pas, créez-le avec les droits de lecture seule acco
     </message>
     <message>
         <location line="+1"/>
-        <source>Wallet needed to be rewritten: restart Namecoin to complete</source>
-        <translation type="unfinished">Le porte-monnaie nécessitait une réécriture : veuillez redémarrer Namecoin pour terminer l&apos;opération</translation>
+        <source>Wallet needed to be rewritten: restart Chronocoin to complete</source>
+        <translation type="unfinished">Le porte-monnaie nécessitait une réécriture : veuillez redémarrer Chronocoin pour terminer l&apos;opération</translation>
     </message>
     <message>
         <location line="+1"/>

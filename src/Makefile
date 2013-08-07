@@ -31,7 +31,7 @@ LIBS= \
    -l ssl \
    -l crypto
 
-namecoin: USE_UPNP:=1
+chronocoin: USE_UPNP:=1
 	ifdef USE_UPNP
 		LIBS += -l miniupnpc
 		DEFS += -DUSE_UPNP=$(USE_UPNP)
@@ -51,7 +51,7 @@ namecoin: USE_UPNP:=1
 			-l pthread
 	endif
 
-namecoind: USE_UPNP:=0
+chronocoind: USE_UPNP:=0
 	ifdef USE_UPNP
 		LIBS += -l miniupnpc
 		DEFS += -DUSE_UPNP=$(USE_UPNP)
@@ -96,7 +96,7 @@ OBJS = \
     $(BASE_OBJS) \
     obj/hook.o
 
-all: namecoind
+all: chronocoind
 
 
 obj/%.o: %.cpp $(HEADERS)
@@ -111,13 +111,13 @@ obj/nogui/%.o: %.cpp $(HEADERS)
 obj/test/%.o: test/%.cpp $(HEADERS)
 	$(CXX) -c $(CFLAGS) -o $@ $<
 
-obj/nogui/namecoin.o: namecoin.h
+obj/nogui/chronocoin.o: chronocoin.h
 
-namecoind: $(BASE_OBJS:obj/%=obj/nogui/%) obj/nogui/namecoin.o
+chronocoind: $(BASE_OBJS:obj/%=obj/nogui/%) obj/nogui/chronocoin.o
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 clean:
-	-rm -f namecoin namecoind
+	-rm -f chronocoin chronocoind
 	-rm -f obj/*.o
 	-rm -f obj/nogui/*.o
 	-rm -f obj/test/*.o

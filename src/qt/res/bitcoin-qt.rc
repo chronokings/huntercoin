@@ -33,14 +33,14 @@ BEGIN
     BEGIN
         BLOCK "040904E4" // U.S. English - multilingual (hex)
         BEGIN
-            VALUE "CompanyName",        "Namecoin"
-            VALUE "FileDescription",    "Namecoin-Qt (OSS GUI client for Namecoin)"
+            VALUE "CompanyName",        "Chronocoin"
+            VALUE "FileDescription",    "Chronocoin-Qt (OSS GUI client for Chronocoin)"
             VALUE "FileVersion",        VER_FILEVERSION_STR
-            VALUE "InternalName",       "namecoin-qt"
-            VALUE "LegalCopyright",     "2009-2013 The Bitcoin and Namecoin developers"
+            VALUE "InternalName",       "chronocoin-qt"
+            VALUE "LegalCopyright",     "2009-2013 The Bitcoin and Chronocoin developers"
             VALUE "LegalTrademarks1",   "Distributed under the MIT/X11 software license, see the accompanying file COPYING or http://www.opensource.org/licenses/mit-license.php."
-            VALUE "OriginalFilename",   "namecoin-qt.exe"
-            VALUE "ProductName",        "Namecoin-Qt"
+            VALUE "OriginalFilename",   "chronocoin-qt.exe"
+            VALUE "ProductName",        "Chronocoin-Qt"
             VALUE "ProductVersion",     VER_PRODUCTVERSION_STR
         END
     END

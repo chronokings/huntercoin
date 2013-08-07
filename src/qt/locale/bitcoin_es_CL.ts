@@ -6,13 +6,13 @@
     <name>AboutDialog</name>
     <message>
         <location filename="../forms/aboutdialog.ui" line="+14"/>
-        <source>About Namecoin</source>
-        <translation>Sobre Namecoin</translation>
+        <source>About Chronocoin</source>
+        <translation>Sobre Chronocoin</translation>
     </message>
     <message>
         <location line="+39"/>
-        <source>&lt;b&gt;Namecoin&lt;/b&gt; version</source>
-        <translation>&lt;b&gt;Namecoin&lt;/b&gt; - versión </translation>
+        <source>&lt;b&gt;Chronocoin&lt;/b&gt; version</source>
+        <translation>&lt;b&gt;Chronocoin&lt;/b&gt; - versión </translation>
     </message>
     <message>
         <location line="+57"/>
@@ -39,7 +39,7 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+0"/>
-        <source>2009-%1 The Bitcoin and Namecoin developers</source>
+        <source>2009-%1 The Bitcoin and Chronocoin developers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -72,8 +72,8 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="-46"/>
-        <source>These are your Namecoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
-        <translation>Estas son tus direcciones Namecoin para recibir pagos. Puedes utilizar una diferente por cada persona emisora para saber quien te está pagando.</translation>
+        <source>These are your Chronocoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
+        <translation>Estas son tus direcciones Chronocoin para recibir pagos. Puedes utilizar una diferente por cada persona emisora para saber quien te está pagando.</translation>
     </message>
     <message>
         <location line="+60"/>
@@ -87,7 +87,7 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+11"/>
-        <source>Sign a message to prove you own a Namecoin address</source>
+        <source>Sign a message to prove you own a Chronocoin address</source>
         <translation>Firmar un mensaje para provar que usted es dueño de esta dirección</translation>
     </message>
     <message>
@@ -102,7 +102,7 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="-14"/>
-        <source>Verify a message to ensure it was signed with a specified Namecoin address</source>
+        <source>Verify a message to ensure it was signed with a specified Chronocoin address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -238,8 +238,8 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+1"/>
-        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR NAMECOINS&lt;/b&gt;!</source>
-        <translation>Atención: ¡Si codificas tu billetera y pierdes la contraseña perderás &lt;b&gt;TODOS TUS Namecoins&lt;/b&gt;!</translation>
+        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR CHRONOCOINS&lt;/b&gt;!</source>
+        <translation>Atención: ¡Si codificas tu billetera y pierdes la contraseña perderás &lt;b&gt;TODOS TUS Chronocoins&lt;/b&gt;!</translation>
     </message>
     <message>
         <location line="+0"/>
@@ -265,8 +265,8 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="-56"/>
-        <source>Namecoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Namecoins from being stolen by malware infecting your computer.</source>
-        <translation type="unfinished">Namecoin se cerrará para finalizar el proceso de encriptación. Recuerde que encriptar su billetera no protegera completatamente sus Namecoins de ser robados por malware que infecte su computador</translation>
+        <source>Chronocoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Chronocoins from being stolen by malware infecting your computer.</source>
+        <translation type="unfinished">Chronocoin se cerrará para finalizar el proceso de encriptación. Recuerde que encriptar su billetera no protegera completatamente sus Chronocoins de ser robados por malware que infecte su computador</translation>
     </message>
     <message>
         <location line="+13"/>
@@ -314,14 +314,14 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     <name>BitcoinGUI</name>
     <message>
         <location filename="../bitcoin.cpp" line="+118"/>
-        <source>A fatal error occurred. Namecoin can no longer continue safely and will quit.</source>
+        <source>A fatal error occurred. Chronocoin can no longer continue safely and will quit.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../bitcoingui.cpp" line="+74"/>
         <location line="+565"/>
-        <source>Namecoin</source>
-        <translation type="unfinished">Namecoin</translation>
+        <source>Chronocoin</source>
+        <translation type="unfinished">Chronocoin</translation>
     </message>
     <message>
         <location line="-565"/>
@@ -345,8 +345,8 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+1"/>
-        <source>Send coins to a Namecoin address</source>
-        <translation type="unfinished">Enviar monedas a una dirección Namecoin</translation>
+        <source>Send coins to a Chronocoin address</source>
+        <translation type="unfinished">Enviar monedas a una dirección Chronocoin</translation>
     </message>
     <message>
         <location line="+6"/>
@@ -385,7 +385,7 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+1"/>
-        <source>Manage names registered via Namecoin</source>
+        <source>Manage names registered via Chronocoin</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -400,13 +400,13 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;About Namecoin</source>
-        <translation type="unfinished">&amp;Sobre Namecoin</translation>
+        <source>&amp;About Chronocoin</source>
+        <translation type="unfinished">&amp;Sobre Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Show information about Namecoin</source>
-        <translation type="unfinished">Muestra información acerca de Namecoin</translation>
+        <source>Show information about Chronocoin</source>
+        <translation type="unfinished">Muestra información acerca de Chronocoin</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -425,8 +425,8 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+1"/>
-        <source>Modify configuration options for Namecoin</source>
-        <translation type="unfinished">Modifica las opciones de configuración de Namecoin</translation>
+        <source>Modify configuration options for Chronocoin</source>
+        <translation type="unfinished">Modifica las opciones de configuración de Chronocoin</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -475,7 +475,7 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+1"/>
-        <source>Sign messages with your Namecoin addresses to prove you own them</source>
+        <source>Sign messages with your Chronocoin addresses to prove you own them</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -485,7 +485,7 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     </message>
     <message>
         <location line="+1"/>
-        <source>Verify messages to ensure they were signed with specified Namecoin addresses</source>
+        <source>Verify messages to ensure they were signed with specified Chronocoin addresses</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -542,15 +542,15 @@ Eric Young (eay@cryptsoft.com) y UPnP software escrito por Thomas Bernard.</tran
     <message>
         <location line="-5"/>
         <location line="+5"/>
-        <source>Namecoin client</source>
-        <translation type="unfinished">Cliente Namecoin</translation>
+        <source>Chronocoin client</source>
+        <translation type="unfinished">Cliente Chronocoin</translation>
     </message>
     <message numerus="yes">
         <location line="+81"/>
-        <source>%n active connection(s) to Namecoin network</source>
+        <source>%n active connection(s) to Chronocoin network</source>
         <translation type="unfinished">
-            <numerusform>%n conexión activa hacia la red Namecoin</numerusform>
-            <numerusform>%n conexiones activas hacia la red Namecoin</numerusform>
+            <numerusform>%n conexión activa hacia la red Chronocoin</numerusform>
+            <numerusform>%n conexiones activas hacia la red Chronocoin</numerusform>
         </translation>
     </message>
     <message>
@@ -683,7 +683,7 @@ Dirección: %4</translation>
     <message>
         <location line="-28"/>
         <location line="+28"/>
-        <source>URI can not be parsed! This can be caused by an invalid Namecoin address or malformed URI parameters.</source>
+        <source>URI can not be parsed! This can be caused by an invalid Chronocoin address or malformed URI parameters.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -837,7 +837,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location line="+18"/>
-        <source>The Namecoin address to transfer domain to
+        <source>The Chronocoin address to transfer domain to
 (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9).
 Leave empty, if not needed.</source>
         <translation type="unfinished"></translation>
@@ -962,8 +962,8 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="-5"/>
-        <source>The entered address &quot;%1&quot; is not a valid Namecoin address.</source>
-        <translation>La dirección introducida &quot;%1&quot; no es una dirección Namecoin valida.</translation>
+        <source>The entered address &quot;%1&quot; is not a valid Chronocoin address.</source>
+        <translation>La dirección introducida &quot;%1&quot; no es una dirección Chronocoin valida.</translation>
     </message>
     <message>
         <location line="+10"/>
@@ -981,7 +981,7 @@ Leave empty, if not needed.</source>
     <message>
         <location filename="../guiutil.cpp" line="+423"/>
         <location line="+12"/>
-        <source>Namecoin-Qt</source>
+        <source>Chronocoin-Qt</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1035,12 +1035,12 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="+13"/>
-        <source>Enter a name or domain name (prefixed with d/) to be registered via Namecoin.</source>
+        <source>Enter a name or domain name (prefixed with d/) to be registered via Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location line="+16"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Namecoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Chronocoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1191,7 +1191,7 @@ to the network and creates a pending name_firstupdate transaction.</source>
     </message>
     <message>
         <location line="+126"/>
-        <source>Name registered using Namecoin.</source>
+        <source>Name registered using Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1230,13 +1230,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+31"/>
-        <source>Automatically start Namecoin after logging in to the system.</source>
-        <translation>Inicia Namecoin automáticamente despues de encender el computador</translation>
+        <source>Automatically start Chronocoin after logging in to the system.</source>
+        <translation>Inicia Chronocoin automáticamente despues de encender el computador</translation>
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;Start Namecoin on system login</source>
-        <translation>&amp;Inicia Namecoin al iniciar el sistema</translation>
+        <source>&amp;Start Chronocoin on system login</source>
+        <translation>&amp;Inicia Chronocoin al iniciar el sistema</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -1255,8 +1255,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+6"/>
-        <source>Automatically open the Namecoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
-        <translation>Abre automáticamente el puerto del cliente Namecoin en el router. Esto funciona solo cuando tu router es compatible con UPnP y está habilitado.</translation>
+        <source>Automatically open the Chronocoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
+        <translation>Abre automáticamente el puerto del cliente Chronocoin en el router. Esto funciona solo cuando tu router es compatible con UPnP y está habilitado.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1265,8 +1265,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Connect to the Namecoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
-        <translation>Conecta a la red Namecoin a través de un proxy SOCKS (ej. cuando te conectas por la red Tor)</translation>
+        <source>Connect to the Chronocoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
+        <translation>Conecta a la red Chronocoin a través de un proxy SOCKS (ej. cuando te conectas por la red Tor)</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1340,7 +1340,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+13"/>
-        <source>The user interface language can be set here. This setting will take effect after restarting Namecoin.</source>
+        <source>The user interface language can be set here. This setting will take effect after restarting Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1355,7 +1355,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+9"/>
-        <source>Whether to show Namecoin addresses in the transaction list or not.</source>
+        <source>Whether to show Chronocoin addresses in the transaction list or not.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1407,7 +1407,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="-9"/>
         <location line="+9"/>
-        <source>This setting will take effect after restarting Namecoin.</source>
+        <source>This setting will take effect after restarting Chronocoin.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1426,7 +1426,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+51"/>
         <location line="+183"/>
-        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Namecoin network after a connection is established, but this process has not completed yet.</source>
+        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Chronocoin network after a connection is established, but this process has not completed yet.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1490,7 +1490,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <name>PaymentServer</name>
     <message>
         <location filename="../paymentserver.cpp" line="+108"/>
-        <source>Cannot start namecoin: click-to-pay handler</source>
+        <source>Cannot start chronocoin: click-to-pay handler</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1640,7 +1640,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Show the Namecoin-Qt help message to get a list with possible Namecoin command-line options.</source>
+        <source>Show the Chronocoin-Qt help message to get a list with possible Chronocoin command-line options.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1660,12 +1660,12 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="-104"/>
-        <source>Namecoin - Debug window</source>
+        <source>Chronocoin - Debug window</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location line="+25"/>
-        <source>Namecoin Core</source>
+        <source>Chronocoin Core</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1675,7 +1675,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Open the Namecoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
+        <source>Open the Chronocoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1685,7 +1685,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../rpcconsole.cpp" line="-30"/>
-        <source>Welcome to the Namecoin RPC console.</source>
+        <source>Welcome to the Chronocoin RPC console.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1869,8 +1869,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../sendcoinsentry.cpp" line="+1"/>
-        <source>Enter a Namecoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Introduce una dirección Namecoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <translation>Introduce una dirección Chronocoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
 </context>
 <context>
@@ -1893,7 +1893,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+18"/>
         <source>The address to sign the message with (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Introduce una dirección Namecoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <translation>Introduce una dirección Chronocoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
     <message>
         <location line="+10"/>
@@ -1934,7 +1934,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+21"/>
-        <source>Sign the message to prove you own this Namecoin address</source>
+        <source>Sign the message to prove you own this Chronocoin address</source>
         <translation>Firmar un mensjage para probar que usted es dueño de esta dirección</translation>
     </message>
     <message>
@@ -1966,11 +1966,11 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+21"/>
         <source>The address the message was signed with (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Introduce una dirección Namecoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <translation>Introduce una dirección Chronocoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
     <message>
         <location line="+40"/>
-        <source>Verify the message to ensure it was signed with the specified Namecoin address</source>
+        <source>Verify the message to ensure it was signed with the specified Chronocoin address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1986,8 +1986,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location filename="../signverifymessagedialog.cpp" line="+26"/>
         <location line="+3"/>
-        <source>Enter a Namecoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Introduce una dirección Namecoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <translation>Introduce una dirección Chronocoin (ej. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
     <message>
         <location line="-2"/>
@@ -1996,7 +1996,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+3"/>
-        <source>Enter Namecoin signature</source>
+        <source>Enter Chronocoin signature</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2556,7 +2556,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+38"/>
-        <source>Invalid Namecoin address</source>
+        <source>Invalid Chronocoin address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2576,13 +2576,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
 </context>
 <context>
-    <name>namecoin-core</name>
+    <name>chronocoin-core</name>
     <message>
         <location filename="../bitcoinstrings.cpp" line="+9"/>
         <source>%s, you must set a rpcpassword in the configuration file:
  %s
 It is recommended you use the following random password:
-rpcuser=namecoinrpc
+rpcuser=chronocoinrpc
 rpcpassword=%s
 (you do not need to remember this password)
 The username and password MUST NOT be the same.
@@ -2613,7 +2613,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Cannot obtain a lock on data directory %s. Namecoin is probably already running.</source>
+        <source>Cannot obtain a lock on data directory %s. Chronocoin is probably already running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2668,8 +2668,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Unable to bind to %s on this computer. Namecoin is probably already running.</source>
-        <translation type="unfinished">No es posible escuchar en el %s en este ordenador. Probablemente Namecoin ya se está ejecutando.</translation>
+        <source>Unable to bind to %s on this computer. Chronocoin is probably already running.</source>
+        <translation type="unfinished">No es posible escuchar en el %s en este ordenador. Probablemente Chronocoin ya se está ejecutando.</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -2683,8 +2683,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Namecoin will not work properly.</source>
-        <translation type="unfinished">Precaución: Por favor revise que la fecha y hora de tu ordenador son correctas. Si tu reloj está mal configurado Namecoin no funcionará correctamente.</translation>
+        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Chronocoin will not work properly.</source>
+        <translation type="unfinished">Precaución: Por favor revise que la fecha y hora de tu ordenador son correctas. Si tu reloj está mal configurado Chronocoin no funcionará correctamente.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -2738,8 +2738,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Namecoin version</source>
-        <translation type="unfinished">Versión Namecoin</translation>
+        <source>Chronocoin version</source>
+        <translation type="unfinished">Versión Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -2835,8 +2835,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Error loading wallet.dat: Wallet requires newer version of Namecoin</source>
-        <translation type="unfinished">Error cargando wallet.dat: Billetera necesita una vercion reciente de Namecoin</translation>
+        <source>Error loading wallet.dat: Wallet requires newer version of Chronocoin</source>
+        <translation type="unfinished">Error cargando wallet.dat: Billetera necesita una vercion reciente de Chronocoin</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3122,8 +3122,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Send command to -server or namecoind</source>
-        <translation type="unfinished">Envia comando a Namecoin lanzado con -server u namecoind
+        <source>Send command to -server or chronocoind</source>
+        <translation type="unfinished">Envia comando a Chronocoin lanzado con -server u chronocoind
 </translation>
     </message>
     <message>
@@ -3198,8 +3198,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Specify pid file (default: namecoind.pid)</source>
-        <translation type="unfinished">Especifica archivo pid (predeterminado: Namecoin.pid)
+        <source>Specify pid file (default: chronocoind.pid)</source>
+        <translation type="unfinished">Especifica archivo pid (predeterminado: Chronocoin.pid)
 </translation>
     </message>
     <message>
@@ -3298,8 +3298,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Wallet needed to be rewritten: restart Namecoin to complete</source>
-        <translation type="unfinished">La billetera necesita ser reescrita: reinicie Namecoin para completar</translation>
+        <source>Wallet needed to be rewritten: restart Chronocoin to complete</source>
+        <translation type="unfinished">La billetera necesita ser reescrita: reinicie Chronocoin para completar</translation>
     </message>
     <message>
         <location line="+1"/>

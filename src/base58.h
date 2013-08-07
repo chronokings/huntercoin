@@ -235,12 +235,12 @@ public:
 };
 
 // CSecret32 is a 32- or 33-byte secret, from which the private key can be reconstructed. In Bitcoin it is used
-// everywhere (and called just CSecret); in the current Namecoin implementation it is only used for
+// everywhere (and called just CSecret); in the current Chronocoin implementation it is only used for
 // dumpprivkey / importprivkey, while the full private key is used in other cases.
 typedef std::vector<unsigned char, secure_allocator<unsigned char> > CSecret32;
 
 /** A base58-encoded secret key */
-// Note: Namecoin implementation uses a hack: CSecret32 is used here, everywhere else
+// Note: Chronocoin implementation uses a hack: CSecret32 is used here, everywhere else
 // a dummy CSecret is used, which contains the whole priv key (not just secret).
 // In Bitcoin, a proper CSecret is used everywhere.
 class CBitcoinSecret : public CBase58Data
