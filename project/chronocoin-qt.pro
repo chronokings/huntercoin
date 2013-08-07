@@ -1,6 +1,6 @@
 TEMPLATE = app
-TARGET = namecoin-qt
-macx:TARGET = "Namecoin-Qt"
+TARGET = chronocoin-qt
+macx:TARGET = "Chronocoin-Qt"
 VERSION = 0.3.64
 QT += network
 DEFINES += GUI QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
@@ -82,12 +82,12 @@ contains(USE_DBUS, 1) {
     QT += dbus
 }
 
-# Namecoind does not support IPv6
+# IPv6 currently is not supported
 isEmpty(USE_IPV6) {
     USE_IPV6=-
 }
 
-# use: qmake "USE_IPV6=1" ( enabled by default; default)
+# use: qmake "USE_IPV6=1" (enabled by default; default)
 #  or: qmake "USE_IPV6=0" (disabled by default)
 #  or: qmake "USE_IPV6=-" (not supported)
 contains(USE_IPV6, -) {
@@ -117,10 +117,10 @@ QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra -Wformat -Wform
 # Input
 DEPENDPATH += ../src ../src/json ../src/cryptopp ../src/qt
 
-NAMECOIN_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
+CHRONOCOIN_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h rpc.h uibase.h ui.h noui.h init.h auxpow.h 
     
-NAMECOIN_SOURCES = \
+CHRONOCOIN_SOURCES = \
     auxpow.cpp \
     util.cpp \
     key.cpp \
@@ -137,10 +137,10 @@ NAMECOIN_SOURCES = \
     init.cpp \
     cryptopp/sha.cpp \
     cryptopp/cpu.cpp \
-    namecoin.cpp
+    chronocoin.cpp
 
-HEADERS += $$join(NAMECOIN_HEADERS," ../src/",,)
-SOURCES += $$join(NAMECOIN_SOURCES," ../src/",,)
+HEADERS += $$join(CHRONOCOIN_HEADERS," ../src/",,)
+SOURCES += $$join(CHRONOCOIN_SOURCES," ../src/",,)
 
 HEADERS += \
     ../src/qt/netbase.h \

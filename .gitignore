@@ -1,7 +1,4 @@
 src/*.exe
-*.pyc
-src/bitcoin
-src/bitcoind
 .*.swp
 *.*~*
-src/namecoind
+src/chronocoind
