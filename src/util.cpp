@@ -709,7 +709,7 @@ void FormatException(char* pszMessage, std::exception* pex, const char* pszThrea
     pszModule[0] = '\0';
     GetModuleFileNameA(NULL, pszModule, sizeof(pszModule));
 #else
-    const char* pszModule = "chronocoin";
+    const char* pszModule = "chronokings";
 #endif
     if (pex)
         snprintf(pszMessage, 1000,
@@ -735,7 +735,7 @@ void PrintException(std::exception* pex, const char* pszThread)
     strMiscWarning = pszMessage;
 #ifdef GUI
     if (wxTheApp && !fDaemon)
-        MyMessageBox(pszMessage, "Chronocoin", wxOK | wxICON_ERROR);
+        MyMessageBox(pszMessage, "ChronoKings", wxOK | wxICON_ERROR);
 #endif
     throw;
 }
@@ -748,9 +748,9 @@ void ThreadOneMessageBox(string strMessage)
         return;
     fMessageBoxOpen = true;
 #ifdef GUI
-    uiInterface.ThreadSafeMessageBox(strMessage, "Chronocoin", wxOK | wxICON_EXCLAMATION);
+    uiInterface.ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
 #else
-    ThreadSafeMessageBox(strMessage, "Chronocoin", wxOK | wxICON_EXCLAMATION);
+    ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
 #endif
     fMessageBoxOpen = false;
 }
@@ -815,9 +815,9 @@ string GetDefaultDataDir()
 {
     string strSuffix = GetDefaultDataDirSuffix();
 
-    // Windows: C:\Documents and Settings\username\Application Data\Chronocoin
-    // Mac: ~/Library/Application Support/Chronocoin
-    // Unix: ~/.chronocoin
+    // Windows: C:\Documents and Settings\username\Application Data\ChronoKings
+    // Mac: ~/Library/Application Support/ChronoKings
+    // Unix: ~/.chronokings
 #ifdef __WXMSW__
     // Windows
     return MyGetSpecialFolderPath(CSIDL_APPDATA, true) + "\\" + strSuffix;
@@ -893,7 +893,7 @@ string GetConfigFile(string confFile)
 
 string GetConfigFile()
 {
-    string confFile = GetConfigFile("chronocoin.conf");
+    string confFile = GetConfigFile("chronokings.conf");
     if (!boost::filesystem::exists(confFile))
     {
         string altConfFile = GetConfigFile("bitcoin.conf");
@@ -929,7 +929,7 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
 string GetPidFile()
 {
     namespace fs = boost::filesystem;
-    fs::path pathConfig(GetArg("-pid", "chronocoind.pid"));
+    fs::path pathConfig(GetArg("-pid", "chronokingsd.pid"));
     if (!pathConfig.is_complete())
         pathConfig = fs::path(GetDataDir()) / pathConfig;
     return pathConfig.string();
@@ -1046,10 +1046,10 @@ void AddTimeData(unsigned int ip, int64 nTime)
                 if (!fMatch)
                 {
                     fDone = true;
-                    string strMessage = _("Warning: Please check that your computer's date and time are correct.  If your clock is wrong Chronocoin will not work properly.");
+                    string strMessage = _("Warning: Please check that your computer's date and time are correct.  If your clock is wrong ChronoKings will not work properly.");
                     strMiscWarning = strMessage;
                     printf("*** %s\n", strMessage.c_str());
-                    boost::thread(boost::bind(MyMessageBox, strMessage+" ", string("Chronocoin"), wxOK | wxICON_EXCLAMATION, (wxWindow*)NULL, -1, -1));
+                    boost::thread(boost::bind(MyMessageBox, strMessage+" ", string("ChronoKings"), wxOK | wxICON_EXCLAMATION, (wxWindow*)NULL, -1, -1));
                 }
             }
         }

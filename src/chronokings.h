@@ -1,5 +1,5 @@
-#ifndef CHRONOCOIN_H
-#define CHRONOCOIN_H
+#ifndef CHRONOKINGS_H
+#define CHRONOKINGS_H
 
 class CNameDB : public CDB
 {
@@ -54,7 +54,7 @@ public:
     bool ReconstructNameIndex();
 };
 
-static const int CHRONOCOIN_TX_VERSION = 0x7100;
+static const int CHRONOKINGS_TX_VERSION = 0x7100;
 static const int64 MIN_AMOUNT = CENT;
 static const int MAX_NAME_LENGTH = 255;
 static const int MAX_VALUE_LENGTH = 1023;
@@ -90,4 +90,4 @@ std::string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetF
 bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
 int64 GetNetworkFee(int nHeight);
 
-#endif // CHRONOCOIN_H
+#endif // CHRONOKINGS_H

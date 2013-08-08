@@ -6,13 +6,13 @@
     <name>AboutDialog</name>
     <message>
         <location filename="../forms/aboutdialog.ui" line="+14"/>
-        <source>About Chronocoin</source>
-        <translation>Om Chronocoin</translation>
+        <source>About ChronoKings</source>
+        <translation>Om ChronoKings</translation>
     </message>
     <message>
         <location line="+39"/>
-        <source>&lt;b&gt;Chronocoin&lt;/b&gt; version</source>
-        <translation>&lt;b&gt;Chronocoin&lt;/b&gt; versjon</translation>
+        <source>&lt;b&gt;ChronoKings&lt;/b&gt; version</source>
+        <translation>&lt;b&gt;ChronoKings&lt;/b&gt; versjon</translation>
     </message>
     <message>
         <location line="+57"/>
@@ -36,7 +36,7 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+0"/>
-        <source>2009-%1 The Bitcoin and Chronocoin developers</source>
+        <source>2009-%1 The Bitcoin and ChronoKings developers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -69,8 +69,8 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="-46"/>
-        <source>These are your Chronocoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
-        <translation>Dette er dine Chronocoin-adresser for mottak av betalinger. Du kan gi forskjellige adresser til alle som skal betale deg for å holde bedre oversikt.</translation>
+        <source>These are your ChronoKings addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</source>
+        <translation>Dette er dine ChronoKings-adresser for mottak av betalinger. Du kan gi forskjellige adresser til alle som skal betale deg for å holde bedre oversikt.</translation>
     </message>
     <message>
         <location line="+60"/>
@@ -84,8 +84,8 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+11"/>
-        <source>Sign a message to prove you own a Chronocoin address</source>
-        <translation>Signer en melding for å bevise at du eier en Chronocoin-adresse</translation>
+        <source>Sign a message to prove you own a ChronoKings address</source>
+        <translation>Signer en melding for å bevise at du eier en ChronoKings-adresse</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -99,8 +99,8 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="-14"/>
-        <source>Verify a message to ensure it was signed with a specified Chronocoin address</source>
-        <translation>Verifiser en melding for å være sikker på at den ble signert av en angitt Chronocoin-adresse</translation>
+        <source>Verify a message to ensure it was signed with a specified ChronoKings address</source>
+        <translation>Verifiser en melding for å være sikker på at den ble signert av en angitt ChronoKings-adresse</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -235,8 +235,8 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+1"/>
-        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR CHRONOCOINS&lt;/b&gt;!</source>
-        <translation>Advarsel: Hvis du krypterer lommeboken og mister adgangsfrasen, så vil du &lt;b&gt;MISTE ALLE DINE Chronocoins&lt;/b&gt;!</translation>
+        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR COINS&lt;/b&gt;!</source>
+        <translation>Advarsel: Hvis du krypterer lommeboken og mister adgangsfrasen, så vil du &lt;b&gt;MISTE ALLE DINE coins&lt;/b&gt;!</translation>
     </message>
     <message>
         <location line="+0"/>
@@ -262,8 +262,8 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="-56"/>
-        <source>Chronocoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Chronocoins from being stolen by malware infecting your computer.</source>
-        <translation type="unfinished">Chronocoin vil nå lukkes for å fullføre krypteringsprosessen. Husk at kryptering av lommeboken ikke fullt ut kan beskytte dine Chronocoins fra å bli stjålet om skadevare infiserer datamaskinen.</translation>
+        <source>ChronoKings will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your coins from being stolen by malware infecting your computer.</source>
+        <translation type="unfinished">ChronoKings vil nå lukkes for å fullføre krypteringsprosessen. Husk at kryptering av lommeboken ikke fullt ut kan beskytte dine coins fra å bli stjålet om skadevare infiserer datamaskinen.</translation>
     </message>
     <message>
         <location line="+13"/>
@@ -311,14 +311,14 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     <name>BitcoinGUI</name>
     <message>
         <location filename="../bitcoin.cpp" line="+118"/>
-        <source>A fatal error occurred. Chronocoin can no longer continue safely and will quit.</source>
-        <translation type="unfinished">En fatal feil har inntruffet. Det er ikke trygt å fortsette og Chronocoin må derfor avslutte.</translation>
+        <source>A fatal error occurred. ChronoKings can no longer continue safely and will quit.</source>
+        <translation type="unfinished">En fatal feil har inntruffet. Det er ikke trygt å fortsette og ChronoKings må derfor avslutte.</translation>
     </message>
     <message>
         <location filename="../bitcoingui.cpp" line="+74"/>
         <location line="+565"/>
-        <source>Chronocoin</source>
-        <translation type="unfinished">Chronocoin</translation>
+        <source>ChronoKings</source>
+        <translation type="unfinished">ChronoKings</translation>
     </message>
     <message>
         <location line="-565"/>
@@ -338,17 +338,17 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     <message>
         <location line="+6"/>
         <source>&amp;Send coins</source>
-        <translation type="unfinished">&amp;Send Chronocoins</translation>
+        <translation type="unfinished">&amp;Send coins</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Send coins to a Chronocoin address</source>
-        <translation type="unfinished">Send til en Chronocoin-adresse</translation>
+        <source>Send coins to a ChronoKings address</source>
+        <translation type="unfinished">Send til en ChronoKings-adresse</translation>
     </message>
     <message>
         <location line="+6"/>
         <source>&amp;Receive coins</source>
-        <translation type="unfinished">&amp;Motta Chronocoins</translation>
+        <translation type="unfinished">&amp;Motta coins</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -382,7 +382,7 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+1"/>
-        <source>Manage names registered via Chronocoin</source>
+        <source>Manage names registered via ChronoKings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -397,13 +397,13 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;About Chronocoin</source>
-        <translation type="unfinished">&amp;Om Chronocoin</translation>
+        <source>&amp;About ChronoKings</source>
+        <translation type="unfinished">&amp;Om ChronoKings</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Show information about Chronocoin</source>
-        <translation type="unfinished">Vis informasjon om Chronocoin</translation>
+        <source>Show information about ChronoKings</source>
+        <translation type="unfinished">Vis informasjon om ChronoKings</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -422,8 +422,8 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+1"/>
-        <source>Modify configuration options for Chronocoin</source>
-        <translation type="unfinished">Endre oppsett for Chronocoin</translation>
+        <source>Modify configuration options for ChronoKings</source>
+        <translation type="unfinished">Endre oppsett for ChronoKings</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -472,7 +472,7 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+1"/>
-        <source>Sign messages with your Chronocoin addresses to prove you own them</source>
+        <source>Sign messages with your ChronoKings addresses to prove you own them</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -482,7 +482,7 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     </message>
     <message>
         <location line="+1"/>
-        <source>Verify messages to ensure they were signed with specified Chronocoin addresses</source>
+        <source>Verify messages to ensure they were signed with specified ChronoKings addresses</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -539,15 +539,15 @@ Dette produktet inneholder programvare utviklet av OpenSSL prosjektet for bruk i
     <message>
         <location line="-5"/>
         <location line="+5"/>
-        <source>Chronocoin client</source>
+        <source>ChronoKings client</source>
         <translation type="unfinished">Bitcoinklient</translation>
     </message>
     <message numerus="yes">
         <location line="+81"/>
-        <source>%n active connection(s) to Chronocoin network</source>
+        <source>%n active connection(s) to ChronoKings network</source>
         <translation type="unfinished">
-            <numerusform>%n aktiv forbindelse til Chronocoin-nettverket</numerusform>
-            <numerusform>%n aktive forbindelser til Chronocoin-nettverket</numerusform>
+            <numerusform>%n aktiv forbindelse til ChronoKings-nettverket</numerusform>
+            <numerusform>%n aktive forbindelser til ChronoKings-nettverket</numerusform>
         </translation>
     </message>
     <message>
@@ -681,8 +681,8 @@ Adresse: %4
     <message>
         <location line="-28"/>
         <location line="+28"/>
-        <source>URI can not be parsed! This can be caused by an invalid Chronocoin address or malformed URI parameters.</source>
-        <translation type="unfinished">URI kunne ikke tolkes! Dette kan forårsakes av en ugyldig Chronocoin-adresse eller feil i URI-parametere.</translation>
+        <source>URI can not be parsed! This can be caused by an invalid ChronoKings address or malformed URI parameters.</source>
+        <translation type="unfinished">URI kunne ikke tolkes! Dette kan forårsakes av en ugyldig ChronoKings-adresse eller feil i URI-parametere.</translation>
     </message>
     <message>
         <location line="+17"/>
@@ -835,7 +835,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location line="+18"/>
-        <source>The Chronocoin address to transfer domain to
+        <source>The ChronoKings address to transfer domain to
 (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9).
 Leave empty, if not needed.</source>
         <translation type="unfinished"></translation>
@@ -960,8 +960,8 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="-5"/>
-        <source>The entered address &quot;%1&quot; is not a valid Chronocoin address.</source>
-        <translation>Den angitte adressed &quot;%1&quot; er ikke en gyldig Chronocoin-adresse.</translation>
+        <source>The entered address &quot;%1&quot; is not a valid ChronoKings address.</source>
+        <translation>Den angitte adressed &quot;%1&quot; er ikke en gyldig ChronoKings-adresse.</translation>
     </message>
     <message>
         <location line="+10"/>
@@ -979,8 +979,8 @@ Leave empty, if not needed.</source>
     <message>
         <location filename="../guiutil.cpp" line="+423"/>
         <location line="+12"/>
-        <source>Chronocoin-Qt</source>
-        <translation>Chronocoin-Qt</translation>
+        <source>ChronoKings-Qt</source>
+        <translation>ChronoKings-Qt</translation>
     </message>
     <message>
         <location line="-12"/>
@@ -1033,12 +1033,12 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="+13"/>
-        <source>Enter a name or domain name (prefixed with d/) to be registered via Chronocoin.</source>
+        <source>Enter a name or domain name (prefixed with d/) to be registered via ChronoKings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location line="+16"/>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Chronocoin wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can&apos;t be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in ChronoKings wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1189,7 +1189,7 @@ to the network and creates a pending name_firstupdate transaction.</source>
     </message>
     <message>
         <location line="+126"/>
-        <source>Name registered using Chronocoin.</source>
+        <source>Name registered using ChronoKings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1228,13 +1228,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+31"/>
-        <source>Automatically start Chronocoin after logging in to the system.</source>
-        <translation>Start Chronocoin automatisk etter innlogging.</translation>
+        <source>Automatically start ChronoKings after logging in to the system.</source>
+        <translation>Start ChronoKings automatisk etter innlogging.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <source>&amp;Start Chronocoin on system login</source>
-        <translation>&amp;Start Chronocoin ved systeminnlogging</translation>
+        <source>&amp;Start ChronoKings on system login</source>
+        <translation>&amp;Start ChronoKings ved systeminnlogging</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -1253,8 +1253,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+6"/>
-        <source>Automatically open the Chronocoin client port on the router. This only works when your router supports UPnP and it is enabled.</source>
-        <translation>Åpne automatisk Chronocoin klientporten på ruteren. Dette virker kun om din ruter støtter UPnP og dette er påslått.</translation>
+        <source>Automatically open the ChronoKings client port on the router. This only works when your router supports UPnP and it is enabled.</source>
+        <translation>Åpne automatisk ChronoKings klientporten på ruteren. Dette virker kun om din ruter støtter UPnP og dette er påslått.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1263,8 +1263,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Connect to the Chronocoin network through a SOCKS proxy (e.g. when connecting through Tor).</source>
-        <translation>Koble til Chronocoin-nettverket gjennom en SOCKS proxy (f.eks. ved tilkobling gjennom Tor).</translation>
+        <source>Connect to the ChronoKings network through a SOCKS proxy (e.g. when connecting through Tor).</source>
+        <translation>Koble til ChronoKings-nettverket gjennom en SOCKS proxy (f.eks. ved tilkobling gjennom Tor).</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1338,8 +1338,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+13"/>
-        <source>The user interface language can be set here. This setting will take effect after restarting Chronocoin.</source>
-        <translation>Språket for brukergrensesnittet kan settes her. Innstillingen trer i kraft ved omstart av Chronocoin.</translation>
+        <source>The user interface language can be set here. This setting will take effect after restarting ChronoKings.</source>
+        <translation>Språket for brukergrensesnittet kan settes her. Innstillingen trer i kraft ved omstart av ChronoKings.</translation>
     </message>
     <message>
         <location line="+11"/>
@@ -1349,12 +1349,12 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+13"/>
         <source>Choose the default subdivision unit to show in the interface and when sending coins.</source>
-        <translation>Velg standard delt enhet for visning i grensesnittet og for sending av Chronocoins.</translation>
+        <translation>Velg standard delt enhet for visning i grensesnittet og for sending av coins.</translation>
     </message>
     <message>
         <location line="+9"/>
-        <source>Whether to show Chronocoin addresses in the transaction list or not.</source>
-        <translation>Om Chronocoin-adresser skal vises i transaksjonslisten eller ikke.</translation>
+        <source>Whether to show ChronoKings addresses in the transaction list or not.</source>
+        <translation>Om ChronoKings-adresser skal vises i transaksjonslisten eller ikke.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1405,8 +1405,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="-9"/>
         <location line="+9"/>
-        <source>This setting will take effect after restarting Chronocoin.</source>
-        <translation>Denne innstillingen trer i kraft etter omstart av Chronocoin.</translation>
+        <source>This setting will take effect after restarting ChronoKings.</source>
+        <translation>Denne innstillingen trer i kraft etter omstart av ChronoKings.</translation>
     </message>
     <message>
         <location line="+29"/>
@@ -1424,8 +1424,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+51"/>
         <location line="+183"/>
-        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the Chronocoin network after a connection is established, but this process has not completed yet.</source>
-        <translation>Informasjonen som vises kan være foreldet. Din lommebok synkroniseres automatisk med Chronocoin-nettverket etter at tilkobling er opprettet, men denne prosessen er ikke ferdig enda.</translation>
+        <source>The displayed information may be out of date. Your wallet automatically synchronizes with the ChronoKings network after a connection is established, but this process has not completed yet.</source>
+        <translation>Informasjonen som vises kan være foreldet. Din lommebok synkroniseres automatisk med ChronoKings-nettverket etter at tilkobling er opprettet, men denne prosessen er ikke ferdig enda.</translation>
     </message>
     <message>
         <location line="-141"/>
@@ -1488,7 +1488,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <name>PaymentServer</name>
     <message>
         <location filename="../paymentserver.cpp" line="+108"/>
-        <source>Cannot start chronocoin: click-to-pay handler</source>
+        <source>Cannot start chronokings: click-to-pay handler</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1638,8 +1638,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Show the Chronocoin-Qt help message to get a list with possible Chronocoin command-line options.</source>
-        <translation>Vis Chronocoin-Qt hjelpemelding for å få en liste med mulige kommandolinjevalg.</translation>
+        <source>Show the ChronoKings-Qt help message to get a list with possible ChronoKings command-line options.</source>
+        <translation>Vis ChronoKings-Qt hjelpemelding for å få en liste med mulige kommandolinjevalg.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1658,13 +1658,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="-104"/>
-        <source>Chronocoin - Debug window</source>
-        <translation>Chronocoin - vindu for feilsøk</translation>
+        <source>ChronoKings - Debug window</source>
+        <translation>ChronoKings - vindu for feilsøk</translation>
     </message>
     <message>
         <location line="+25"/>
-        <source>Chronocoin Core</source>
-        <translation>Chronocoin Kjerne</translation>
+        <source>ChronoKings Core</source>
+        <translation>ChronoKings Kjerne</translation>
     </message>
     <message>
         <location line="+279"/>
@@ -1673,8 +1673,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+7"/>
-        <source>Open the Chronocoin debug log file from the current data directory. This can take a few seconds for large log files.</source>
-        <translation>Åpne Chronocoin loggfil for feilsøk fra datamappen. Dette kan ta noen sekunder for store loggfiler.</translation>
+        <source>Open the ChronoKings debug log file from the current data directory. This can take a few seconds for large log files.</source>
+        <translation>Åpne ChronoKings loggfil for feilsøk fra datamappen. Dette kan ta noen sekunder for store loggfiler.</translation>
     </message>
     <message>
         <location line="+102"/>
@@ -1683,8 +1683,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../rpcconsole.cpp" line="-30"/>
-        <source>Welcome to the Chronocoin RPC console.</source>
-        <translation>Velkommen til Chronocoin RPC konsoll.</translation>
+        <source>Welcome to the ChronoKings RPC console.</source>
+        <translation>Velkommen til ChronoKings RPC konsoll.</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -1709,7 +1709,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
         <location line="+5"/>
         <location line="+5"/>
         <source>Send Coins</source>
-        <translation>Send Chronocoins</translation>
+        <translation>Send coins</translation>
     </message>
     <message>
         <location line="+50"/>
@@ -1759,7 +1759,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+5"/>
         <source>Confirm send coins</source>
-        <translation>Bekreft sending av Chronocoins</translation>
+        <translation>Bekreft sending av coins</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -1804,7 +1804,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+5"/>
         <source>Error: The transaction was rejected. This might happen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.</source>
-        <translation>Feil: Transaksjonen ble avvist. Dette kan skje om noe av beløpet allerede var brukt, f.eks. hvis du kopierte wallet.dat og noen Chronocoins ble brukt i kopien men ikke ble markert som brukt her.</translation>
+        <translation>Feil: Transaksjonen ble avvist. Dette kan skje om noe av beløpet allerede var brukt, f.eks. hvis du kopierte wallet.dat og noen coins ble brukt i kopien men ikke ble markert som brukt her.</translation>
     </message>
 </context>
 <context>
@@ -1867,8 +1867,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location filename="../sendcoinsentry.cpp" line="+1"/>
-        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Skriv inn en Chronocoin adresse (f.eks. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <source>Enter a ChronoKings address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <translation>Skriv inn en ChronoKings adresse (f.eks. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
 </context>
 <context>
@@ -1932,8 +1932,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+21"/>
-        <source>Sign the message to prove you own this Chronocoin address</source>
-        <translation>Signer meldingen for å bevise at du eier denne Chronocoin-adressen</translation>
+        <source>Sign the message to prove you own this ChronoKings address</source>
+        <translation>Signer meldingen for å bevise at du eier denne ChronoKings-adressen</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1968,8 +1968,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+40"/>
-        <source>Verify the message to ensure it was signed with the specified Chronocoin address</source>
-        <translation>Verifiser meldingen for å være sikker på at den ble signert av den angitte Chronocoin-adressen</translation>
+        <source>Verify the message to ensure it was signed with the specified ChronoKings address</source>
+        <translation>Verifiser meldingen for å være sikker på at den ble signert av den angitte ChronoKings-adressen</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1984,8 +1984,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location filename="../signverifymessagedialog.cpp" line="+26"/>
         <location line="+3"/>
-        <source>Enter a Chronocoin address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
-        <translation>Skriv inn en Chronocoin adresse (f.eks. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
+        <source>Enter a ChronoKings address (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</source>
+        <translation>Skriv inn en ChronoKings adresse (f.eks. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</translation>
     </message>
     <message>
         <location line="-2"/>
@@ -1994,8 +1994,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+3"/>
-        <source>Enter Chronocoin signature</source>
-        <translation>Angi Chronocoin signatur</translation>
+        <source>Enter ChronoKings signature</source>
+        <translation>Angi ChronoKings signatur</translation>
     </message>
     <message>
         <location line="+82"/>
@@ -2188,7 +2188,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+3"/>
         <source>Generated coins must mature 120 blocks before they can be spent. When you generated this block, it was broadcast to the network to be added to the block chain. If it fails to get into the chain, its state will change to &quot;not accepted&quot; and it won&apos;t be spendable. This may occasionally happen if another node generates a block within a few seconds of yours.</source>
-        <translation>Genererte Chronocoins må modnes 120 blokker før de kan brukes. Da du genererte denne blokken ble den kringkastet til nettverket for å legges til i blokkjeden. Hvis den ikke kommer inn i kjeden får den tilstanden &quot;ikke akseptert&quot; og vil ikke kunne brukes. Dette skjer noen ganger hvis en annen node genererer en blokk noen sekunder fra din.</translation>
+        <translation>Genererte coins må modnes 120 blokker før de kan brukes. Da du genererte denne blokken ble den kringkastet til nettverket for å legges til i blokkjeden. Hvis den ikke kommer inn i kjeden får den tilstanden &quot;ikke akseptert&quot; og vil ikke kunne brukes. Dette skjer noen ganger hvis en annen node genererer en blokk noen sekunder fra din.</translation>
     </message>
     <message>
         <location line="+7"/>
@@ -2554,7 +2554,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+38"/>
-        <source>Invalid Chronocoin address</source>
+        <source>Invalid ChronoKings address</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2574,13 +2574,13 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
 </context>
 <context>
-    <name>chronocoin-core</name>
+    <name>chronokings-core</name>
     <message>
         <location filename="../bitcoinstrings.cpp" line="+9"/>
         <source>%s, you must set a rpcpassword in the configuration file:
  %s
 It is recommended you use the following random password:
-rpcuser=chronocoinrpc
+rpcuser=chronokingsrpc
 rpcpassword=%s
 (you do not need to remember this password)
 The username and password MUST NOT be the same.
@@ -2610,7 +2610,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Cannot obtain a lock on data directory %s. Chronocoin is probably already running.</source>
+        <source>Cannot obtain a lock on data directory %s. ChronoKings is probably already running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2665,8 +2665,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Unable to bind to %s on this computer. Chronocoin is probably already running.</source>
-        <translation type="unfinished">Kan ikke binde til %s på denne datamaskinen. Sannsynligvis kjører Chronocoin allerede.</translation>
+        <source>Unable to bind to %s on this computer. ChronoKings is probably already running.</source>
+        <translation type="unfinished">Kan ikke binde til %s på denne datamaskinen. Sannsynligvis kjører ChronoKings allerede.</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -2680,8 +2680,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong Chronocoin will not work properly.</source>
-        <translation type="unfinished">Advarsel: Vennligst undersøk at din datamaskin har riktig dato og klokkeslett! Hvis klokken er stilt feil vil ikke Chronocoin fungere riktig.</translation>
+        <source>Warning: Please check that your computer&apos;s date and time are correct! If your clock is wrong ChronoKings will not work properly.</source>
+        <translation type="unfinished">Advarsel: Vennligst undersøk at din datamaskin har riktig dato og klokkeslett! Hvis klokken er stilt feil vil ikke ChronoKings fungere riktig.</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -2734,8 +2734,8 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     </message>
     <message>
         <location line="+1"/>
-        <source>Chronocoin version</source>
-        <translation type="unfinished">Chronocoin versjon</translation>
+        <source>ChronoKings version</source>
+        <translation type="unfinished">ChronoKings versjon</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -2800,7 +2800,7 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     <message>
         <location line="+1"/>
         <source>Don&apos;t generate coins</source>
-        <translation type="unfinished">Ikke generér Chronocoins</translation>
+        <translation type="unfinished">Ikke generér coins</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -2829,8 +2829,8 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     </message>
     <message>
         <location line="+1"/>
-        <source>Error loading wallet.dat: Wallet requires newer version of Chronocoin</source>
-        <translation type="unfinished">Feil ved lasting av wallet.dat: Lommeboken krever en nyere versjon av Chronocoin</translation>
+        <source>Error loading wallet.dat: Wallet requires newer version of ChronoKings</source>
+        <translation type="unfinished">Feil ved lasting av wallet.dat: Lommeboken krever en nyere versjon av ChronoKings</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -2940,7 +2940,7 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     <message>
         <location line="+1"/>
         <source>Generate coins</source>
-        <translation type="unfinished">Generér Chronocoins</translation>
+        <translation type="unfinished">Generér coins</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3109,8 +3109,8 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     </message>
     <message>
         <location line="+1"/>
-        <source>Send command to -server or chronocoind</source>
-        <translation type="unfinished">Send kommando til -server eller chronocoind</translation>
+        <source>Send command to -server or chronokingsd</source>
+        <translation type="unfinished">Send kommando til -server eller chronokingsd</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3179,8 +3179,8 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     </message>
     <message>
         <location line="+1"/>
-        <source>Specify pid file (default: chronocoind.pid)</source>
-        <translation type="unfinished">Angi pid-fil (standardverdi: chronocoind.pid)</translation>
+        <source>Specify pid file (default: chronokingsd.pid)</source>
+        <translation type="unfinished">Angi pid-fil (standardverdi: chronokingsd.pid)</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -3274,8 +3274,8 @@ Hvis filen ikke finnes, opprett den med leserettighet kun for eier av filen.</tr
     </message>
     <message>
         <location line="+1"/>
-        <source>Wallet needed to be rewritten: restart Chronocoin to complete</source>
-        <translation type="unfinished">Lommeboken måtte skrives om: start Chronocoin på nytt for å fullføre</translation>
+        <source>Wallet needed to be rewritten: restart ChronoKings to complete</source>
+        <translation type="unfinished">Lommeboken måtte skrives om: start ChronoKings på nytt for å fullføre</translation>
     </message>
     <message>
         <location line="+1"/>

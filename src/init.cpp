@@ -65,7 +65,7 @@ void Shutdown(void* parg)
         delete pwalletMain;
         CreateThread(ExitTimeout, NULL);
         Sleep(50);
-        printf("chronocoin exiting\n\n");
+        printf("chronokings exiting\n\n");
         fExit = true;
 #ifndef GUI
         // ensure non-UI client gets exited here, but let Bitcoin-Qt reach 'return 0;' in bitcoin.cpp
@@ -184,18 +184,18 @@ bool AppInit2(int argc, char* argv[])
     if (mapArgs.count("-?") || mapArgs.count("--help"))
     {
         string strUsage = string() +
-          _("chronocoin version") + " " + FormatFullVersion() + "\n\n" +
+          _("chronokings version") + " " + FormatFullVersion() + "\n\n" +
           _("Usage:") + "\t\t\t\t\t\t\t\t\t\t\n" +
-            "  chronocoin [options]                   \t  " + "\n" +
-            "  chronocoin [options] <command> [params]\t  " + _("Send command to -server or chronocoind") + "\n" +
-            "  chronocoin [options] help              \t\t  " + _("List commands") + "\n" +
-            "  chronocoin [options] help <command>    \t\t  " + _("Get help for a command") + "\n";
+            "  chronokings [options]                   \t  " + "\n" +
+            "  chronokings [options] <command> [params]\t  " + _("Send command to -server or chronokingsd") + "\n" +
+            "  chronokings [options] help              \t\t  " + _("List commands") + "\n" +
+            "  chronokings [options] help <command>    \t\t  " + _("Get help for a command") + "\n";
             
         strUsage += "\n" + HelpMessage();
 
 #if defined(__WXMSW__) && defined(GUI)
         // Tabs make the columns line up in the message box
-        wxMessageBox(strUsage, "Chronocoin", wxOK);
+        wxMessageBox(strUsage, "ChronoKings", wxOK);
 #else
         // Remove tabs
         strUsage.erase(std::remove(strUsage.begin(), strUsage.end(), '\t'), strUsage.end());
@@ -264,7 +264,7 @@ bool AppInit2(int argc, char* argv[])
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    printf("chronocoin version %s\n", FormatFullVersion().c_str());
+    printf("chronokings version %s\n", FormatFullVersion().c_str());
 //#ifdef GUI
 #if 0
     printf("OS version %s\n", ((string)wxGetOsDescription()).c_str());
@@ -300,7 +300,7 @@ bool AppInit2(int argc, char* argv[])
         loop
         {
             // Show the previous instance and exit
-            HWND hwndPrev = FindWindowA("wxWindowClassNR", "Chronocoin");
+            HWND hwndPrev = FindWindowA("wxWindowClassNR", "ChronoKings");
             if (hwndPrev)
             {
                 if (IsIconic(hwndPrev))
@@ -329,7 +329,7 @@ bool AppInit2(int argc, char* argv[])
     static boost::interprocess::file_lock lock(strLockFile.c_str());
     if (!lock.try_lock())
     {
-        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  chronocoin is probably already running."), GetDataDir().c_str()), "Chronocoin");
+        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  chronokings is probably already running."), GetDataDir().c_str()), "ChronoKings");
         return false;
     }
 
@@ -339,7 +339,7 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!BindListenPort(strErrors))
         {
-            wxMessageBox(strErrors, "Chronocoin");
+            wxMessageBox(strErrors, "ChronoKings");
             return false;
         }
     }
@@ -350,7 +350,7 @@ bool AppInit2(int argc, char* argv[])
     // Load data files
     //
     if (fDaemon)
-        fprintf(stdout, "chronocoin server starting\n");
+        fprintf(stdout, "chronokings server starting\n");
     strErrors = "";
     int64 nStart;
 
@@ -382,7 +382,7 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!ParseMoney(mapArgs["-mininput"], nMinimumInputValue))
         {
-            wxMessageBox(_("Invalid amount for -mininput=<amount>"), "Chronocoin");
+            wxMessageBox(_("Invalid amount for -mininput=<amount>"), "ChronoKings");
             return false;
         }
     }
@@ -419,7 +419,7 @@ bool AppInit2(int argc, char* argv[])
 
     if (!strErrors.empty())
     {
-        wxMessageBox(strErrors, "Chronocoin", wxOK | wxICON_ERROR);
+        wxMessageBox(strErrors, "ChronoKings", wxOK | wxICON_ERROR);
         return false;
     }
 
@@ -473,7 +473,7 @@ bool AppInit2(int argc, char* argv[])
         addrProxy = CAddress(mapArgs["-proxy"]);
         if (!addrProxy.IsValid())
         {
-            wxMessageBox(_("Invalid -proxy address"), "Chronocoin");
+            wxMessageBox(_("Invalid -proxy address"), "ChronoKings");
             return false;
         }
     }
@@ -498,11 +498,11 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!ParseMoney(mapArgs["-paytxfee"], nTransactionFee))
         {
-            wxMessageBox(_("Invalid amount for -paytxfee=<amount>"), "Chronocoin");
+            wxMessageBox(_("Invalid amount for -paytxfee=<amount>"), "ChronoKings");
             return false;
         }
         if (nTransactionFee > 0.25 * COIN)
-            wxMessageBox(_("Warning: -paytxfee is set very high.  This is the transaction fee you will pay if you send a transaction."), "Chronocoin", wxOK | wxICON_EXCLAMATION);
+            wxMessageBox(_("Warning: -paytxfee is set very high.  This is the transaction fee you will pay if you send a transaction."), "ChronoKings", wxOK | wxICON_EXCLAMATION);
     }
 
     if (fHaveUPnP)
@@ -538,7 +538,7 @@ bool AppInit2(int argc, char* argv[])
     }
 
     if (!CreateThread(StartNode, NULL))
-        wxMessageBox("Error: CreateThread(StartNode) failed", "Chronocoin");
+        wxMessageBox("Error: CreateThread(StartNode) failed", "ChronoKings");
 
     if (fServer)
         CreateThread(ThreadRPCServer, NULL);
@@ -560,8 +560,8 @@ bool AppInit2(int argc, char* argv[])
 std::string HelpMessage()
 {
     std::string strUsage = std::string(_("Options:\n")) +
-        "  -conf=<file>     \t\t  " + _("Specify configuration file (default: chronocoin.conf)\n") +
-        "  -pid=<file>      \t\t  " + _("Specify pid file (default: chronocoind.pid)\n") +
+        "  -conf=<file>     \t\t  " + _("Specify configuration file (default: chronokings.conf)\n") +
+        "  -pid=<file>      \t\t  " + _("Specify pid file (default: chronokingsd.pid)\n") +
         "  -gen             \t\t  " + _("Generate coins\n") +
         "  -gen=0           \t\t  " + _("Don't generate coins\n") +
         "  -min             \t\t  " + _("Start minimized\n") +
@@ -599,7 +599,7 @@ std::string HelpMessage()
 
 #ifdef USE_SSL
     strUsage += std::string() +
-        _("\nSSL options: (see the chronocoin Wiki for SSL setup instructions)\n") +
+        _("\nSSL options: (see the chronokings Wiki for SSL setup instructions)\n") +
         "  -rpcssl                                \t  " + _("Use OpenSSL (https) for JSON-RPC connections\n") +
         "  -rpcsslcertificatechainfile=<file.cert>\t  " + _("Server certificate file (default: server.cert)\n") +
         "  -rpcsslprivatekeyfile=<file.pem>       \t  " + _("Server private key (default: server.pem)\n") +

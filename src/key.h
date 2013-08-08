@@ -47,7 +47,7 @@ public:
 typedef std::vector<unsigned char, secure_allocator<unsigned char> > CPrivKey;
 
 // Currently CSecret is encrypted privkey. In Bitcoin it is just 32-byte secret (not the whole key).
-// In current Chronocoin implementation the whole privkey is encrypted, rather than the secret,
+// In current ChronoKings implementation the whole privkey is encrypted, rather than the secret,
 // when encrypting the wallet.
 typedef std::vector<unsigned char, secure_allocator<unsigned char> > CSecret;
 

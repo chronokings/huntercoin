@@ -5,7 +5,7 @@
 #include "guiconstants.h"
 
 #include "../headers.h"
-#include "../chronocoin.h"
+#include "../chronokings.h"
 #include "ui_interface.h"
 
 #include <QTimer>
@@ -93,7 +93,7 @@ public:
                 else
                     fConfirmed = true;
 
-                if (tx.nVersion != CHRONOCOIN_TX_VERSION)
+                if (tx.nVersion != CHRONOKINGS_TX_VERSION)
                     continue;
 
                 // name
@@ -170,7 +170,7 @@ public:
                 else
                     fConfirmed = true;
 
-                if (tx.nVersion != CHRONOCOIN_TX_VERSION)
+                if (tx.nVersion != CHRONOKINGS_TX_VERSION)
                     continue;
 
                 // name
@@ -470,7 +470,7 @@ QVariant NameTableModel::headerData(int section, Qt::Orientation orientation, in
             switch(section)
             {
             case Name:
-                return tr("Name registered using Chronocoin.");
+                return tr("Name registered using ChronoKings.");
             case Value:
                 return tr("Data associated with the name.");
             case ExpiresIn:

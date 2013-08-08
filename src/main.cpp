@@ -1663,9 +1663,9 @@ bool CheckDiskSpace(uint64 nAdditionalBytes)
         strMiscWarning = strMessage;
         printf("*** %s\n", strMessage.c_str());
 #ifdef GUI
-        uiInterface.ThreadSafeMessageBox(strMessage, "Chronocoin", wxOK | wxICON_EXCLAMATION);
+        uiInterface.ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
 #else
-        ThreadSafeMessageBox(strMessage, "Chronocoin", wxOK | wxICON_EXCLAMATION);
+        ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
 #endif
 
         CreateThread(Shutdown, NULL);

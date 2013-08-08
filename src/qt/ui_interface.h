@@ -81,7 +81,7 @@ public:
     /** Handle a URL passed at the command line. */
     boost::signals2::signal<void (const std::string& strURI)> ThreadSafeHandleURI;
 
-    // TODO: currently not called from the Chronocoin code
+    // TODO: currently not called from the ChronoKings code
     /** Progress message during initialization. */
     boost::signals2::signal<void (const std::string &message)> InitMessage;
 

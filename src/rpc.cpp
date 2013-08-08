@@ -28,7 +28,7 @@ typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSLStream;
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_writer_template.h"
 #include "json/json_spirit_utils.h"
-#include "chronocoin.h"
+#include "chronokings.h"
 
 #define printf OutputDebugStringF
 
@@ -83,7 +83,7 @@ void PrintConsole(const char* format, ...)
     }
     printf("%s", buffer);
 #if defined(__WXMSW__) && defined(GUI)
-    MyMessageBox(buffer, "Chronocoin", wxOK | wxICON_EXCLAMATION);
+    MyMessageBox(buffer, "ChronoKings", wxOK | wxICON_EXCLAMATION);
 #else
     fprintf(stdout, "%s", buffer);
 #endif
@@ -234,11 +234,11 @@ Value stop(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "stop\n"
-            "Stop chronocoin server.");
+            "Stop chronokings server.");
 
     // Shutdown will take long enough that the response should get back
     StartShutdown();
-    return "chronocoin server stopping";
+    return "chronokings server stopping";
 }
 
 
@@ -541,7 +541,7 @@ Value getnewaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "getnewaddress [account]\n"
-            "Returns a new Chronocoin address for receiving payments.  "
+            "Returns a new ChronoKings address for receiving payments.  "
             "If [account] is specified (recommended), it is added to the address book "
             "so payments received with the address will be credited to [account]."
             + std::string(pwalletMain->IsCrypted() ? "\nmay require wallet passphrase to be set with walletpassphrase, if the key pool is empty" : ""));
@@ -609,7 +609,7 @@ Value getaccountaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "getaccountaddress <account>\n"
-            "Returns the current Chronocoin address for receiving payments to this account.");
+            "Returns the current ChronoKings address for receiving payments to this account.");
 
     // Parse the account first so we don't generate a key if there's an error
     string strAccount = AccountFromValue(params[0]);
@@ -632,14 +632,14 @@ Value setaccount(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "setaccount <chronocoinaddress> <account>\n"
+            "setaccount <chronokingsaddress> <account>\n"
             "Sets the account associated with the given address.");
 
     string strAddress = params[0].get_str();
     uint160 hash160;
     bool isValid = AddressToHash160(strAddress, hash160);
     if (!isValid)
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Chronocoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid ChronoKings address");
 
 
     string strAccount;
@@ -669,7 +669,7 @@ Value getaccount(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "getaccount <chronocoinaddress>\n"
+            "getaccount <chronokingsaddress>\n"
             "Returns the account associated with the given address.");
 
     string strAddress = params[0].get_str();
@@ -750,7 +750,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
         throw runtime_error(
-            "sendtoaddress <chronocoinaddress> <amount> [comment] [comment-to]\n"
+            "sendtoaddress <chronokingsaddress> <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.01"
             + HelpRequiringPassphrase());
 
@@ -814,14 +814,14 @@ Value getreceivedbyaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "getreceivedbyaddress <chronocoinaddress> [minconf=1]\n"
-            "Returns the total amount received by <chronocoinaddress> in transactions with at least [minconf] confirmations.");
+            "getreceivedbyaddress <chronokingsaddress> [minconf=1]\n"
+            "Returns the total amount received by <chronokingsaddress> in transactions with at least [minconf] confirmations.");
 
     // Bitcoin address
     string strAddress = params[0].get_str();
     CScript scriptPubKey;
     if (!scriptPubKey.SetBitcoinAddress(strAddress))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Chronocoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid ChronoKings address");
     if (!IsMine(*pwalletMain,scriptPubKey))
         return (double)0.0;
 
@@ -1047,7 +1047,7 @@ Value sendfrom(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 3 || params.size() > 6)
         throw runtime_error(
-            "sendfrom <fromaccount> <tochronocoinaddress> <amount> [minconf=1] [comment] [comment-to]\n"
+            "sendfrom <fromaccount> <tochronokingsaddress> <amount> [minconf=1] [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.01"
             + HelpRequiringPassphrase());
 
@@ -1119,7 +1119,7 @@ Value sendmany(const Array& params, bool fHelp)
 
         CScript scriptPubKey;
         if (!scriptPubKey.SetBitcoinAddress(strAddress))
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid Chronocoin address:")+strAddress);
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid ChronoKings address:")+strAddress);
         int64 nAmount = AmountFromValue(s.value_); 
         totalAmount += nAmount;
 
@@ -1724,15 +1724,15 @@ Value encryptwallet(const Array& params, bool fHelp)
     // slack space in .dat files; that is bad if the old data is
     // unencrypted private keys. So:
     StartShutdown();
-    return "wallet encrypted; Chronocoin server stopping, restart to run with encrypted wallet. The keypool has been flushed, you need to make a new backup.";
+    return "wallet encrypted; ChronoKings server stopping, restart to run with encrypted wallet. The keypool has been flushed, you need to make a new backup.";
 }
 
 Value validateaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "validateaddress <chronocoinaddress>\n"
-            "Return information about <chronocoinaddress>.");
+            "validateaddress <chronokingsaddress>\n"
+            "Return information about <chronokingsaddress>.");
 
     string strAddress = params[0].get_str();
     uint160 hash160;
@@ -1770,10 +1770,10 @@ Value getwork(const Array& params, bool fHelp)
             "If [data] is specified, tries to solve the block and returns true if it was successful.");
 
     if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "chronocoin is not connected!");
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "chronokings is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "chronocoin is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "chronokings is downloading blocks...");
 
     static map<uint256, pair<CBlock*, unsigned int> > mapNewBlock;
     static vector<CBlock*> vNewBlock;
@@ -1887,10 +1887,10 @@ Value getworkaux(const Array& params, bool fHelp)
             );
 
     if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Chronocoin is not connected!");
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "ChronoKings is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Chronocoin is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "ChronoKings is downloading blocks...");
 
     static map<uint256, pair<CBlock*, unsigned int> > mapNewBlock;
     static vector<CBlock*> vNewBlock;
@@ -2054,10 +2054,10 @@ Value getmemorypool(const Array& params, bool fHelp)
     if (params.size() == 0)
     {
         if (vNodes.empty())
-            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Chronocoin is not connected!");
+            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "ChronoKings is not connected!");
 
         if (IsInitialBlockDownload())
-            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Chronocoin is downloading blocks...");
+            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "ChronoKings is downloading blocks...");
 
         static CReserveKey reservekey(pwalletMain);
 
@@ -2135,10 +2135,10 @@ Value getauxblock(const Array& params, bool fHelp)
             "the aux proof of work and returns true if it was successful.");
 
     if (vNodes.empty())
-        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Chronocoin is not connected!");
+        throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "ChronoKings is not connected!");
 
     if (IsInitialBlockDownload())
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Chronocoin is downloading blocks...");
+        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "ChronoKings is downloading blocks...");
 
     static map<uint256, CBlock*> mapNewBlock;
     static vector<CBlock*> vNewBlock;
@@ -2261,7 +2261,7 @@ Value importprivkey(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "importprivkey <chronocoinprivkey> [label] [rescan=true]\n"
+            "importprivkey <chronokingsprivkey> [label] [rescan=true]\n"
             "Adds a private key (as returned by dumpprivkey) to your wallet."
             + HelpRequiringPassphrase());
 
@@ -2311,13 +2311,13 @@ Value importaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "importaddress <chronocoinaddress> [label] [rescan=true]\n"
+            "importaddress <chronokingsaddress> [label] [rescan=true]\n"
             "Adds an address that can be watched as if it were in your wallet but cannot be used to spend.");
 
     string strAddress = params[0].get_str();
     uint160 hash160;
     if (!AddressToHash160(strAddress, hash160))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Chronocoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid ChronoKings address");
 
     string strLabel = "";
     if (params.size() > 1)
@@ -2351,15 +2351,15 @@ Value dumpprivkey(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "dumpprivkey <chronocoinaddress>\n"
-            "Reveals the private key corresponding to <chronocoinaddress>."
+            "dumpprivkey <chronokingsaddress>\n"
+            "Reveals the private key corresponding to <chronokingsaddress>."
             + HelpRequiringPassphrase());
 
     string strAddress = params[0].get_str();
 
     uint160 hash160;
     if (!AddressToHash160(strAddress, hash160))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Chronocoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid ChronoKings address");
         
     CPrivKey privKey;
     bool found = false;
@@ -2386,7 +2386,7 @@ Value signmessage(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw runtime_error(
-            "signmessage <chronocoinaddress> <message>\n"
+            "signmessage <chronokingsaddress> <message>\n"
             "Sign a message with the private key of an address"
             + HelpRequiringPassphrase());
 
@@ -2427,7 +2427,7 @@ Value verifymessage(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "verifymessage <chronocoinaddress> <signature> <message>\n"
+            "verifymessage <chronokingsaddress> <signature> <message>\n"
             "Verify a signed message");
 
     string strAddress  = params[0].get_str();
@@ -2636,7 +2636,7 @@ Value listunspent(const Array& params, bool fHelp)
         {
             string address = input.get_str();
             if (!IsValidBitcoinAddress(address))
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid Chronocoin address: ")+input.get_str());
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid ChronoKings address: ")+input.get_str());
             if (setAddress.count(address))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+input.get_str());
            setAddress.insert(address);
@@ -2727,7 +2727,7 @@ Value createrawtransaction(const Array& params, bool fHelp)
     {
         string address = s.name_;
         if (!IsValidBitcoinAddress(address))
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid Chronocoin address: ")+s.name_);
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid ChronoKings address: ")+s.name_);
 
         if (setAddress.count(address))
             throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+s.name_);
@@ -3119,7 +3119,7 @@ string HTTPPost(const string& strMsg, const map<string,string>& mapRequestHeader
 {
     ostringstream s;
     s << "POST / HTTP/1.1\r\n"
-      << "User-Agent: chronocoin-json-rpc/" << FormatFullVersion() << "\r\n"
+      << "User-Agent: chronokings-json-rpc/" << FormatFullVersion() << "\r\n"
       << "Host: 127.0.0.1\r\n"
       << "Content-Type: application/json\r\n"
       << "Content-Length: " << strMsg.size() << "\r\n"
@@ -3149,7 +3149,7 @@ static string HTTPReply(int nStatus, const string& strMsg)
     if (nStatus == 401)
         return strprintf("HTTP/1.0 401 Authorization Required\r\n"
             "Date: %s\r\n"
-            "Server: chronocoin-json-rpc/%s\r\n"
+            "Server: chronokings-json-rpc/%s\r\n"
             "WWW-Authenticate: Basic realm=\"jsonrpc\"\r\n"
             "Content-Type: text/html\r\n"
             "Content-Length: 296\r\n"
@@ -3175,7 +3175,7 @@ static string HTTPReply(int nStatus, const string& strMsg)
             "Connection: close\r\n"
             "Content-Length: %d\r\n"
             "Content-Type: application/json\r\n"
-            "Server: chronocoin-json-rpc/%s\r\n"
+            "Server: chronokings-json-rpc/%s\r\n"
             "\r\n"
             "%s",
         nStatus,
@@ -3430,7 +3430,7 @@ void ThreadRPCServer2(void* parg)
 
     if (mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "")
     {
-        string strWhatAmI = "To use chronocoind";
+        string strWhatAmI = "To use chronokingsd";
         if (mapArgs.count("-server"))
             strWhatAmI = strprintf(_("To use the %s option"), "\"-server\"");
         else if (mapArgs.count("-daemon"))
@@ -3473,7 +3473,7 @@ void ThreadRPCServer2(void* parg)
     }
 #else
     if (fUseSSL)
-        throw runtime_error("-rpcssl=1, but chronocoin compiled without full openssl libraries.");
+        throw runtime_error("-rpcssl=1, but chronokings compiled without full openssl libraries.");
 #endif
 
     loop
@@ -3626,7 +3626,7 @@ Object CallRPC(const string& strMethod, const Array& params)
         throw runtime_error("couldn't connect to server");
 #else
     if (fUseSSL)
-        throw runtime_error("-rpcssl=1, but chronocoin compiled without full openssl libraries.");
+        throw runtime_error("-rpcssl=1, but chronokings compiled without full openssl libraries.");
 
     ip::tcp::iostream stream(GetArg("-rpcconnect", "127.0.0.1"), GetArg("-rpcport", itostr(GetDefaultRPCPort())));
     if (stream.fail())
@@ -3824,7 +3824,7 @@ int CommandLineRPC(int argc, char *argv[])
 #if defined(__WXMSW__) && defined(GUI)
         // Windows GUI apps can't print to command line,
         // so settle for a message box yuck
-        MyMessageBox(strPrint, "Chronocoin", wxOK);
+        MyMessageBox(strPrint, "ChronoKings", wxOK);
 #else
         fprintf((nRet == 0 ? stdout : stderr), "%s\n", strPrint.c_str());
 #endif

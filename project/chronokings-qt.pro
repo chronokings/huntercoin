@@ -1,6 +1,6 @@
 TEMPLATE = app
-TARGET = chronocoin-qt
-macx:TARGET = "Chronocoin-Qt"
+TARGET = chronokings-qt
+macx:TARGET = "Chronokings-Qt"
 VERSION = 0.3.64
 QT += network
 DEFINES += GUI QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
@@ -117,10 +117,10 @@ QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra -Wformat -Wform
 # Input
 DEPENDPATH += ../src ../src/json ../src/cryptopp ../src/qt
 
-CHRONOCOIN_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
+CHRONOKINGS_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h rpc.h uibase.h ui.h noui.h init.h auxpow.h 
     
-CHRONOCOIN_SOURCES = \
+CHRONOKINGS_SOURCES = \
     auxpow.cpp \
     util.cpp \
     key.cpp \
@@ -137,10 +137,10 @@ CHRONOCOIN_SOURCES = \
     init.cpp \
     cryptopp/sha.cpp \
     cryptopp/cpu.cpp \
-    chronocoin.cpp
+    chronokings.cpp
 
-HEADERS += $$join(CHRONOCOIN_HEADERS," ../src/",,)
-SOURCES += $$join(CHRONOCOIN_SOURCES," ../src/",,)
+HEADERS += $$join(CHRONOKINGS_HEADERS," ../src/",,)
+SOURCES += $$join(CHRONOKINGS_SOURCES," ../src/",,)
 
 HEADERS += \
     ../src/qt/netbase.h \
