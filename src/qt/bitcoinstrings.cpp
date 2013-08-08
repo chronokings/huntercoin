@@ -47,7 +47,7 @@ QT_TRANSLATE_NOOP("chronocoin-core", ""
 "Execute command when the best block changes (%s in cmd is replaced by block "
 "hash)"),
 QT_TRANSLATE_NOOP("chronocoin-core", ""
-"Listen for JSON-RPC connections on <port> (default: 8336 or testnet: 18336)"),
+"Listen for JSON-RPC connections on <port> (default: 8392 or testnet: 18392)"),
 QT_TRANSLATE_NOOP("chronocoin-core", ""
 "Number of seconds to keep misbehaving peers from reconnecting (default: "
 "86400)"),
@@ -142,7 +142,7 @@ QT_TRANSLATE_NOOP("chronocoin-core", "Invalid -tor address: '%s'"),
 QT_TRANSLATE_NOOP("chronocoin-core", "Invalid amount for -paytxfee=<amount>: '%s'"),
 QT_TRANSLATE_NOOP("chronocoin-core", "Invalid amount"),
 QT_TRANSLATE_NOOP("chronocoin-core", "List commands"),
-QT_TRANSLATE_NOOP("chronocoin-core", "Listen for connections on <port> (default: 8334 or testnet: 18334)"),
+QT_TRANSLATE_NOOP("chronocoin-core", "Listen for connections on <port> (default: 8391 or testnet: 18391)"),
 QT_TRANSLATE_NOOP("chronocoin-core", "Loading addresses..."),
 QT_TRANSLATE_NOOP("chronocoin-core", "Loading block index..."),
 QT_TRANSLATE_NOOP("chronocoin-core", "Loading wallet..."),

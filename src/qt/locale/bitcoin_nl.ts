@@ -1739,8 +1739,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2647,8 +2647,8 @@ Als het bestand niet bestaat, maak het aan met een alleen-lezen-permissie.</tran
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">Wacht op JSON-RPC-connecties op poort &lt;port&gt; (standaard: 8336 of testnet: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">Wacht op JSON-RPC-connecties op poort &lt;port&gt; (standaard: 8392 of testnet: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3017,8 +3017,8 @@ Als het bestand niet bestaat, maak het dan aan, met een alleen-lezen-permissie.<
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Luister voor verbindingen op &lt;poort&gt; (standaard: 8334 of testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Luister voor verbindingen op &lt;poort&gt; (standaard: 8391 of testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

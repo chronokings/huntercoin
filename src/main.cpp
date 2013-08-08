@@ -33,7 +33,7 @@ map<COutPoint, CInPoint> mapNextTx;
 map<uint256, CBlockIndex*> mapBlockIndex;
 uint256 hashGenesisBlock("0x000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770");
 CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
-const int nInitialBlockThreshold = 120; // Regard blocks up until N-threshold as "initial download"
+const int nInitialBlockThreshold = 0; // Regard blocks up until N-threshold as "initial download"
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
 CBigNum bnBestChainWork = 0;
@@ -725,7 +725,7 @@ int64 static GetBlockValue(int nHeight, int64 nFees)
 {
     int64 nSubsidy = 50 * COIN;
 
-    // Subsidy is cut in half every 4 years
+    // Subsidy is cut in half every 210000 blocks
     nSubsidy >>= (nHeight / 210000);
 
     return nSubsidy + nFees;
@@ -733,8 +733,8 @@ int64 static GetBlockValue(int nHeight, int64 nFees)
 
 unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 {
-    const int64 nTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-    const int64 nTargetSpacing = 10 * 60;
+    const int64 nTargetSpacing = 60;    // A block every minute
+    const int64 nTargetTimespan = nTargetTimespan * 2016;
     const int64 nInterval = nTargetTimespan / nTargetSpacing;
 
     // Genesis block
@@ -1793,6 +1793,8 @@ bool LoadBlockIndex(bool fAllowNew)
         if (!block.WriteToDisk(nFile, nBlockPos))
             return error("LoadBlockIndex() : writing genesis block to disk failed");
         if (!block.AddToBlockIndex(nFile, nBlockPos))
+            return error("LoadBlockIndex() : genesis block not accepted");
+        if (!block.ConnectBlock(CTxDb(), CBlockIndex(nFile, nBlockPos, block)))
             return error("LoadBlockIndex() : genesis block not accepted");
     }
 

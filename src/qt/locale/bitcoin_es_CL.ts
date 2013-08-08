@@ -1740,8 +1740,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2643,8 +2643,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">Escucha conexiones JSON-RPC en el puerto &lt;port&gt; (predeterminado: 8336 or testnet: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">Escucha conexiones JSON-RPC en el puerto &lt;port&gt; (predeterminado: 8392 or testnet: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3013,8 +3013,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Escuchar por conecciones en &lt;puerto&gt; (Por defecto: 8334 o red de prueba: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Escuchar por conecciones en &lt;puerto&gt; (Por defecto: 8391 o red de prueba: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

@@ -1736,7 +1736,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
+        <source>... CHR</source>
         <translation>123.456 ביטקוין</translation>
     </message>
     <message>
@@ -2645,8 +2645,8 @@ rpcpassword=%s
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">האזן לחיבורי JSON-RPC ב- &lt;port&gt; (ברירת מחדל: 8336 או רשת בדיקה: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">האזן לחיבורי JSON-RPC ב- &lt;port&gt; (ברירת מחדל: 8392 או רשת בדיקה: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3009,8 +3009,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">האזן לחיבורים ב&lt;פורט&gt; (ברירת מחדל: 8334 או ברשת הבדיקה: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">האזן לחיבורים ב&lt;פורט&gt; (ברירת מחדל: 8391 או ברשת הבדיקה: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

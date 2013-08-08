@@ -1737,8 +1737,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2646,8 +2646,8 @@ Se o ficheiro não existir, crie-o com permissões de leitura apenas para o dono
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">Escutar por ligações JSON-RPC em &lt;port&gt; (por defeito: 8336 ou rede de testes: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">Escutar por ligações JSON-RPC em &lt;port&gt; (por defeito: 8392 ou rede de testes: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3010,8 +3010,8 @@ Se o ficheiro não existir, crie-o com permissões de leitura apenas para o dono
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Escute por ligações em &lt;port&gt; (por defeito: 8334 ou testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Escute por ligações em &lt;port&gt; (por defeito: 8391 ou testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

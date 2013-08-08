@@ -83,23 +83,20 @@ public:
     virtual bool IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new = false);
     virtual int GetOurChainID()
     {
-        return 0x0001;
+        return 0x0002;
     }
 
     virtual int GetAuxPowStartBlock()
     {
-        if (fTestNet)
-            return 0;
-        return 19200;
+        return 0;
     }
 
     virtual int GetFullRetargetStartBlock()
     {
-        if (fTestNet)
-            return 0;
-        return 19200;
+        return 0;
     }
 
+    // TODO: Chronocoin needs its own alert pubkey
     string GetAlertPubkey1()
     {
         return "04ba207043c1575208f08ea6ac27ed2aedd4f84e70b874db129acb08e6109a3bbb7c479ae22565973ebf0ac0391514511a22cb9345bdb772be20cfbd38be578b0c";
@@ -145,33 +142,17 @@ string stringFromVch(const vector<unsigned char> &vch) {
 // Increase expiration to 36000 gradually starting at block 24000.
 // Use for validation purposes and pass the chain height.
 int GetExpirationDepth(int nHeight) {
-    if (nHeight < 24000)
-        return 12000;
-    if (nHeight < 48000)
-        return nHeight - 12000;
-    return 36000;
+    return INT_MAX;
 }
 
 // For display purposes, pass the name height.
 int GetDisplayExpirationDepth(int nHeight) {
-    if (nHeight < 12000)
-        return 12000;
-    return 36000;
+    return INT_MAX;
 }
 
 int64 GetNetworkFee(int nHeight)
 {
-    // Speed up network fee decrease 4x starting at 24000
-    if (nHeight >= 24000)
-        nHeight += (nHeight - 24000) * 3;
-    if ((nHeight >> 13) >= 60)
-        return 0;
-    int64 nStart = 50 * COIN;
-    if (fTestNet)
-        nStart = 10 * CENT;
-    int64 nRes = nStart >> (nHeight >> 13);
-    nRes -= (nRes >> 14) * (nHeight % 8192);
-    return nRes;
+    return 0;
 }
 
 int GetTxPosHeight(const CNameIndex& txPos)
@@ -1916,12 +1897,7 @@ bool CChronocoinHooks::ConnectInputs(CTxDB& txdb,
                     return error("ConnectInputsHook() : name_firstupdate cannot be mined if name_new is not already in chain and unexpired");
                 // Check that no other pending txs on this name are already in the block to be mined
                 set<uint256>& setPending = mapNamePending[vvchArgs[0]];
-#ifdef MAC_OSX
-                // The STL implementation that ships with the Mac llvm compiler doesn't like reference types in pairs.
-                BOOST_FOREACH(const PAIRTYPE(uint256, const CTxIndex)& s, mapTestPool)
-#else
-                BOOST_FOREACH(const PAIRTYPE(uint256, const CTxIndex&)& s, mapTestPool)
-#endif
+                BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& s, mapTestPool)
                 {
                     if (setPending.count(s.first))
                     {
@@ -2143,21 +2119,20 @@ bool CChronocoinHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* 
     return true;
 }
 
-bool GenesisBlock(CBlock& block, int extra)
+bool GenesisBlock(CBlock& block)
 {
     block = CBlock();
     block.hashPrevBlock = 0;
     block.nVersion = 1;
-    block.nTime    = 1303000001;
-    block.nBits    = 0x1c007fff;
-    block.nNonce   = 0xa21ea192U;
-    const char* pszTimestamp = "... choose what comes next.  Lives of your own, or a return to chains. -- V";
+    block.nTime    = 1375963076;
+    block.nBits    = 0xffffffff;
+    block.nNonce   = 0x0U;
     CTransaction txNew;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = CScript() << block.nBits << CBigNum(++extra) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+    txNew.vin[0].scriptSig = CScript() << block.nBits;
     txNew.vout[0].nValue = 50 * COIN;
-    txNew.vout[0].scriptPubKey = CScript() << ParseHex("04b620369050cd899ffbbc4e8ee51e8c4534a855bb463439d63d235d4779685d8b6f4870a238cf365ac94fa13ef9a2a22cd99d0d5ee86dcabcafce36c7acf43ce5") << OP_CHECKSIG;
+    txNew.vout[0].scriptPubKey.SetBitcoinAddress("TODO: Bitcoin address");
     block.vtx.push_back(txNew);
     block.hashMerkleRoot = block.BuildMerkleTree();
     printf("====================================\n");
@@ -2186,20 +2161,6 @@ int CChronocoinHooks::LockinHeight()
 
 bool CChronocoinHooks::Lockin(int nHeight, uint256 hash)
 {
-    if (!fTestNet)
-        if ((nHeight == 2016 && hash != uint256("0x0000000000660bad0d9fbde55ba7ee14ddf766ed5f527e3fbca523ac11460b92")) ||
-                (nHeight ==   4032 && hash != uint256("0x0000000000493b5696ad482deb79da835fe2385304b841beef1938655ddbc411")) ||
-                (nHeight ==   6048 && hash != uint256("0x000000000027939a2e1d8bb63f36c47da858e56d570f143e67e85068943470c9")) ||
-                (nHeight ==   8064 && hash != uint256("0x000000000003a01f708da7396e54d081701ea406ed163e519589717d8b7c95a5")) ||
-                (nHeight ==  10080 && hash != uint256("0x00000000000fed3899f818b2228b4f01b9a0a7eeee907abd172852df71c64b06")) ||
-                (nHeight ==  12096 && hash != uint256("0x0000000000006c06988ff361f124314f9f4bb45b6997d90a7ee4cedf434c670f")) ||
-                (nHeight ==  14112 && hash != uint256("0x00000000000045d95e0588c47c17d593c7b5cb4fb1e56213d1b3843c1773df2b")) ||
-                (nHeight ==  16128 && hash != uint256("0x000000000001d9964f9483f9096cf9d6c6c2886ed1e5dec95ad2aeec3ce72fa9")) ||
-                (nHeight ==  18940 && hash != uint256("0x00000000000087f7fc0c8085217503ba86f796fa4984f7e5a08b6c4c12906c05")) ||
-                (nHeight ==  30240 && hash != uint256("0xe1c8c862ff342358384d4c22fa6ea5f669f3e1cdcf34111f8017371c3c0be1da")) ||
-                (nHeight ==  57000 && hash != uint256("0xaa3ec60168a0200799e362e2b572ee01f3c3852030d07d036e0aa884ec61f203")) ||
-                (nHeight == 112896 && hash != uint256("0x73f880e78a04dd6a31efc8abf7ca5db4e262c4ae130d559730d6ccb8808095bf")))
-            return false;
     return true;
 }
 
@@ -2210,7 +2171,7 @@ string CChronocoinHooks::IrcPrefix()
 
 unsigned short GetDefaultPort()
 {
-    return fTestNet ? 18334 : 8334;
+    return fTestNet ? 18391 : 8391;
 }
 
 unsigned int pnSeed[] = { 0x58cea445, 0x2b562f4e, 0x291f20b2, 0 };
@@ -2229,4 +2190,4 @@ string GetDefaultDataDirSuffix() {
 #endif
 }
 
-unsigned char GetAddressVersion() { return ((unsigned char)(fTestNet ? 111 : 52)); }
+unsigned char GetAddressVersion() { return ((unsigned char)(fTestNet ? 87 : 28)); }

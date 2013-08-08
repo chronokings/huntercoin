@@ -1732,8 +1732,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>123,456 NMC</translation>
+        <source>... CHR</source>
+        <translation>123,456 CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2634,8 +2634,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">Εισερχόμενες συνδέσεις JSON-RPC στη θύρα &lt;port&gt; (προεπιλογή: 8336 or testnet: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">Εισερχόμενες συνδέσεις JSON-RPC στη θύρα &lt;port&gt; (προεπιλογή: 8392 or testnet: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -2997,8 +2997,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Εισερχόμενες συνδέσεις στη θύρα &lt;port&gt; (προεπιλογή: 8334 ή στο testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Εισερχόμενες συνδέσεις στη θύρα &lt;port&gt; (προεπιλογή: 8391 ή στο testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

@@ -236,7 +236,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     <message>
         <location line="+1"/>
         <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR CHRONOCOINS&lt;/b&gt;!</source>
-        <translation>УВАГА: Якщо ви зашифруєте гаманець і забудете пароль, ви &lt;b&gt;ВТРАТИТЕ ВСІ СВОЇ NMC&lt;/b&gt;!</translation>
+        <translation>УВАГА: Якщо ви зашифруєте гаманець і забудете пароль, ви &lt;b&gt;ВТРАТИТЕ ВСІ СВОЇ CHR&lt;/b&gt;!</translation>
     </message>
     <message>
         <location line="+0"/>
@@ -263,7 +263,7 @@ This product includes software developed by the OpenSSL Project for use in the O
     <message>
         <location line="-56"/>
         <source>Chronocoin will close now to finish the encryption process. Remember that encrypting your wallet cannot fully protect your Chronocoins from being stolen by malware infecting your computer.</source>
-        <translation type="unfinished">Chronocoin-клієнт буде закрито для завершення процесу шифрування. Пам’ятайте, що шифрування гаманця не може повністю захистити ваші NMC від кражі, у випадку якщо ваш комп’ютер буде інфіковано шкідливими програмами.</translation>
+        <translation type="unfinished">Chronocoin-клієнт буде закрито для завершення процесу шифрування. Пам’ятайте, що шифрування гаманця не може повністю захистити ваші CHR від кражі, у випадку якщо ваш комп’ютер буде інфіковано шкідливими програмами.</translation>
     </message>
     <message>
         <location line="+13"/>
@@ -1742,8 +1742,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2650,8 +2650,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">Прослуховувати &lt;port&gt; для JSON-RPC-з’єднань (за промовчуванням: 8336)
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">Прослуховувати &lt;port&gt; для JSON-RPC-з’єднань (за промовчуванням: 8392)
 </translation>
     </message>
     <message>
@@ -3021,8 +3021,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Чекати на з&apos;єднання на порту (по замовченню 8334 або тестова мережа 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Чекати на з&apos;єднання на порту (по замовченню 8391 або тестова мережа 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

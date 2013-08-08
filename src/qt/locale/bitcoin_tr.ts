@@ -1733,8 +1733,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2637,8 +2637,8 @@ Dosya mevcut değilse, sadece sahibi için okumayla sınırlı izin ile oluştur
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">JSON-RPC bağlantılarını &lt;port&gt; üzerinde dinle (varsayılan: 8336 veya tesnet: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">JSON-RPC bağlantılarını &lt;port&gt; üzerinde dinle (varsayılan: 8392 veya tesnet: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3001,8 +3001,8 @@ Dosya mevcut değilse, sadece sahibi için okumayla sınırlı izin ile oluştur
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Bağlantılar için dinlenecek &lt;port&gt; (varsayılan: 8334 ya da testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Bağlantılar için dinlenecek &lt;port&gt; (varsayılan: 8391 ya da testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

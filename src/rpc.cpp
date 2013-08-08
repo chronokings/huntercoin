@@ -56,7 +56,7 @@ void ThreadCleanWalletPassphrase(void* parg);
 
 static inline unsigned short GetDefaultRPCPort()
 {
-    return GetBoolArg("-testnet", false) ? 18336 : 8336;
+    return GetBoolArg("-testnet", false) ? 18392 : 8392;
 }
 
 Object JSONRPCError(int code, const string& message)

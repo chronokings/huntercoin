@@ -1214,7 +1214,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+6"/>
         <source>Optional transaction fee per kB that helps make sure your transactions are processed quickly. Most transactions are 1 kB. Fee 0.01 recommended.</source>
-        <translation>Такса за транзакция на kB. Подпомага участниците в мрежата, които верифицират транзакции (miners). По-висока стойност би трябвало да ускори обработката на транзакции. Повечето транзакции са около 1 kB. Препоръчителна стойност - 0.01 NMC.</translation>
+        <translation>Такса за транзакция на kB. Подпомага участниците в мрежата, които верифицират транзакции (miners). По-висока стойност би трябвало да ускори обработката на транзакции. Повечето транзакции са около 1 kB. Препоръчителна стойност - 0.01 CHR.</translation>
     </message>
     <message>
         <location line="+15"/>
@@ -1733,8 +1733,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2635,7 +2635,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2997,7 +2997,7 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

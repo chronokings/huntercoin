@@ -591,7 +591,7 @@ std::string HelpMessage()
         "  -testnet         \t\t  " + _("Use the test network\n") +
         "  -rpcuser=<user>  \t  "   + _("Username for JSON-RPC connections\n") +
         "  -rpcpassword=<pw>\t  "   + _("Password for JSON-RPC connections\n") +
-        "  -rpcport=<port>  \t\t  " + _("Listen for JSON-RPC connections on <port> (default: 8336)\n") +
+        "  -rpcport=<port>  \t\t  " + _("Listen for JSON-RPC connections on <port> (default: 8392)\n") +
         "  -rpcallowip=<ip> \t\t  " + _("Allow JSON-RPC connections from specified IP address\n") +
         "  -rpcconnect=<ip> \t  "   + _("Send commands to node running on <ip> (default: 127.0.0.1)\n") +
         "  -keypool=<n>     \t  "   + _("Set key pool size to <n> (default: 100)\n") +

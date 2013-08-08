@@ -1214,7 +1214,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+6"/>
         <source>Optional transaction fee per kB that helps make sure your transactions are processed quickly. Most transactions are 1 kB. Fee 0.01 recommended.</source>
-        <translation>Opcionális, kB-onkénti tranzakciós díj a tranzakcióid minél gyorsabb feldolgozásának elősegítésére.  A legtöbb tranzakció 1 kB-os.  0,01 NMC ajánlott.</translation>
+        <translation>Opcionális, kB-onkénti tranzakciós díj a tranzakcióid minél gyorsabb feldolgozásának elősegítésére.  A legtöbb tranzakció 1 kB-os.  0,01 CHR ajánlott.</translation>
     </message>
     <message>
         <location line="+15"/>
@@ -1733,8 +1733,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2632,8 +2632,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">JSON-RPC csatlakozásokhoz figyelendő &lt;port&gt; (alapértelmezett: 8336 or testnet: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">JSON-RPC csatlakozásokhoz figyelendő &lt;port&gt; (alapértelmezett: 8392 or testnet: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3000,8 +3000,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Csatlakozásokhoz figyelendő &lt;port&gt; (alapértelmezett: 8334 or testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Csatlakozásokhoz figyelendő &lt;port&gt; (alapértelmezett: 8391 or testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

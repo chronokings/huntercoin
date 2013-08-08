@@ -1741,8 +1741,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2648,8 +2648,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">Nasłuchuj połączeń JSON-RPC na &lt;port&gt; (domyślnie: 8336 or testnet: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">Nasłuchuj połączeń JSON-RPC na &lt;port&gt; (domyślnie: 8392 or testnet: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3013,8 +3013,8 @@ Jeżeli plik nie istnieje, utwórz go z uprawnieniami właściciela-tylko-do-odc
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">Nasłuchuj połączeń na &lt;port&gt; (domyślnie: 8334 lub testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">Nasłuchuj połączeń na &lt;port&gt; (domyślnie: 8391 lub testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

@@ -1733,8 +1733,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2638,8 +2638,8 @@ rpcpassword=%s
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">在通訊埠 &lt;port&gt; 聽候 JSON-RPC 連線 (預設: 8336, 或若為測試網路: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">在通訊埠 &lt;port&gt; 聽候 JSON-RPC 連線 (預設: 8392, 或若為測試網路: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3007,8 +3007,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">在通訊埠 &lt;port&gt; 聽候連線 (預設: 8334, 或若為測試網路: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">在通訊埠 &lt;port&gt; 聽候連線 (預設: 8391, 或若為測試網路: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

@@ -1734,8 +1734,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2639,7 +2639,7 @@ rpcpassword=%s
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
         <translation type="unfinished">JSON-RPC连接监听端口&lt;port&gt; (缺省：8332　testnet：18332)</translation>
     </message>
     <message>
@@ -3009,8 +3009,8 @@ If the file does not exist, create it with owner-readable-only file permissions.
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">监听端口连接 &lt;port&gt; (缺省: 8334 or testnet: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">监听端口连接 &lt;port&gt; (缺省: 8391 or testnet: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>

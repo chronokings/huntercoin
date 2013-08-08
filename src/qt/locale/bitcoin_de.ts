@@ -1217,7 +1217,7 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     <message>
         <location line="+6"/>
         <source>Optional transaction fee per kB that helps make sure your transactions are processed quickly. Most transactions are 1 kB. Fee 0.01 recommended.</source>
-        <translation>Optionale Transaktionsgebühr pro kB, die sicherstellt, dass Ihre Transaktionen schnell bearbeitet werden. Die meisten Transaktionen sind 1 kB groß. Eine Gebühr von 0.01 NMC wird empfohlen.</translation>
+        <translation>Optionale Transaktionsgebühr pro kB, die sicherstellt, dass Ihre Transaktionen schnell bearbeitet werden. Die meisten Transaktionen sind 1 kB groß. Eine Gebühr von 0.01 CHR wird empfohlen.</translation>
     </message>
     <message>
         <location line="+15"/>
@@ -1736,8 +1736,8 @@ Empty cell means pending (awaiting automatic name_firstupdate or awaiting networ
     </message>
     <message>
         <location line="+10"/>
-        <source>... NMC</source>
-        <translation>... NMC</translation>
+        <source>... CHR</source>
+        <translation>... CHR</translation>
     </message>
     <message>
         <location line="+31"/>
@@ -2644,8 +2644,8 @@ Falls die Konfigurationsdatei nicht existiert, erzeugen Sie diese bitte mit Lese
     </message>
     <message>
         <location line="+3"/>
-        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8336 or testnet: 18336)</source>
-        <translation type="unfinished">&lt;port&gt; nach JSON-RPC-Verbindungen abhören (Standard: 8336 oder Testnetz: 18336)</translation>
+        <source>Listen for JSON-RPC connections on &lt;port&gt; (default: 8392 or testnet: 18392)</source>
+        <translation type="unfinished">&lt;port&gt; nach JSON-RPC-Verbindungen abhören (Standard: 8392 oder Testnetz: 18392)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -3008,8 +3008,8 @@ Falls die Konfigurationsdatei nicht existiert, erzeugen Sie diese bitte mit Lese
     </message>
     <message>
         <location line="+1"/>
-        <source>Listen for connections on &lt;port&gt; (default: 8334 or testnet: 18334)</source>
-        <translation type="unfinished">&lt;port&gt; nach Verbindungen abhören (Standard: 8334 oder Testnetz: 18334)</translation>
+        <source>Listen for connections on &lt;port&gt; (default: 8391 or testnet: 18391)</source>
+        <translation type="unfinished">&lt;port&gt; nach Verbindungen abhören (Standard: 8391 oder Testnetz: 18391)</translation>
     </message>
     <message>
         <location line="+1"/>
