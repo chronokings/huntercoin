@@ -63,7 +63,7 @@ static const int OP_NAME_NEW = 0x01;
 static const int OP_NAME_FIRSTUPDATE = 0x02;
 static const int OP_NAME_UPDATE = 0x03;
 static const int OP_NAME_NOP = 0x04;
-static const int MIN_FIRSTUPDATE_DEPTH = 12;
+static const int MIN_FIRSTUPDATE_DEPTH = 2;
 
 class CNameIndex;
 class CDiskTxPos;

@@ -44,8 +44,7 @@ extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
-const int CHRONO_KINGS_GENESIS_EXTRA = 521;
-uint256 hashChronoKingsGenesisBlock("000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770");
+uint256 hashChronoKingsGenesisBlock("f865971410ddff284d11efb5d1b27cee007ef7e138b55a64cea4093ee57d953a");
 
 class CChronoKingsHooks : public CHooks
 {
@@ -88,7 +87,7 @@ public:
 
     virtual int GetAuxPowStartBlock()
     {
-        return 0;
+        return 1;
     }
 
     virtual int GetFullRetargetStartBlock()
@@ -419,7 +418,7 @@ string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, C
     if (fAskFee && !uiInterface.ThreadSafeAskFee(nFeeRequired))
         return "ABORTED";
 #else
-    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "ChronoKings", NULL))
+    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "Chrono Kings", NULL))
         return "ABORTED";
 #endif
 
@@ -1001,7 +1000,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
         throw runtime_error(
                 "name_firstupdate <name> <rand> [<tx>] <value>\n"
                 "Perform a first update after a name_new reservation.\n"
-                "Note that the first update will go into a block 12 blocks after the name_new, at the soonest."
+                "Note that the first update will go into a block 2 blocks after the name_new, at the soonest."
                 + HelpRequiringPassphrase());
     vector<unsigned char> vchName = vchFromValue(params[0]);
     vector<unsigned char> vchRand = ParseHex(params[1].get_str());
@@ -1506,7 +1505,7 @@ bool CNameDB::ReconstructNameIndex()
 
                 nHeight = GetTxPosHeight(txindex.pos);
 
-               vector<CNameIndex> vtxPos;
+                vector<CNameIndex> vtxPos;
                 if (ExistsName(vchName))
                 {   
                     if (!ReadName(vchName, vtxPos))
@@ -1518,7 +1517,7 @@ bool CNameDB::ReconstructNameIndex()
                 txPos2.txPos = txindex.pos;
                 vtxPos.push_back(txPos2);
                 if (!WriteName(vchName, vtxPos))
-                {   
+                {
                     return error("Rescanfornames() : failed to write to name DB");
                 }
 
@@ -2148,7 +2147,7 @@ bool CChronoKingsHooks::GenesisBlock(CBlock& block)
     if (fTestNet)
         return false;
 
-    return ::GenesisBlock(block, CHRONO_KINGS_GENESIS_EXTRA);
+    return ::GenesisBlock(block);
 }
 
 int CChronoKingsHooks::LockinHeight()

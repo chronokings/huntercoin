@@ -103,7 +103,7 @@ public:
     // Requires unlocked wallet; can throw exception instead of returning error
     QString nameFirstUpdatePrepare(const QString &name, const QString &data);
 
-    // Send pending name updates, if they are 12 blocks old
+    // Send pending name updates, if they are 2 blocks old
     void sendPendingNameFirstUpdates();
     
     // Update name

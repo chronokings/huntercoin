@@ -115,7 +115,7 @@ static std::string Translate(const char* psz)
 static void handleRunawayException(std::exception *e)
 {
     PrintExceptionContinue(e, "Runaway exception");
-    QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. ChronoKings can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
+    QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. Chrono Kings can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
     exit(1);
 }
 
@@ -143,8 +143,8 @@ int main(int argc, char *argv[])
         else
         {
             // This message can not be translated, as translation is not initialized yet
-            // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
-            QMessageBox::critical(0, "ChronoKings",
+            // (which not yet possible because lang=XX can be overridden in chronokings.conf in the data directory)
+            QMessageBox::critical(0, "Chrono Kings",
                                   QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
             return 0;
         }
@@ -161,12 +161,12 @@ int main(int argc, char *argv[])
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
 
-    // ... then bitcoin.conf:
+    // ... then chronokings.conf:
     if (!boost::filesystem::is_directory(GetDataDir()))
     {
         // This message can not be translated, as translation is not initialized yet
-        // (which not yet possible because lang=XX can be overridden in bitcoin.conf in the data directory)
-        QMessageBox::critical(0, "ChronoKings",
+        // (which not yet possible because lang=XX can be overridden in chronokings.conf in the data directory)
+        QMessageBox::critical(0, "Chrono Kings",
                               QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
         return 0;
     }
@@ -174,8 +174,8 @@ int main(int argc, char *argv[])
 
     // Application identification (must be set before OptionsModel is initialized,
     // as it is used to locate QSettings)
-    app.setOrganizationName("ChronoKings");
-    app.setOrganizationDomain("dot-bit.org");
+    app.setOrganizationName("Chrono Kings");
+    app.setOrganizationDomain("chronocoin.bit");
     if(GetBoolArg("-testnet")) // Separate UI settings for testnet
         app.setApplicationName("ChronoKings-Qt-testnet");
     else

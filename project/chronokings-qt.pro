@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = chronokings-qt
 macx:TARGET = "Chronokings-Qt"
-VERSION = 0.3.64
+VERSION = 0.1.0
 QT += network
 DEFINES += GUI QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
@@ -341,7 +341,7 @@ macx:HEADERS += ../src/qt/macdockiconhandler.h
 macx:OBJECTIVE_SOURCES += ../src/qt/macdockiconhandler.mm
 macx:LIBS += -framework Foundation -framework ApplicationServices -framework AppKit
 macx:DEFINES += MAC_OSX MSG_NOSIGNAL=0
-macx:ICON = src/qt/res/icons/bitcoin.icns
+macx:ICON = src/qt/res/icons/chronokings.icns
 macx:QMAKE_CFLAGS_THREAD += -pthread
 macx:QMAKE_LFLAGS_THREAD += -pthread
 macx:QMAKE_CXXFLAGS_THREAD += -pthread

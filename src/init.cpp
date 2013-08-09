@@ -195,7 +195,7 @@ bool AppInit2(int argc, char* argv[])
 
 #if defined(__WXMSW__) && defined(GUI)
         // Tabs make the columns line up in the message box
-        wxMessageBox(strUsage, "ChronoKings", wxOK);
+        wxMessageBox(strUsage, "Chrono Kings", wxOK);
 #else
         // Remove tabs
         strUsage.erase(std::remove(strUsage.begin(), strUsage.end(), '\t'), strUsage.end());
@@ -329,7 +329,7 @@ bool AppInit2(int argc, char* argv[])
     static boost::interprocess::file_lock lock(strLockFile.c_str());
     if (!lock.try_lock())
     {
-        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  chronokings is probably already running."), GetDataDir().c_str()), "ChronoKings");
+        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  Chrono Kings client is probably already running."), GetDataDir().c_str()), "Chrono Kings");
         return false;
     }
 
@@ -339,7 +339,7 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!BindListenPort(strErrors))
         {
-            wxMessageBox(strErrors, "ChronoKings");
+            wxMessageBox(strErrors, "Chrono Kings");
             return false;
         }
     }
@@ -382,7 +382,7 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!ParseMoney(mapArgs["-mininput"], nMinimumInputValue))
         {
-            wxMessageBox(_("Invalid amount for -mininput=<amount>"), "ChronoKings");
+            wxMessageBox(_("Invalid amount for -mininput=<amount>"), "Chrono Kings");
             return false;
         }
     }
@@ -419,7 +419,7 @@ bool AppInit2(int argc, char* argv[])
 
     if (!strErrors.empty())
     {
-        wxMessageBox(strErrors, "ChronoKings", wxOK | wxICON_ERROR);
+        wxMessageBox(strErrors, "Chrono Kings", wxOK | wxICON_ERROR);
         return false;
     }
 
@@ -473,7 +473,7 @@ bool AppInit2(int argc, char* argv[])
         addrProxy = CAddress(mapArgs["-proxy"]);
         if (!addrProxy.IsValid())
         {
-            wxMessageBox(_("Invalid -proxy address"), "ChronoKings");
+            wxMessageBox(_("Invalid -proxy address"), "Chrono Kings");
             return false;
         }
     }
@@ -498,11 +498,11 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!ParseMoney(mapArgs["-paytxfee"], nTransactionFee))
         {
-            wxMessageBox(_("Invalid amount for -paytxfee=<amount>"), "ChronoKings");
+            wxMessageBox(_("Invalid amount for -paytxfee=<amount>"), "Chrono Kings");
             return false;
         }
         if (nTransactionFee > 0.25 * COIN)
-            wxMessageBox(_("Warning: -paytxfee is set very high.  This is the transaction fee you will pay if you send a transaction."), "ChronoKings", wxOK | wxICON_EXCLAMATION);
+            wxMessageBox(_("Warning: -paytxfee is set very high.  This is the transaction fee you will pay if you send a transaction."), "Chrono Kings", wxOK | wxICON_EXCLAMATION);
     }
 
     if (fHaveUPnP)
@@ -538,7 +538,7 @@ bool AppInit2(int argc, char* argv[])
     }
 
     if (!CreateThread(StartNode, NULL))
-        wxMessageBox("Error: CreateThread(StartNode) failed", "ChronoKings");
+        wxMessageBox("Error: CreateThread(StartNode) failed", "Chrono Kings");
 
     if (fServer)
         CreateThread(ThreadRPCServer, NULL);

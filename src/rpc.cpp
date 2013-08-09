@@ -83,7 +83,7 @@ void PrintConsole(const char* format, ...)
     }
     printf("%s", buffer);
 #if defined(__WXMSW__) && defined(GUI)
-    MyMessageBox(buffer, "ChronoKings", wxOK | wxICON_EXCLAMATION);
+    MyMessageBox(buffer, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
 #else
     fprintf(stdout, "%s", buffer);
 #endif

@@ -1084,7 +1084,7 @@ string CWallet::SendMoneyPrepare(CScript scriptPubKey, int64 nValue, CWalletTx& 
     if (fAskFee && !uiInterface.ThreadSafeAskFee(nFeeRequired))
         return "ABORTED";
 #else
-    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "ChronoKings", NULL))
+    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "Chrono Kings", NULL))
         return "ABORTED";
 #endif
 

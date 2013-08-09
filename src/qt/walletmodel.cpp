@@ -191,9 +191,9 @@ void WalletModel::sendPendingNameFirstUpdates()
     }
 }
 
-// Equivalent of name_firstupdate that does not send the transaction (the transaction is kept for 12 blocks).
+// Equivalent of name_firstupdate that does not send the transaction (the transaction is kept for 2 blocks).
 // This is needed because of wallet encryption (otherwise we could store just hash+rand+value and create transaction
-// on-the-fly after 12 blocks).
+// on-the-fly after 2 blocks).
 // Must hold cs_main lock.
 std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vector<unsigned char> &vchName, uint256 wtxInHash, uint64 rand, const std::vector<unsigned char> &vchValue, int64 *pnFeeRet /*= NULL*/)
 {
@@ -639,7 +639,7 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
         uint160 hash160;
         bool isValid = AddressToHash160(strAddress, hash160);
         if (!isValid)
-            return tr("Invalid ChronoKings address");
+            return tr("Invalid Chrono Kings address");
         scriptPubKeyOrig.SetBitcoinAddress(strAddress);
     }
     else

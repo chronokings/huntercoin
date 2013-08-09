@@ -470,7 +470,7 @@ QVariant NameTableModel::headerData(int section, Qt::Orientation orientation, in
             switch(section)
             {
             case Name:
-                return tr("Name registered using ChronoKings.");
+                return tr("Player name for Chrono Kings.");
             case Value:
                 return tr("Data associated with the name.");
             case ExpiresIn:

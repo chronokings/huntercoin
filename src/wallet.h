@@ -754,7 +754,7 @@ public:
 bool GetWalletFile(CWallet* pwallet, std::string &strWalletFileOut);
 
 #ifdef GUI
-// Editable transaction, which is not broadcasted immediately (only after 12 blocks)
+// Editable transaction, which is not broadcasted immediately (only after 2 blocks)
 struct PreparedNameFirstUpdate
 {
     uint64 rand;

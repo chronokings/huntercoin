@@ -735,7 +735,7 @@ void PrintException(std::exception* pex, const char* pszThread)
     strMiscWarning = pszMessage;
 #ifdef GUI
     if (wxTheApp && !fDaemon)
-        MyMessageBox(pszMessage, "ChronoKings", wxOK | wxICON_ERROR);
+        MyMessageBox(pszMessage, "Chrono Kings", wxOK | wxICON_ERROR);
 #endif
     throw;
 }
@@ -748,9 +748,9 @@ void ThreadOneMessageBox(string strMessage)
         return;
     fMessageBoxOpen = true;
 #ifdef GUI
-    uiInterface.ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
+    uiInterface.ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
 #else
-    ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
+    ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
 #endif
     fMessageBoxOpen = false;
 }
@@ -893,14 +893,7 @@ string GetConfigFile(string confFile)
 
 string GetConfigFile()
 {
-    string confFile = GetConfigFile("chronokings.conf");
-    if (!boost::filesystem::exists(confFile))
-    {
-        string altConfFile = GetConfigFile("bitcoin.conf");
-        if (boost::filesystem::exists(altConfFile))
-            confFile = altConfFile;
-    }
-    return confFile;
+    return GetConfigFile("chronokings.conf");
 }
 
 void ReadConfigFile(map<string, string>& mapSettingsRet,
@@ -918,7 +911,7 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
     
     for (pod::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it)
     {
-        // Don't overwrite existing settings so command line settings override bitcoin.conf
+        // Don't overwrite existing settings so command line settings override chronokings.conf
         string strKey = string("-") + it->string_key;
         if (mapSettingsRet.count(strKey) == 0)
             mapSettingsRet[strKey] = it->value[0];
@@ -1046,10 +1039,10 @@ void AddTimeData(unsigned int ip, int64 nTime)
                 if (!fMatch)
                 {
                     fDone = true;
-                    string strMessage = _("Warning: Please check that your computer's date and time are correct.  If your clock is wrong ChronoKings will not work properly.");
+                    string strMessage = _("Warning: Please check that your computer's date and time are correct.  If your clock is wrong Chrono Kings will not work properly.");
                     strMiscWarning = strMessage;
                     printf("*** %s\n", strMessage.c_str());
-                    boost::thread(boost::bind(MyMessageBox, strMessage+" ", string("ChronoKings"), wxOK | wxICON_EXCLAMATION, (wxWindow*)NULL, -1, -1));
+                    boost::thread(boost::bind(MyMessageBox, strMessage+" ", string("Chrono Kings"), wxOK | wxICON_EXCLAMATION, (wxWindow*)NULL, -1, -1));
                 }
             }
         }

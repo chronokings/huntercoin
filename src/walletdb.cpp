@@ -327,7 +327,7 @@ bool CWalletDB::LoadWallet(CWallet* pwallet)
                 PreparedNameFirstUpdate prep;
                 // Note: name, rand and data are stored unencrypted. Even if we encrypt them,
                 // they are recoverable from prep.wtx, which has to be unencrypted (so it can be
-                // auto-broadcasted, when name_new is 12 blocks old)
+                // auto-broadcasted, when name_new is 2 blocks old)
                 ssValue >> wtxInHash >> prep.rand >> prep.vchData >> prep.wtx;
                 
                 prep.wtx.pwallet = pwallet;

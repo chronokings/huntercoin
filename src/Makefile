@@ -31,35 +31,18 @@ LIBS= \
    -l ssl \
    -l crypto
 
-chronokings: USE_UPNP:=1
+chronokingsd: USE_UPNP:=0
 	ifdef USE_UPNP
 		LIBS += -l miniupnpc
 		DEFS += -DUSE_UPNP=$(USE_UPNP)
+		INCLUDEPATHS+=-I../libs/miniupnpc-1.8.20130211
+		LIBPATHS+=-I../libs/miniupnpc-1.8.20130211
 	endif
 	ifneq "$(MINGW)" ""
 		# MinGW-specific
 		DEFS += -D__NO_SYSTEM_INCLUDES -D__WXMSW__
 		LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
 		LIBBOOST_SUFFIX=-mgw46-mt-1_50
-	else
-		# Linux-specific
-		LIBS+= \
-			-Wl,-Bdynamic \
-			-l gthread-2.0 \
-			-l z \
-			-l dl \
-			-l pthread
-	endif
-
-chronokingsd: USE_UPNP:=0
-	ifdef USE_UPNP
-		LIBS += -l miniupnpc
-		DEFS += -DUSE_UPNP=$(USE_UPNP)
-	endif
-	ifneq "$(MINGW)" ""
-		# MinGW-specific
-		DEFS += -D__NO_SYSTEM_INCLUDES -D__WXMSW__
-		LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
 	else
 		# Linux-specific
 		LIBS+= \

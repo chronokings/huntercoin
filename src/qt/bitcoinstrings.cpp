@@ -174,7 +174,7 @@ QT_TRANSLATE_NOOP("chronokings-core", "Set key pool size to <n> (default: 100)")
 QT_TRANSLATE_NOOP("chronokings-core", "Set maximum block size in bytes (default: 250000)"),
 QT_TRANSLATE_NOOP("chronokings-core", "Set minimum block size in bytes (default: 0)"),
 QT_TRANSLATE_NOOP("chronokings-core", "Shrink debug.log file on client startup (default: 1 when no -debug)"),
-QT_TRANSLATE_NOOP("chronokings-core", "Specify configuration file (default: bitcoin.conf)"),
+QT_TRANSLATE_NOOP("chronokings-core", "Specify configuration file (default: chronokings.conf)"),
 QT_TRANSLATE_NOOP("chronokings-core", "Specify connection timeout in milliseconds (default: 5000)"),
 QT_TRANSLATE_NOOP("chronokings-core", "Specify data directory"),
 QT_TRANSLATE_NOOP("chronokings-core", "Specify pid file (default: chronokingsd.pid)"),

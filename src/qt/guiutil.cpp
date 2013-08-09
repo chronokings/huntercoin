@@ -276,12 +276,12 @@ bool ToolTipToRichTextFilter::eventFilter(QObject *obj, QEvent *evt)
 #ifdef WIN32
 boost::filesystem::path static StartupShortcutPath()
 {
-    return GetSpecialFolderPath(CSIDL_STARTUP) / "ChronoKings.lnk";
+    return GetSpecialFolderPath(CSIDL_STARTUP) / "Chrono Kings.lnk";
 }
 
 bool GetStartOnSystemStartup()
 {
-    // check for ChronoKings.lnk
+    // check for Chrono Kings.lnk
     return boost::filesystem::exists(StartupShortcutPath());
 }
 
@@ -399,7 +399,7 @@ bool SetStartOnSystemStartup(bool fAutoStart)
         // Write a bitcoin.desktop file to the autostart directory:
         optionFile << "[Desktop Entry]\n";
         optionFile << "Type=Application\n";
-        optionFile << "Name=ChronoKings\n";
+        optionFile << "Name=Chrono Kings\n";
         optionFile << "Exec=" << pszExePath << " -min\n";
         optionFile << "Terminal=false\n";
         optionFile << "Hidden=false\n";

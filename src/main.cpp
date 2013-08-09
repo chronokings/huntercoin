@@ -31,7 +31,7 @@ unsigned int nTransactionsUpdated = 0;
 map<COutPoint, CInPoint> mapNextTx;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
-uint256 hashGenesisBlock("0x000000000062b72c5e2ceb45fbc8587e807c155b0da735e6483dfba2f0a9c770");
+uint256 hashGenesisBlock;
 CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 const int nInitialBlockThreshold = 0; // Regard blocks up until N-threshold as "initial download"
 CBlockIndex* pindexGenesisBlock = NULL;
@@ -58,7 +58,7 @@ int64 nHPSTimerStart;
 // Settings
 int fGenerateBitcoins = false;
 int64 nTransactionFee = 0;
-int64 nMinimumInputValue = CENT / 100;
+int64 nMinimumInputValue = 1;
 int fLimitProcessors = false;
 int nLimitProcessors = 1;
 int fMinimizeToTray = true;
@@ -785,6 +785,10 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
 {
+    // TODO: genesis block needs correct PoW nonce
+    if (hash == hashGenesisBlock)
+        return true;
+
     CBigNum bnTarget;
     bnTarget.SetCompact(nBits);
 
@@ -1663,9 +1667,9 @@ bool CheckDiskSpace(uint64 nAdditionalBytes)
         strMiscWarning = strMessage;
         printf("*** %s\n", strMessage.c_str());
 #ifdef GUI
-        uiInterface.ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
+        uiInterface.ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
 #else
-        ThreadSafeMessageBox(strMessage, "ChronoKings", wxOK | wxICON_EXCLAMATION);
+        ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
 #endif
 
         CreateThread(Shutdown, NULL);
@@ -1732,10 +1736,12 @@ bool LoadBlockIndex(bool fAllowNew)
     //
     // Load block index
     //
-    CTxDB txdb("cr");
-    if (!txdb.LoadBlockIndex())
-        return false;
-    txdb.Close();
+    {
+        CTxDB txdb("cr");
+        if (!txdb.LoadBlockIndex())
+            return false;
+        txdb.Close();
+    }
 
     //
     // Init with genesis block
@@ -1794,7 +1800,9 @@ bool LoadBlockIndex(bool fAllowNew)
             return error("LoadBlockIndex() : writing genesis block to disk failed");
         if (!block.AddToBlockIndex(nFile, nBlockPos))
             return error("LoadBlockIndex() : genesis block not accepted");
-        if (!block.ConnectBlock(CTxDb(), CBlockIndex(nFile, nBlockPos, block)))
+        CBlockIndex blockIndex(nFile, nBlockPos, block);
+        CTxDB txdb;
+        if (!block.ConnectBlock(txdb, &blockIndex))
             return error("LoadBlockIndex() : genesis block not accepted");
     }
 
