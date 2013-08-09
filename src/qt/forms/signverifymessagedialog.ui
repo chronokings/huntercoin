@@ -48,7 +48,7 @@
          <item>
           <widget class="QValidatedLineEdit" name="addressIn_SM">
            <property name="toolTip">
-            <string>The address to sign the message with (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</string>
+            <string>The address to sign the message with (e.g. CJt898fvQDvjw1SBKqxCCd9hpZd4u1Qsn5)</string>
            </property>
            <property name="maxLength">
             <number>34</number>
@@ -155,7 +155,7 @@
          <item>
           <widget class="QPushButton" name="signMessageButton_SM">
            <property name="toolTip">
-            <string>Sign the message to prove you own this ChronoKings address</string>
+            <string>Sign the message to prove you own this Chrono Kings address</string>
            </property>
            <property name="text">
             <string>Sign &amp;Message</string>
@@ -261,7 +261,7 @@
          <item>
           <widget class="QValidatedLineEdit" name="addressIn_VM">
            <property name="toolTip">
-            <string>The address the message was signed with (e.g. N1KHAL5C1CRzy58NdJwp1tbLze3XrkFxx9)</string>
+            <string>The address the message was signed with (e.g. CJt898fvQDvjw1SBKqxCCd9hpZd4u1Qsn5)</string>
            </property>
            <property name="maxLength">
             <number>34</number>
@@ -301,7 +301,7 @@
          <item>
           <widget class="QPushButton" name="verifyMessageButton_VM">
            <property name="toolTip">
-            <string>Verify the message to ensure it was signed with the specified ChronoKings address</string>
+            <string>Verify the message to ensure it was signed with the specified Chrono Kings address</string>
            </property>
            <property name="text">
             <string>Verify &amp;Message</string>

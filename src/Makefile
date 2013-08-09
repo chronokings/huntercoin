@@ -57,7 +57,7 @@ CXXFLAGS=-O2 -Wno-invalid-offsetof -Wformat $(DEFS) $(INCLUDEPATHS)
 HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h rpc.h uibase.h ui.h noui.h init.h auxpow.h
 
-BASE_OBJS= \
+OBJS= \
     obj/auxpow.o \
     obj/util.o \
     obj/key.o \
@@ -72,6 +72,7 @@ BASE_OBJS= \
     obj/wallet.o \
     obj/rpc.o \
     obj/init.o \
+    obj/chronokings.o \
     cryptopp/obj/sha.o \
     cryptopp/obj/cpu.o
 
@@ -88,15 +89,12 @@ obj/%.o: %.cpp $(HEADERS)
 cryptopp/obj/%.o: cryptopp/%.cpp
 	$(CXX) -c $(CXXFLAGS) -O3 -o $@ $<
 
-obj/nogui/%.o: %.cpp $(HEADERS)
+obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
-obj/test/%.o: test/%.cpp $(HEADERS)
-	$(CXX) -c $(CFLAGS) -o $@ $<
+obj/chronokings.o: chronokings.h
 
-obj/nogui/chronokings.o: chronokings.h
-
-chronokingsd: $(BASE_OBJS:obj/%=obj/nogui/%) obj/nogui/chronokings.o
+chronokingsd: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 clean:

@@ -734,7 +734,7 @@ int64 static GetBlockValue(int nHeight, int64 nFees)
 unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 {
     const int64 nTargetSpacing = 60;    // A block every minute
-    const int64 nTargetTimespan = nTargetTimespan * 2016;
+    const int64 nTargetTimespan = nTargetSpacing * 2016;
     const int64 nInterval = nTargetTimespan / nTargetSpacing;
 
     // Genesis block
@@ -785,7 +785,7 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
 {
-    // TODO: genesis block needs correct PoW nonce
+    // TODO: genesis block needs correct PoW nonce. Currently we just accept the genesis block blindly.
     if (hash == hashGenesisBlock)
         return true;
 
@@ -1751,6 +1751,9 @@ bool LoadBlockIndex(bool fAllowNew)
         if (!fAllowNew)
             return false;
 
+        CBlock block;
+
+        /* (Bitcoin genesis block)
         // Genesis Block:
         // CBlock(hash=000000000019d6, ver=1, hashPrevBlock=00000000000000, hashMerkleRoot=4a5e1e, nTime=1231006505, nBits=1d00ffff, nNonce=2083236893, vtx=1)
         //   CTransaction(hash=4a5e1e, ver=1, vin.size=1, vout.size=1, nLockTime=0)
@@ -1766,7 +1769,6 @@ bool LoadBlockIndex(bool fAllowNew)
         txNew.vin[0].scriptSig = CScript() << 486604799 << CBigNum(4) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
         txNew.vout[0].nValue = 50 * COIN;
         txNew.vout[0].scriptPubKey = CScript() << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
-        CBlock block;
         block.vtx.push_back(txNew);
         block.hashPrevBlock = 0;
         block.hashMerkleRoot = block.BuildMerkleTree();
@@ -1781,9 +1783,11 @@ bool LoadBlockIndex(bool fAllowNew)
             block.nBits    = 0x1d07fff8;
             block.nNonce   = 384568319;
         }
+        */
 
         if (!hooks->GenesisBlock(block))
         {
+            return error("Hook has not created genesis block");
             //// debug print
             printf("%s\n", block.GetHash().ToString().c_str());
             printf("%s\n", hashGenesisBlock.ToString().c_str());
@@ -1800,6 +1804,7 @@ bool LoadBlockIndex(bool fAllowNew)
             return error("LoadBlockIndex() : writing genesis block to disk failed");
         if (!block.AddToBlockIndex(nFile, nBlockPos))
             return error("LoadBlockIndex() : genesis block not accepted");
+
         CBlockIndex blockIndex(nFile, nBlockPos, block);
         CTxDB txdb;
         if (!block.ConnectBlock(txdb, &blockIndex))
@@ -3263,6 +3268,7 @@ void static BitcoinMiner(CWallet *pwallet)
             return;
         if (fShutdown)
             return;
+
         while (vNodes.empty() || IsInitialBlockDownload())
         {
             Sleep(1000);
@@ -3271,7 +3277,6 @@ void static BitcoinMiner(CWallet *pwallet)
             if (!fGenerateBitcoins)
                 return;
         }
-
 
         //
         // Create new block

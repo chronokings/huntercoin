@@ -44,7 +44,7 @@ extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
-uint256 hashChronoKingsGenesisBlock("f865971410ddff284d11efb5d1b27cee007ef7e138b55a64cea4093ee57d953a");
+uint256 hashChronoKingsGenesisBlock("70764fbb7aef08503b30a563b512331f8c38ed88c6a5b1f6961e9359ba3c7def");
 
 class CChronoKingsHooks : public CHooks
 {
@@ -2124,14 +2124,14 @@ bool GenesisBlock(CBlock& block)
     block.hashPrevBlock = 0;
     block.nVersion = 1;
     block.nTime    = 1375963076;
-    block.nBits    = 0xffffffff;
+    block.nBits    = bnProofOfWorkLimit.GetCompact();
     block.nNonce   = 0x0U;
     CTransaction txNew;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
     txNew.vin[0].scriptSig = CScript() << block.nBits;
     txNew.vout[0].nValue = 50 * COIN;
-    txNew.vout[0].scriptPubKey.SetBitcoinAddress("TODO: Bitcoin address");
+    txNew.vout[0].scriptPubKey.SetBitcoinAddress("CJt898fvQDvjw1SBKqxCCd9hpZd4u1Qsn5");
     block.vtx.push_back(txNew);
     block.hashMerkleRoot = block.BuildMerkleTree();
     printf("====================================\n");
