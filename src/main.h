@@ -1636,5 +1636,6 @@ extern std::map<uint160, std::vector<unsigned char> > mapPubKeys;
 extern CCriticalSection cs_mapPubKeys;
 extern CHooks* hooks;
 
+void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime = true);
 
 #endif

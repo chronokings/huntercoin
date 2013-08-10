@@ -44,7 +44,10 @@ extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
-uint256 hashChronoKingsGenesisBlock("70764fbb7aef08503b30a563b512331f8c38ed88c6a5b1f6961e9359ba3c7def");
+uint256 hashChronoKingsGenesisBlock[2] = {
+        uint256("00000000693aa9b1230fe223094a8ca01cc5f896d14dd63726a561d4c46fc83f"),    // Main net
+        uint256("0000000f1d2e0b0870b3cf62e00658f90bf41d7542b6050ed799dc025d8f76c9")     // Test net
+    };
 
 class CChronoKingsHooks : public CHooks
 {
@@ -136,12 +139,6 @@ string stringFromVch(const vector<unsigned char> &vch) {
         vi++;
     }
     return res;
-}
-
-// Increase expiration to 36000 gradually starting at block 24000.
-// Use for validation purposes and pass the chain height.
-int GetExpirationDepth(int nHeight) {
-    return INT_MAX;
 }
 
 // For display purposes, pass the name height.
@@ -453,15 +450,9 @@ bool GetValueOfTxPos(const CDiskTxPos& txPos, vector<unsigned char>& vchValue, u
 
 bool GetValueOfName(CNameDB& dbName, const vector<unsigned char> &vchName, vector<unsigned char>& vchValue, int& nHeight)
 {
-    //vector<CDiskTxPos> vtxPos;
     vector<CNameIndex> vtxPos;
     if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
         return false;
-    /*CDiskTxPos& txPos = vtxPos.back();
-
-    uint256 hash;
-
-    return GetValueOfTxPos(txPos, vchValue, hash, nHeight);*/
 
     CNameIndex& txPos = vtxPos.back();
     nHeight = txPos.nHeight;
@@ -471,23 +462,10 @@ bool GetValueOfName(CNameDB& dbName, const vector<unsigned char> &vchName, vecto
 
 bool GetTxOfName(CNameDB& dbName, const vector<unsigned char> &vchName, CTransaction& tx)
 {
-    //vector<CDiskTxPos> vtxPos;
     vector<CNameIndex> vtxPos;
     if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
         return false;
-    //CDiskTxPos& txPos = vtxPos.back();
     CNameIndex& txPos = vtxPos.back();
-    //int nHeight = GetTxPosHeight(txPos);
-    int nHeight = txPos.nHeight;
-    if (nHeight + GetExpirationDepth(pindexBest->nHeight) < pindexBest->nHeight)
-    {
-        string name = stringFromVch(vchName);
-        printf("GetTxOfName(%s) : expired", name.c_str());
-        return false;
-    }
-
-    if (!tx.ReadFromDisk(txPos.txPos))
-        return error("GetTxOfName() : could not read tx from disk");
     return true;
 }
 
@@ -1546,7 +1524,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_clean", &name_clean));
     mapCallTable.insert(make_pair("sendtoname", &sendtoname));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
-    hashGenesisBlock = hashChronoKingsGenesisBlock;
+    hashGenesisBlock = hashChronoKingsGenesisBlock[fTestNet ? 1 : 0];
     printf("Setup chronokings genesis block %s\n", hashGenesisBlock.GetHex().c_str());
     return new CChronoKingsHooks();
 }
@@ -1780,7 +1758,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("GetNameOfTx() : could not decode a chronokings tx");
+        return error("GetNameOfTx() : could not decode a playername tx");
 
     switch (op)
     {
@@ -1802,7 +1780,7 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("IsConflictedTx() : could not decode a chronokings tx");
+        return error("IsConflictedTx() : could not decode a playername tx");
     int nPrevHeight;
     int nDepth;
     int64 nNetFee;
@@ -1812,7 +1790,7 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
         case OP_NAME_FIRSTUPDATE:
             nPrevHeight = GetNameHeight(txdb, vvchArgs[0]);
             name = vvchArgs[0];
-            if (nPrevHeight >= 0 && pindexBest->nHeight - nPrevHeight < GetExpirationDepth(pindexBest->nHeight))
+            if (nPrevHeight >= 0)
                 return true;
     }
     return false;
@@ -1850,7 +1828,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
         if (found)
-            return error("ConnectInputHook() : a non-chronokings transaction with a chronokings input");
+            return error("ConnectInputHook() : a non-playername transaction with a playername input");
         return true;
     }
 
@@ -1860,7 +1838,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("ConnectInputsHook() : could not decode a chronokings tx");
+        return error("ConnectInputsHook() : could not decode a playername tx");
 
     int nPrevHeight;
     int nDepth;
@@ -1870,7 +1848,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     {
         case OP_NAME_NEW:
             if (found)
-                return error("ConnectInputsHook() : name_new tx pointing to previous chronokings tx");
+                return error("ConnectInputsHook() : name_new tx pointing to previous playername tx");
             break;
         case OP_NAME_FIRSTUPDATE:
             nNetFee = GetNameNetFee(tx);
@@ -1879,8 +1857,8 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
             if (!found || prevOp != OP_NAME_NEW)
                 return error("ConnectInputsHook() : name_firstupdate tx without previous name_new tx");
             nPrevHeight = GetNameHeight(txdb, vvchArgs[0]);
-            if (nPrevHeight >= 0 && pindexBlock->nHeight - nPrevHeight < GetExpirationDepth(pindexBlock->nHeight))
-                return error("ConnectInputsHook() : name_firstupdate on an unexpired name");
+            if (nPrevHeight >= 0)
+                return error("ConnectInputsHook() : name_firstupdate on an existing name");
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], MIN_FIRSTUPDATE_DEPTH);
             // Do not accept if in chain and not mature
             if ((fBlock || fMiner) && nDepth >= 0 && nDepth < MIN_FIRSTUPDATE_DEPTH)
@@ -1891,7 +1869,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
             if (fMiner)
             {
                 // TODO CPU intensive
-                nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], GetExpirationDepth(pindexBlock->nHeight));
+                nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
                 if (nDepth == -1)
                     return error("ConnectInputsHook() : name_firstupdate cannot be mined if name_new is not already in chain and unexpired");
                 // Check that no other pending txs on this name are already in the block to be mined
@@ -1912,7 +1890,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
             if (!found || (prevOp != OP_NAME_FIRSTUPDATE && prevOp != OP_NAME_UPDATE))
                 return error("name_update tx without previous update tx");
             // TODO CPU intensive
-            nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], GetExpirationDepth(pindexBlock->nHeight));
+            nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
             if ((fBlock || fMiner) && nDepth < 0)
                 return error("ConnectInputsHook() : name_update on an expired name, or there is a pending transaction on the name");
             break;
@@ -1960,9 +1938,9 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         {
             if (mapNamePending[vvchArgs[0]].count(tx.GetHash()))
                 mapNamePending[vvchArgs[0]].erase(tx.GetHash());
-            else
-                printf("ConnectInputsHook() : connecting inputs on %s which was not in pending - must be someone elses\n",
-                        tx.GetHash().GetHex().c_str());
+            //else
+            //    printf("ConnectInputsHook() : connecting inputs on %s which was not in pending - must be someone elses\n",
+            //            tx.GetHash().GetHex().c_str());
         }
     }
 
@@ -1982,7 +1960,7 @@ bool CChronoKingsHooks::DisconnectInputs(CTxDB& txdb,
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("DisconnectInputsHook() : could not decode chronokings tx");
+        return error("DisconnectInputsHook() : could not decode playername tx");
     if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
     {
         CNameDB dbName("cr+", txdb);
@@ -2118,22 +2096,37 @@ bool CChronoKingsHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex*
     return true;
 }
 
-bool GenesisBlock(CBlock& block)
+bool CChronoKingsHooks::GenesisBlock(CBlock& block)
 {
     block = CBlock();
     block.hashPrevBlock = 0;
     block.nVersion = 1;
-    block.nTime    = 1375963076;
     block.nBits    = bnProofOfWorkLimit.GetCompact();
-    block.nNonce   = 0x0U;
     CTransaction txNew;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = CScript() << block.nBits;
     txNew.vout[0].nValue = 50 * COIN;
-    txNew.vout[0].scriptPubKey.SetBitcoinAddress("CJt898fvQDvjw1SBKqxCCd9hpZd4u1Qsn5");
+    if (fTestNet)
+    {
+        block.nTime    = 1376150035;
+        txNew.vin[0].scriptSig = CScript() << vchFromString("*** Test net genesis block ***");
+        txNew.vout[0].scriptPubKey.SetBitcoinAddress("cNhrF265WxYjLXJXunKbJ9BEx4FVEjXHuc");
+        block.nNonce   = 897853745;
+    }
+    else
+    {
+        block.nTime    = 1376144317;
+        txNew.vin[0].scriptSig = CScript() << vchFromString("*** Genesis block ***");
+        txNew.vout[0].scriptPubKey.SetBitcoinAddress("CJt898fvQDvjw1SBKqxCCd9hpZd4u1Qsn5");
+        block.nNonce   = 2346213161;
+    }
     block.vtx.push_back(txNew);
     block.hashMerkleRoot = block.BuildMerkleTree();
+
+#if 0
+    MineGenesisBlock(&block);
+#endif
+
     printf("====================================\n");
     printf("Merkle: %s\n", block.hashMerkleRoot.GetHex().c_str());
     printf("Block: %s\n", block.GetHash().GetHex().c_str());
@@ -2142,20 +2135,9 @@ bool GenesisBlock(CBlock& block)
     return true;
 }
 
-bool CChronoKingsHooks::GenesisBlock(CBlock& block)
-{
-    if (fTestNet)
-        return false;
-
-    return ::GenesisBlock(block);
-}
-
 int CChronoKingsHooks::LockinHeight()
 {
-    if (fTestNet)
-        return 0;
-
-    return 112896;
+    return 0;
 }
 
 bool CChronoKingsHooks::Lockin(int nHeight, uint256 hash)
@@ -2173,7 +2155,7 @@ unsigned short GetDefaultPort()
     return fTestNet ? 18391 : 8391;
 }
 
-unsigned int pnSeed[] = { 0x58cea445, 0x2b562f4e, 0x291f20b2, 0 };
+unsigned int pnSeed[] = { 0 };
 const char *strDNSSeed[] = { NULL };
 
 string GetDefaultDataDirSuffix() {

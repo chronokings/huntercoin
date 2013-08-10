@@ -785,10 +785,6 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
 {
-    // TODO: genesis block needs correct PoW nonce. Currently we just accept the genesis block blindly.
-    if (hash == hashGenesisBlock)
-        return true;
-
     CBigNum bnTarget;
     bnTarget.SetCompact(nBits);
 
@@ -1723,7 +1719,6 @@ bool LoadBlockIndex(bool fAllowNew)
 {
     if (fTestNet)
     {
-        hashGenesisBlock = uint256("0x00000007199508e34a9ff81e6ec0c477a4cccff2a4767a8eee39c11db367b008");
         bnProofOfWorkLimit = CBigNum(~uint256(0) >> 28);
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
@@ -3444,6 +3439,107 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
         }
     }
 }
+
+
+// A helper function to compute nonce for the genesis block. The resulting hash
+// is printed to debug.log and has to be manually copied from there.
+// In the production code calls to this function should be commented out
+// and the hash should be hard-coded.
+void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /*= true*/)
+{
+
+    printf("# Mining genesis block...\n");
+
+    int64 nPrevTime = 0;
+
+    //
+    // Prebuild hash buffers
+    //
+    char pmidstatebuf[32+16]; char* pmidstate = alignup<16>(pmidstatebuf);
+    char pdatabuf[128+16];    char* pdata     = alignup<16>(pdatabuf);
+    char phash1buf[64+16];    char* phash1    = alignup<16>(phash1buf);
+
+    FormatHashBuffers(pblock, pmidstate, pdata, phash1);
+
+    unsigned int& nBlockTime = *(unsigned int*)(pdata + 64 + 4);
+    unsigned int& nBlockNonce = *(unsigned int*)(pdata + 64 + 12);
+
+    if (fUpdateBlockTime)
+    {
+        pblock->nTime = GetAdjustedTime();
+        nBlockTime = ByteReverse(pblock->nTime);
+    }
+
+    //
+    // Search
+    //
+    int64 nStart = GetTime();
+    uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+    uint256 hashbuf[2];
+    uint256& hash = *alignup<16>(hashbuf);
+    loop
+    {
+        unsigned int nHashesDone = 0;
+        unsigned int nNonceFound;
+
+        // Crypto++ SHA-256
+        nNonceFound = ScanHash_CryptoPP(pmidstate, pdata + 64, phash1,
+                                        (char*)&hash, nHashesDone);
+
+        // Check if something found
+        if (nNonceFound != -1)
+        {
+            for (int i = 0; i < sizeof(hash)/4; i++)
+                ((unsigned int*)&hash)[i] = ByteReverse(((unsigned int*)&hash)[i]);
+
+            if (hash <= hashTarget)
+            {
+                // Found a solution
+                pblock->nNonce = ByteReverse(nNonceFound);
+                assert(hash == pblock->GetHash());
+
+                printf("# Genesis block miner: solution found\n");
+
+                break;
+            }
+        }
+
+        // Meter hashes/sec
+        static int64 nHashCounter;
+        if (nHPSTimerStart == 0)
+        {
+            nHPSTimerStart = GetTimeMillis();
+            nHashCounter = 0;
+        }
+        else
+            nHashCounter += nHashesDone;
+        if (GetTimeMillis() - nHPSTimerStart > 30000)
+        {
+            static CCriticalSection cs;
+            CRITICAL_BLOCK(cs)
+            {
+                if (GetTimeMillis() - nHPSTimerStart > 30000)
+                {
+                    dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
+                    nHPSTimerStart = GetTimeMillis();
+                    nHashCounter = 0;
+                    string strStatus = strprintf("    %.0f khash/s", dHashesPerSec/1000.0);
+                    printf("%s ", DateTimeStrFormat("%x %H:%M", GetTime()).c_str());
+                    printf("hashmeter %6.0f khash/s\n", dHashesPerSec/1000.0);
+                }
+            }
+        }
+
+        if (fUpdateBlockTime)
+        {
+            // Update nTime every few seconds
+            pblock->nTime = GetAdjustedTime();
+            nBlockTime = ByteReverse(pblock->nTime);
+        }
+    }
+}
+
+
 
 bool CBlockIndex::CheckIndex() const
 {
