@@ -54,10 +54,14 @@ public:
     bool ReconstructNameIndex();
 };
 
-static const int CHRONOKINGS_TX_VERSION = 0x7100;
-static const int64 MIN_AMOUNT = CENT;
+static const int NAMECOIN_TX_VERSION = 0x7100;
+static const int64 NAME_COIN_AMOUNT = CENT;
+// We can make name_new cheaper, if we want, separately from name_(first)update
+// This can be used e.g. to send short messages in the hash field. The coin will be
+// destroyed in this case. We can try setting it to 0 though.
+static const int64 NAMENEW_COIN_AMOUNT = NAME_COIN_AMOUNT;
 static const int MAX_NAME_LENGTH = 255;
-static const int MAX_VALUE_LENGTH = 1023;
+static const int MAX_VALUE_LENGTH = 4095;
 static const int OP_NAME_INVALID = 0x00;
 static const int OP_NAME_NEW = 0x01;
 static const int OP_NAME_FIRSTUPDATE = 0x02;

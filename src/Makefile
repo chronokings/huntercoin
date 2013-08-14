@@ -73,12 +73,9 @@ OBJS= \
     obj/rpc.o \
     obj/init.o \
     obj/chronokings.o \
+    obj/gamestate.o \
     cryptopp/obj/sha.o \
     cryptopp/obj/cpu.o
-
-OBJS = \
-    $(BASE_OBJS) \
-    obj/hook.o
 
 all: chronokingsd
 
@@ -92,7 +89,7 @@ cryptopp/obj/%.o: cryptopp/%.cpp
 obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
-obj/chronokings.o: chronokings.h
+obj/chronokings.o: chronokings.h gamestate.h
 
 chronokingsd: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
@@ -100,7 +97,5 @@ chronokingsd: $(OBJS)
 clean:
 	-rm -f chronokings chronokingsd
 	-rm -f obj/*.o
-	-rm -f obj/nogui/*.o
-	-rm -f obj/test/*.o
 	-rm -f cryptopp/obj/*.o
 	-rm -f headers.h.gch

@@ -10,6 +10,8 @@
 #include "auxpow.h"
 #include "chronokings.h"
 
+#include "gamestate.h"
+
 #include "rpc.h"
 
 #include "json/json_spirit_reader_template.h"
@@ -579,7 +581,7 @@ Value name_list(const Array& params, bool fHelp)
             if(!txdb.ReadDiskTx(hash, tx, txindex))
                 continue;
 
-            if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+            if (tx.nVersion != NAMECOIN_TX_VERSION)
                 continue;
 
             // name
@@ -994,7 +996,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
     }
 
     CWalletTx wtx;
-    wtx.nVersion = CHRONOKINGS_TX_VERSION;
+    wtx.nVersion = NAMECOIN_TX_VERSION;
     
     CRITICAL_BLOCK(cs_main)
     {
@@ -1082,7 +1084,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
         // Round up to CENT
         nNetFee += CENT - 1;
         nNetFee = (nNetFee / CENT) * CENT;
-        string strError = SendMoneyWithInputTx(scriptPubKey, MIN_AMOUNT, nNetFee, wtxIn, wtx, false);
+        string strError = SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, nNetFee, wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1100,7 +1102,7 @@ Value name_update(const Array& params, bool fHelp)
     vector<unsigned char> vchValue = vchFromValue(params[1]);
 
     CWalletTx wtx;
-    wtx.nVersion = CHRONOKINGS_TX_VERSION;
+    wtx.nVersion = NAMECOIN_TX_VERSION;
     vector<unsigned char> strPubKey = pwalletMain->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
 
@@ -1152,7 +1154,7 @@ Value name_update(const Array& params, bool fHelp)
         }
 
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
-        string strError = SendMoneyWithInputTx(scriptPubKey, MIN_AMOUNT, 0, wtxIn, wtx, false);
+        string strError = SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1169,7 +1171,7 @@ Value name_new(const Array& params, bool fHelp)
     vector<unsigned char> vchName = vchFromValue(params[0]);
 
     CWalletTx wtx;
-    wtx.nVersion = CHRONOKINGS_TX_VERSION;
+    wtx.nVersion = NAMECOIN_TX_VERSION;
 
     uint64 rand = GetRand((uint64)-1);
     vector<unsigned char> vchRand = CBigNum(rand).getvch();
@@ -1188,7 +1190,7 @@ Value name_new(const Array& params, bool fHelp)
     {
         EnsureWalletIsUnlocked();
 
-        string strError = pwalletMain->SendMoney(scriptPubKey, MIN_AMOUNT, wtx, false);
+        string strError = pwalletMain->SendMoney(scriptPubKey, NAME_COIN_AMOUNT, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
         mapMyNames[vchName] = wtx.GetHash();
@@ -1469,7 +1471,7 @@ bool CNameDB::ReconstructNameIndex()
             block.ReadFromDisk(pindex, true);
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
-                if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+                if (tx.nVersion != NAMECOIN_TX_VERSION)
                     continue;
 
                 if(!GetNameOfTx(tx, vchName))
@@ -1658,7 +1660,7 @@ void CChronoKingsHooks::AddToWallet(CWalletTx& wtx)
 
 bool CChronoKingsHooks::IsMine(const CTransaction& tx)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
 
     vector<vector<unsigned char> > vvch;
@@ -1685,7 +1687,7 @@ bool CChronoKingsHooks::IsMine(const CTransaction& tx)
 
 bool CChronoKingsHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new /*= false*/)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
 
     vector<vector<unsigned char> > vvch;
@@ -1709,7 +1711,7 @@ bool CChronoKingsHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool
 
 void CChronoKingsHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return;
 
     if (tx.vout.size() < 1)
@@ -1750,7 +1752,7 @@ int CheckTransactionAtRelativeDepth(CBlockIndex* pindexBlock, CTxIndex& txindex,
 
 bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
     vector<vector<unsigned char> > vvchArgs;
     int op;
@@ -1772,7 +1774,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 
 bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& name)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
     vector<vector<unsigned char> > vvchArgs;
     int op;
@@ -1823,7 +1825,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         }
     }
 
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
     {
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
@@ -1836,8 +1838,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     int op;
     int nOut;
 
-    bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
-    if (!good)
+    if (!DecodeNameTx(tx, op, nOut, vvchArgs))
         return error("ConnectInputsHook() : could not decode a playername tx");
 
     int nPrevHeight;
@@ -1849,6 +1850,8 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         case OP_NAME_NEW:
             if (found)
                 return error("ConnectInputsHook() : name_new tx pointing to previous playername tx");
+            //if (tx.vout[nOut].nValue < NAMENEW_COIN_AMOUNT)
+            //    return error("ConnectInputsHook() : name_new tx: insufficient amount");
             break;
         case OP_NAME_FIRSTUPDATE:
             nNetFee = GetNameNetFee(tx);
@@ -1856,6 +1859,10 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
                 return error("ConnectInputsHook() : got tx %s with fee too low %d", tx.GetHash().GetHex().c_str(), nNetFee);
             if (!found || prevOp != OP_NAME_NEW)
                 return error("ConnectInputsHook() : name_firstupdate tx without previous name_new tx");
+            // We expect exact amount of the locked coin, because if another player kills this player,
+            // this coin is destroyed and NAME_COIN_AMOUNT is given to the killer as a bounty
+            if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
+                return error("ConnectInputsHook() : name_firstupdate tx: incorrect amount of the locked coin");
             nPrevHeight = GetNameHeight(txdb, vvchArgs[0]);
             if (nPrevHeight >= 0)
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
@@ -1893,6 +1900,8 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
             if ((fBlock || fMiner) && nDepth < 0)
                 return error("ConnectInputsHook() : name_update on an expired name, or there is a pending transaction on the name");
+            if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
+                return error("ConnectInputsHook() : name_update tx: incorrect amount of the locked coin");
             break;
         default:
             return error("ConnectInputsHook() : name transaction has unknown op");
@@ -1951,7 +1960,7 @@ bool CChronoKingsHooks::DisconnectInputs(CTxDB& txdb,
         const CTransaction& tx,
         CBlockIndex* pindexBlock)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;
 
     vector<vector<unsigned char> > vvchArgs;
@@ -1989,7 +1998,7 @@ bool CChronoKingsHooks::DisconnectInputs(CTxDB& txdb,
 
 bool CChronoKingsHooks::CheckTransaction(const CTransaction& tx)
 {
-    if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;
 
     vector<vector<unsigned char> > vvch;
@@ -2111,14 +2120,14 @@ bool CChronoKingsHooks::GenesisBlock(CBlock& block)
         block.nTime    = 1376150035;
         txNew.vin[0].scriptSig = CScript() << vchFromString("*** Test net genesis block ***");
         txNew.vout[0].scriptPubKey.SetBitcoinAddress("cNhrF265WxYjLXJXunKbJ9BEx4FVEjXHuc");
-        block.nNonce   = 897853745;
+        block.nNonce   = 897853745U;
     }
     else
     {
         block.nTime    = 1376144317;
         txNew.vin[0].scriptSig = CScript() << vchFromString("*** Genesis block ***");
         txNew.vout[0].scriptPubKey.SetBitcoinAddress("CJt898fvQDvjw1SBKqxCCd9hpZd4u1Qsn5");
-        block.nNonce   = 2346213161;
+        block.nNonce   = 2346213161U;
     }
     block.vtx.push_back(txNew);
     block.hashMerkleRoot = block.BuildMerkleTree();
