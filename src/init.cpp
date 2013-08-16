@@ -454,7 +454,8 @@ bool AppInit2(int argc, char* argv[])
                 CBlockIndex* pindex = (*mi).second;
                 CBlock block;
                 block.ReadFromDisk(pindex);
-                block.BuildMerkleTree();
+                block.BuildMerkleTree(false);  // Normal tree
+                block.BuildMerkleTree(true);   // Game tree
                 block.print();
                 printf("\n");
                 nFound++;

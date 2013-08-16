@@ -1278,6 +1278,10 @@ bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsig
     if (txin.prevout.hash != txFrom.GetHash())
         return false;
 
+    // Transactions generated deterministically by the game don't need to be signed
+    if (txTo.IsGameTx())
+        return true;
+
     if (!VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, nHashType))
         return false;
 

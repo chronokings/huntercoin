@@ -2114,7 +2114,7 @@ bool CChronoKingsHooks::GenesisBlock(CBlock& block)
     CTransaction txNew;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vout[0].nValue = 50 * COIN;
+    txNew.vout[0].nValue = GetBlockValue(0, 0);
     if (fTestNet)
     {
         block.nTime    = 1376150035;
@@ -2130,7 +2130,7 @@ bool CChronoKingsHooks::GenesisBlock(CBlock& block)
         block.nNonce   = 2346213161U;
     }
     block.vtx.push_back(txNew);
-    block.hashMerkleRoot = block.BuildMerkleTree();
+    block.hashMerkleRoot = block.BuildMerkleTree(false);
 
 #if 0
     MineGenesisBlock(&block);

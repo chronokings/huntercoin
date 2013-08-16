@@ -5,43 +5,38 @@
 #include "json/json_spirit_writer_template.h"
 #include "json/json_spirit_utils.h"
 #include <boost/xpressive/xpressive_dynamic.hpp>
+#include <boost/assign/list_of.hpp>
 
 #include "headers.h"
 #include "chronokings.h"   // For NAME_COIN_AMOUNT
 
 using namespace Game;
 
-static bool CheckJsonObject(const json_spirit::Object &obj, const char *field_name, ...)
+static bool CheckJsonObject(const json_spirit::Object &obj, const std::map<std::string, json_spirit::Value_type> &expectedFields)
 {
     using namespace json_spirit;
 
-    va_list arg_ptr;
-    va_start(arg_ptr, field_name);
-    Value_type field_type;
     int n = 0;
-    while (field_name)
+    BOOST_FOREACH(const PAIRTYPE(std::string, Value_type)& f, expectedFields)
     {
-        field_type = (Value_type)va_arg(arg_ptr, int);
-
+        const char *fieldName = f.first.c_str();
+        Value_type fieldType = f.second;
         bool fAllowNull = false;
-        if (field_name[0] == '?')
+        if (fieldName[0] == '?')
         {
             fAllowNull = true;
-            field_name++;
+            fieldName++;
         }
 
-        Value v = find_value(obj, field_name);
-        if (v.type() == field_type)
+        Value v = find_value(obj, fieldName);
+        if (v.type() == fieldType)
             n++;
         else
         {
             if (!(v.type() == null_type && fAllowNull))
                 return false;
         }
-
-        field_name = va_arg(arg_ptr, const char *);
     }
-    va_end(arg_ptr);
     return obj.size() == n;    // Check that there are no extra fields in obj
 }
 
@@ -69,22 +64,22 @@ bool IsValidPlayerName(const PlayerID &player)
 
     Move *move;
 
-    if (CheckJsonObject(obj, NULL))
+    if (CheckJsonObject(obj, std::map<std::string, json_spirit::Value_type>()))
         move = new EmptyMove;
-    else if (CheckJsonObject(obj, "color", int_type, NULL))
+    else if (CheckJsonObject(obj, boost::assign::map_list_of("color", int_type)))
     {
         SpawnMove *m = new SpawnMove;
         m->color = find_value(obj, "color").get_value<int>();
         move = m;
     }
-    else if (CheckJsonObject(obj, "deltaX", int_type, "deltaY", int_type, NULL))
+    else if (CheckJsonObject(obj, boost::assign::map_list_of("deltaX", int_type)("deltaY", int_type)))
     {
         StepMove *m = new StepMove;
         m->deltaX = find_value(obj, "deltaX").get_value<int>();
         m->deltaY = find_value(obj, "deltaY").get_value<int>();
         move = m;
     }
-    else if (CheckJsonObject(obj, "attack", str_type, NULL))
+    else if (CheckJsonObject(obj, boost::assign::map_list_of("attack", str_type)))
     {
         AttackMove *m = new AttackMove;
         m->victim = find_value(obj, "attack").get_str();
@@ -189,7 +184,7 @@ void GameState::AddLoot(int x, int y, int64 nAmount)
         loot.insert(std::make_pair(xy, nAmount));
 }
 
-void GameState::DivideLootAmoungPlayers(std::map<PlayerID, int64> &outBounties)
+void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
 {
     std::map<std::pair<int, int>, int> playersOnLootTile;
     BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
@@ -248,10 +243,25 @@ bool PerformStep(const GameState &inState, const std::vector<Move*> &vpMoves, Ga
             m->ApplyStep(outState);
     }
 
-    outState.DivideLootAmoungPlayers(outBounties);
-
-    outState.hashBlock = newHash;
     outState.nHeight = inState.nHeight + 1;
+    outState.hashBlock = newHash;
+
+    // Random reward placed on the map inside NxN square growing with each block, centered at (0, 0).
+    // It can coincide with some player, who'll collect it immediately.
+    // This is done to test that outBounties do not affect the block hash.
+    int64 nTreasureAmount = GetBlockValue(outState.nHeight, 0);
+    CBigNum rnd(SerializeHash(outState.hashBlock, SER_GETHASH, 0));
+    int n = 2 * outState.nHeight + 1;
+    outState.AddLoot(
+            (rnd % n).getint() - (n / 2),
+            ((rnd / n) % n).getint() - (n / 2),
+            nTreasureAmount);
+
+    // TODO: it could be good to attach description to each bounty
+    // and then copy it to e.g. strFromAccount to show up in the wallet,
+    // or when serializing vgametx
+
+    outState.DivideLootAmongPlayers(outBounties);
 
     return true;
 }

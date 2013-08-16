@@ -93,7 +93,7 @@ public:
                 else
                     fConfirmed = true;
 
-                if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+                if (tx.nVersion != NAMECOIN_TX_VERSION)
                     continue;
 
                 // name
@@ -170,7 +170,7 @@ public:
                 else
                     fConfirmed = true;
 
-                if (tx.nVersion != CHRONOKINGS_TX_VERSION)
+                if (tx.nVersion != NAMECOIN_TX_VERSION)
                     continue;
 
                 // name

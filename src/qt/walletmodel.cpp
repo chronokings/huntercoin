@@ -211,7 +211,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     if (pnFeeRet)
         *pnFeeRet = 0;
 
-    wtx.nVersion = CHRONOKINGS_TX_VERSION;
+    wtx.nVersion = NAMECOIN_TX_VERSION;
     
     if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
     {
@@ -269,9 +269,9 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     nNetFee += CENT - 1;
     nNetFee = (nNetFee / CENT) * CENT;
 
-    //return SendMoneyWithInputTx(scriptPubKey, MIN_AMOUNT, nNetFee, wtxIn, wtx, false);
+    //return SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, nNetFee, wtxIn, wtx, false);
 
-    int64 nValue = MIN_AMOUNT;
+    int64 nValue = NAME_COIN_AMOUNT;
 
     int nTxOut = IndexOfNameOutput(wtxIn);
 
@@ -488,7 +488,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
     ret.vchName = std::vector<unsigned char>(strName.begin(), strName.end());
 
     CWalletTx wtx;
-    wtx.nVersion = CHRONOKINGS_TX_VERSION;
+    wtx.nVersion = NAMECOIN_TX_VERSION;
 
     uint64 rand = GetRand((uint64)-1);
     std::vector<unsigned char> vchRand = CBigNum(rand).getvch();
@@ -524,7 +524,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
 
             // Prepare name_new, but do not commit until we prepare name_firstupdate
             printf("name_new GUI: SendMoneyPrepare (pass %d)\n", pass);
-            std::string strError = wallet->SendMoneyPrepare(scriptPubKey, MIN_AMOUNT + nFirstUpdateFee, wtx, reservekey, pass == 1);
+            std::string strError = wallet->SendMoneyPrepare(scriptPubKey, NAME_COIN_AMOUNT + nFirstUpdateFee, wtx, reservekey, pass == 1);
             if (!strError.empty())
             {
                 printf("name_new GUI error: %s\n", strError.c_str());
@@ -630,7 +630,7 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
     std::vector<unsigned char> vchValue(strData.begin(), strData.end());
 
     CWalletTx wtx;
-    wtx.nVersion = CHRONOKINGS_TX_VERSION;
+    wtx.nVersion = NAMECOIN_TX_VERSION;
     CScript scriptPubKeyOrig;
     
     if (transferToAddress != "")
@@ -678,7 +678,7 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
         }
 
         CWalletTx& wtxIn = wallet->mapWallet[wtxInHash];
-        return QString::fromStdString(SendMoneyWithInputTx(scriptPubKey, MIN_AMOUNT, 0, wtxIn, wtx, true));
+        return QString::fromStdString(SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, true));
     }
 }
 

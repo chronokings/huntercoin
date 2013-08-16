@@ -53,7 +53,7 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-
+static const int GAME_TX_VERSION = 0x87100;
 
 
 
@@ -524,6 +524,11 @@ public:
     {
         return (vin.size() == 1 && vin[0].prevout.IsNull());
     }
+    
+    bool IsGameTx() const
+    {
+        return nVersion == GAME_TX_VERSION;
+    }
 
     int GetSigOpCount() const
     {
@@ -709,6 +714,7 @@ public:
     uint256 hashBlock;
     std::vector<uint256> vMerkleBranch;
     int nIndex;
+    bool fGame; // false: normal transaction or coinbase; true: game-created transaction (e.g. reward for killing another player)
 
     // memory only
     mutable char fMerkleVerified;
@@ -728,6 +734,7 @@ public:
     {
         hashBlock = 0;
         nIndex = -1;
+        fGame = false;
         fMerkleVerified = false;
     }
 
@@ -739,6 +746,7 @@ public:
         READWRITE(hashBlock);
         READWRITE(vMerkleBranch);
         READWRITE(nIndex);
+        READWRITE(fGame);
     )
 
 
@@ -849,19 +857,19 @@ public:
     // header
     int nVersion;
     uint256 hashPrevBlock;
-    uint256 hashMerkleRoot;
+    uint256 hashMerkleRoot, hashGameMerkleRoot;
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
 
     // network and disk
-    std::vector<CTransaction> vtx;
+    std::vector<CTransaction> vtx, vgametx;
 
     // header
     boost::shared_ptr<CAuxPow> auxpow;
 
     // memory only
-    mutable std::vector<uint256> vMerkleTree;
+    mutable std::vector<uint256> vMerkleTree, vGameMerkleTree;
 
 
     CBlock()
@@ -883,9 +891,23 @@ public:
 
         // ConnectBlock depends on vtx being last so it can calculate offset
         if (!(nType & SER_BLOCKHEADERONLY))
+        {
             READWRITE(vtx);
+            if (nType & SER_DISK)
+            {
+                // vgametx must not participate in hashing, because the game state may depend on the hash (it is used as random seed)
+                // This is not a problem, because vgametx is re-created deterministically from the game state in ConnectBlock
+                READWRITE(vgametx);
+                if (nType & SER_GETHASH)
+                    printf("Error: nType contains both SER_DISK & SER_GETHASH");
+                READWRITE(hashGameMerkleRoot);
+            }
+        }
         else if (fRead)
+        {
             const_cast<CBlock*>(this)->vtx.clear();
+            const_cast<CBlock*>(this)->vgametx.clear();
+        }
     )
 
     int GetChainID() const
@@ -921,8 +943,10 @@ public:
     }
 
 
-    uint256 BuildMerkleTree() const
+    uint256 BuildMerkleTree(bool game) const
     {
+        std::vector<uint256> &vMerkleTree = game ? this->vGameMerkleTree : this->vMerkleTree;
+        const std::vector<CTransaction> &vtx = game ? this->vgametx : this->vtx;
         vMerkleTree.clear();
         BOOST_FOREACH(const CTransaction& tx, vtx)
             vMerkleTree.push_back(tx.GetHash());
@@ -940,10 +964,12 @@ public:
         return (vMerkleTree.empty() ? 0 : vMerkleTree.back());
     }
 
-    std::vector<uint256> GetMerkleBranch(int nIndex) const
+    std::vector<uint256> GetMerkleBranch(int nIndex, bool game) const
     {
+        std::vector<uint256> &vMerkleTree = game ? this->vGameMerkleTree : this->vMerkleTree;
+        const std::vector<CTransaction> &vtx = game ? this->vgametx : this->vtx;
         if (vMerkleTree.empty())
-            BuildMerkleTree();
+            BuildMerkleTree(game);
         std::vector<uint256> vMerkleBranch;
         int j = 0;
         for (int nSize = vtx.size(); nSize > 1; nSize = (nSize + 1) / 2)
@@ -1042,9 +1068,21 @@ public:
             printf("  ");
             vtx[i].print();
         }
+        if (!vgametx.empty())
+        {
+            printf("  vgametx: ");
+            for (int i = 0; i < vgametx.size(); i++)
+            {
+                printf("  ");
+                vtx[i].print();
+            }
+        }
         printf("  vMerkleTree: ");
         for (int i = 0; i < vMerkleTree.size(); i++)
             printf("%s ", vMerkleTree[i].ToString().substr(0,10).c_str());
+        printf("\n  vGameMerkleTree (hashGameMerkleRoot=%s): ", hashGameMerkleRoot.ToString().substr(0,10).c_str());
+        for (int i = 0; i < vGameMerkleTree.size(); i++)
+            printf("%s ", vGameMerkleTree[i].ToString().substr(0,10).c_str());
 
         printf("\n");
     }
@@ -1085,7 +1123,7 @@ public:
 
     // block header
     int nVersion;
-    uint256 hashMerkleRoot;
+    uint256 hashMerkleRoot, hashGameMerkleRoot;
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
@@ -1106,6 +1144,7 @@ public:
 
         nVersion       = 0;
         hashMerkleRoot = 0;
+        hashGameMerkleRoot = 0;
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
@@ -1124,6 +1163,7 @@ public:
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
+        hashGameMerkleRoot = block.hashGameMerkleRoot;
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
@@ -1137,6 +1177,7 @@ public:
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
         block.hashMerkleRoot = hashMerkleRoot;
+        block.hashGameMerkleRoot = hashGameMerkleRoot;
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
@@ -1260,6 +1301,8 @@ public:
         READWRITE(this->nVersion);
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
+        if (!(nType & SER_GETHASH))
+            READWRITE(hashGameMerkleRoot);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
@@ -1637,5 +1680,6 @@ extern CCriticalSection cs_mapPubKeys;
 extern CHooks* hooks;
 
 void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime = true);
+int64 GetBlockValue(int nHeight, int64 nFees);
 
 #endif

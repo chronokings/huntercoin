@@ -267,16 +267,27 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
         for (nIndex = 0; nIndex < pblock->vtx.size(); nIndex++)
             if (pblock->vtx[nIndex] == *(CTransaction*)this)
                 break;
-        if (nIndex == pblock->vtx.size())
+        if (nIndex < pblock->vtx.size())
+            fGame = false;   // Found normal tx
+        else
         {
-            vMerkleBranch.clear();
-            nIndex = -1;
-            printf("ERROR: SetMerkleBranch() : couldn't find tx in block\n");
-            return 0;
+            for (nIndex = 0; nIndex < pblock->vgametx.size(); nIndex++)
+                if (pblock->vgametx[nIndex] == *(CTransaction*)this)
+                    break;
+
+            if (nIndex < pblock->vgametx.size())
+                fGame = true;  // Found game-created tx
+            else
+            {
+                vMerkleBranch.clear();
+                nIndex = -1;
+                printf("ERROR: SetMerkleBranch() : couldn't find tx in block\n");
+                return 0;
+            }
         }
 
         // Fill in merkle branch
-        vMerkleBranch = pblock->GetMerkleBranch(nIndex);
+        vMerkleBranch = pblock->GetMerkleBranch(nIndex, fGame);
     }
 
     // Is the tx in a block that's in the main chain
@@ -298,6 +309,9 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
 
 bool CTransaction::CheckTransaction() const
 {
+    if (IsGameTx())
+        return error("CTransaction::CheckTransaction() : game tx encountered");
+
     // Basic checks that don't depend on any context
     if (vin.empty() || vout.empty())
         return error("CTransaction::CheckTransaction() : vin or vout empty");
@@ -323,6 +337,12 @@ bool CTransaction::CheckTransaction() const
     {
         if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 100)
             return error("CTransaction::CheckTransaction() : coinbase script size");
+    }
+    else if (IsGameTx())
+    {
+        BOOST_FOREACH(const CTxIn& txin, vin)
+            if (txin.scriptSig.size() != 0)
+                return error("CTransaction::CheckTransaction() : game tx must not contain signature");
     }
     else
     {
@@ -520,7 +540,7 @@ int CMerkleTx::GetDepthInMainChain(int& nHeightRet) const
     // Make sure the merkle branch connects to this block
     if (!fMerkleVerified)
     {
-        if (CBlock::CheckMerkleBranch(GetHash(), vMerkleBranch, nIndex) != pindex->hashMerkleRoot)
+        if (CBlock::CheckMerkleBranch(GetHash(), vMerkleBranch, nIndex) != (fGame ? pindex->hashGameMerkleRoot : pindex->hashMerkleRoot))
             return 0;
         fMerkleVerified = true;
     }
@@ -721,8 +741,10 @@ uint256 static GetOrphanRoot(const CBlock* pblock)
     return pblock->GetHash();
 }
 
-int64 static GetBlockValue(int nHeight, int64 nFees)
+int64 GetBlockValue(int nHeight, int64 nFees)
 {
+    // Miner: 50% + fee
+    // Game : 50%
     int64 nSubsidy = 50 * COIN;
 
     // Subsidy is cut in half every 210000 blocks
@@ -1141,9 +1163,14 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         return false;
 
     // Disconnect in reverse order
+    for (int i = vgametx.size()-1; i >= 0; i--)
+        if (!vgametx[i].DisconnectInputs(txdb, pindex))
+            return false;
     for (int i = vtx.size()-1; i >= 0; i--)
         if (!vtx[i].DisconnectInputs(txdb, pindex))
             return false;
+
+    // TODO: roll back game state
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -1165,7 +1192,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         return false;
 
     //// issue here: it doesn't know the version
-    unsigned int nTxPos = pindex->nBlockPos + ::GetSerializeSize(*this, SER_DISK|SER_BLOCKHEADERONLY) + GetSizeOfCompactSize(vtx.size());
+    unsigned int nTxPos = pindex->nBlockPos + ::GetSerializeSize(*this, SER_DISK|SER_BLOCKHEADERONLY) + GetSizeOfCompactSize(vtx.size() + vgametx.size());
 
     map<uint256, CTxIndex> mapUnused;
     int64 nFees = 0;
@@ -1180,6 +1207,23 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
     if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
         return false;
+        
+    if (!vgametx.empty())
+    {
+        vgametx.clear();
+        vGameMerkleTree.clear();
+        printf("ConnectBlock() : non-empty vgametx, clearing and re-creating");
+    }
+    // TODO: update game state, create vgametx
+
+    BOOST_FOREACH(CTransaction& tx, vgametx)
+    {
+        CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, nTxPos);
+        nTxPos += ::GetSerializeSize(tx, SER_DISK);
+
+        if (!tx.ConnectInputs(txdb, mapUnused, posThisTx, pindex, nFees, true, false))
+            return false;
+    }
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -1193,6 +1237,8 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
     // Watch for transactions paying to me
     BOOST_FOREACH(CTransaction& tx, vtx)
+        SyncWithWallets(tx, this, true);
+    BOOST_FOREACH(CTransaction& tx, vgametx)
         SyncWithWallets(tx, this, true);
 
     return hooks->ConnectBlock(*this, txdb, pindex);
@@ -1490,7 +1536,7 @@ bool CBlock::CheckBlock(int nHeight) const
         return error("CheckBlock() : too many nonstandard transactions");
 
     // Check merkleroot
-    if (hashMerkleRoot != BuildMerkleTree())
+    if (hashMerkleRoot != BuildMerkleTree(false))
         return error("CheckBlock() : hashMerkleRoot mismatch");
 
     return true;
@@ -1781,16 +1827,7 @@ bool LoadBlockIndex(bool fAllowNew)
         */
 
         if (!hooks->GenesisBlock(block))
-        {
             return error("Hook has not created genesis block");
-            //// debug print
-            printf("%s\n", block.GetHash().ToString().c_str());
-            printf("%s\n", hashGenesisBlock.ToString().c_str());
-            printf("%s\n", block.hashMerkleRoot.ToString().c_str());
-            assert(block.hashMerkleRoot == uint256("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
-            block.print();
-            assert(block.GetHash() == hashGenesisBlock);
-        }
 
         // Start new block file
         unsigned int nFile;
@@ -2971,11 +3008,14 @@ void CBlock::SetNull()
     nVersion = BLOCK_VERSION_DEFAULT | (GetOurChainID() * BLOCK_VERSION_CHAIN_START);
     hashPrevBlock = 0;
     hashMerkleRoot = 0;
+    hashGameMerkleRoot = 0;
     nTime = 0;
     nBits = 0;
     nNonce = 0;
     vtx.clear();
+    vgametx.clear();
     vMerkleTree.clear();
+    vGameMerkleTree.clear();
     auxpow.reset();
 }
 
@@ -3118,7 +3158,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
 
     // Fill in header
     pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
-    pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+    pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
     pblock->nTime          = max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
     pblock->nBits          = GetNextWorkRequired(pindexPrev);
     pblock->nNonce         = 0;
@@ -3137,7 +3177,7 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
         nPrevTime = nNow;
     }
     pblock->vtx[0].vin[0].scriptSig = CScript() << pblock->nBits << CBigNum(nExtraNonce);
-    pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+    pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
 }
 
 // Create coinbase with auxiliary data, for multichain mining
@@ -3551,9 +3591,10 @@ bool CBlockIndex::CheckIndex() const
 
 std::string CBlockIndex::ToString() const
 {
-    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, hashBlock=%s, hashParentBlock=%s)",
+    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, game-merkle=%s, hashBlock=%s, hashParentBlock=%s)",
             pprev, pnext, nFile, nBlockPos, nHeight,
             hashMerkleRoot.ToString().substr(0,10).c_str(),
+            hashGameMerkleRoot.ToString().substr(0,10).c_str(),
             GetBlockHash().ToString().substr(0,20).c_str(),
             (auxpow.get() != NULL) ? auxpow->GetParentBlockHash().ToString().substr(0,20).c_str() : "-"
             );

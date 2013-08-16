@@ -119,7 +119,7 @@ struct GameState
 
     // Helper functions
     void AddLoot(int x, int y, int64 nAmount);
-    void DivideLootAmoungPlayers(std::map<PlayerID, int64> &outBounties);
+    void DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties);
 };
 
 // All moves happen simultaneously, so this function must work identically

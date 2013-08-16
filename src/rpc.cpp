@@ -263,6 +263,58 @@ Value getblocknumber(const Array& params, bool fHelp)
     return nBestHeight;
 }
 
+Value TxToValue(const CTransaction &tx)
+{
+    Object txobj;
+
+    txobj.push_back(Pair("hash", tx.GetHash().ToString().c_str()));
+    txobj.push_back(Pair("version", tx.nVersion));
+    txobj.push_back(Pair("lock_time", (uint64_t)tx.nLockTime));
+    txobj.push_back(Pair("size",
+        (int)::GetSerializeSize(tx, SER_NETWORK)));
+
+    Array tx_vin;
+    for (int j = 0; j < tx.vin.size(); j++) {
+        Object vino;
+
+        Object vino_outpt;
+
+        vino_outpt.push_back(Pair("hash",
+            tx.vin[j].prevout.hash.ToString().c_str()));
+        vino_outpt.push_back(Pair("n", (uint64_t)tx.vin[j].prevout.n));
+
+        vino.push_back(Pair("prev_out", vino_outpt));
+
+        if (tx.vin[j].prevout.IsNull())
+            vino.push_back(Pair("coinbase", HexStr(
+            tx.vin[j].scriptSig.begin(),
+            tx.vin[j].scriptSig.end(), false).c_str()));
+        else
+            vino.push_back(Pair("scriptSig", 
+            tx.vin[j].scriptSig.ToString().c_str()));
+        if (tx.vin[j].nSequence != UINT_MAX)
+            vino.push_back(Pair("sequence", (uint64_t)tx.vin[j].nSequence));
+
+        tx_vin.push_back(vino);
+    }
+
+    Array tx_vout;
+    for (int j = 0; j < tx.vout.size(); j++) {
+        Object vouto;
+
+        vouto.push_back(Pair("value",
+            (double)tx.vout[j].nValue / (double)COIN));
+        vouto.push_back(Pair("scriptPubKey", 
+        tx.vout[j].scriptPubKey.ToString().c_str()));
+
+        tx_vout.push_back(vouto);
+    }
+
+    txobj.push_back(Pair("in", tx_vin));
+    txobj.push_back(Pair("out", tx_vout));
+
+    return txobj;
+}
 
 Value BlockToValue(CBlock &block)
 {
@@ -276,67 +328,31 @@ Value BlockToValue(CBlock &block)
     obj.push_back(Pair("nonce", (uint64_t)block.nNonce));
     obj.push_back(Pair("n_tx", (int)block.vtx.size()));
     obj.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK)));
+    obj.push_back(Pair("n_gametx", (int)block.vgametx.size()));
+    obj.push_back(Pair("game_mrkl_root", block.hashGameMerkleRoot.ToString().c_str()));
 
     Array tx;
-    for (int i = 0; i < block.vtx.size(); i++) {
-    	Object txobj;
-
-	txobj.push_back(Pair("hash", block.vtx[i].GetHash().ToString().c_str()));
-	txobj.push_back(Pair("version", block.vtx[i].nVersion));
-	txobj.push_back(Pair("lock_time", (uint64_t)block.vtx[i].nLockTime));
-	txobj.push_back(Pair("size",
-		(int)::GetSerializeSize(block.vtx[i], SER_NETWORK)));
-
-	Array tx_vin;
-	for (int j = 0; j < block.vtx[i].vin.size(); j++) {
-	    Object vino;
-
-	    Object vino_outpt;
-
-	    vino_outpt.push_back(Pair("hash",
-	    	block.vtx[i].vin[j].prevout.hash.ToString().c_str()));
-	    vino_outpt.push_back(Pair("n", (uint64_t)block.vtx[i].vin[j].prevout.n));
-
-	    vino.push_back(Pair("prev_out", vino_outpt));
-
-	    if (block.vtx[i].vin[j].prevout.IsNull())
-	    	vino.push_back(Pair("coinbase", HexStr(
-			block.vtx[i].vin[j].scriptSig.begin(),
-			block.vtx[i].vin[j].scriptSig.end(), false).c_str()));
-	    else
-	    	vino.push_back(Pair("scriptSig", 
-			block.vtx[i].vin[j].scriptSig.ToString().c_str()));
-	    if (block.vtx[i].vin[j].nSequence != UINT_MAX)
-	    	vino.push_back(Pair("sequence", (uint64_t)block.vtx[i].vin[j].nSequence));
-
-	    tx_vin.push_back(vino);
-	}
-
-	Array tx_vout;
-	for (int j = 0; j < block.vtx[i].vout.size(); j++) {
-	    Object vouto;
-
-	    vouto.push_back(Pair("value",
-	    	(double)block.vtx[i].vout[j].nValue / (double)COIN));
-	    vouto.push_back(Pair("scriptPubKey", 
-		block.vtx[i].vout[j].scriptPubKey.ToString().c_str()));
-
-	    tx_vout.push_back(vouto);
-	}
-
-	txobj.push_back(Pair("in", tx_vin));
-	txobj.push_back(Pair("out", tx_vout));
-
-	tx.push_back(txobj);
-    }
+    for (int i = 0; i < block.vtx.size(); i++)
+        tx.push_back(TxToValue(block.vtx[i]));
 
     obj.push_back(Pair("tx", tx));
+    
+    tx = Array();
+    for (int i = 0; i < block.vgametx.size(); i++)
+        tx.push_back(TxToValue(block.vtx[i]));
+    obj.push_back(Pair("gametx", tx));
 
     Array mrkl;
     for (int i = 0; i < block.vMerkleTree.size(); i++)
     	mrkl.push_back(block.vMerkleTree[i].ToString().c_str());
 
     obj.push_back(Pair("mrkl_tree", mrkl));
+
+    mrkl = Array();
+    for (int i = 0; i < block.vGameMerkleTree.size(); i++)
+    	mrkl.push_back(block.vGameMerkleTree[i].ToString().c_str());
+
+    obj.push_back(Pair("game_mrkl_tree", mrkl));
 
     return obj;
 }
@@ -376,7 +392,8 @@ Value getblockbycount(const Array& params, bool fHelp)
 
     CBlock block;
     block.ReadFromDisk(pindex);
-    block.BuildMerkleTree();
+    block.BuildMerkleTree(false); // Normal tree
+    block.BuildMerkleTree(true);  // Game tree
 
     return BlockToValue(block);
 }
@@ -400,7 +417,8 @@ Value getblockbyhash(const Array& params, bool fHelp)
 
     CBlock block;
     block.ReadFromDisk(pindex);
-    block.BuildMerkleTree();
+    block.BuildMerkleTree(false); // Normal tree
+    block.BuildMerkleTree(true);  // Game tree
 
     return BlockToValue(block);
 }
@@ -1856,7 +1874,7 @@ Value getwork(const Array& params, bool fHelp)
         pblock->nTime = pdata->nTime;
         pblock->nNonce = pdata->nNonce;
         pblock->vtx[0].vin[0].scriptSig = CScript() << pblock->nBits << CBigNum(nExtraNonce);
-        pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
 
         return CheckWork(pblock, *pwalletMain, reservekey);
     }
@@ -1995,7 +2013,7 @@ Value getworkaux(const Array& params, bool fHelp)
         RemoveMergedMiningHeader(vchAux);
 
         pblock->vtx[0].vin[0].scriptSig = MakeCoinbaseWithAux(pblock->nBits, nExtraNonce, vchAux);
-        pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
 
         if (params.size() > 2)
         {
@@ -2175,7 +2193,7 @@ Value getauxblock(const Array& params, bool fHelp)
 
             // Push OP_2 just in case we want versioning later
             pblock->vtx[0].vin[0].scriptSig = CScript() << pblock->nBits << CBigNum(1) << OP_2;
-            pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+            pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
 
             // Sets the version
             pblock->SetAuxPow(new CAuxPow());
