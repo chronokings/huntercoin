@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include <string>
+#include "json/json_spirit_value.h"
 #include "serialize.h"
 #include "uint256.h"
 
@@ -85,6 +86,8 @@ struct PlayerState
         READWRITE(x);
         READWRITE(y);
     )
+
+    json_spirit::Value ToJsonValue() const;
 };
 
 struct GameState
@@ -116,6 +119,8 @@ struct GameState
         READWRITE(nHeight);
         READWRITE(hashBlock);
     )
+
+    json_spirit::Value ToJsonValue() const;
 
     // Helper functions
     void AddLoot(int x, int y, int64 nAmount);

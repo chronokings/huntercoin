@@ -115,11 +115,10 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn)
                 wtx.hashBlock = wtxIn.hashBlock;
                 fUpdated = true;
             }
-            if (wtxIn.nIndex != -1 && (wtxIn.vMerkleBranch != wtx.vMerkleBranch || wtxIn.nIndex != wtx.nIndex || wtxIn.fGame != wtx.fGame))
+            if (wtxIn.nIndex != -1 && (wtxIn.vMerkleBranch != wtx.vMerkleBranch || wtxIn.nIndex != wtx.nIndex))
             {
                 wtx.vMerkleBranch = wtxIn.vMerkleBranch;
                 wtx.nIndex = wtxIn.nIndex;
-                wtx.fGame = wtxIn.fGame;
                 fUpdated = true;
             }
             if (wtxIn.fFromMe && wtxIn.fFromMe != wtx.fFromMe)

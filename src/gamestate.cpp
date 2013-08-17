@@ -151,6 +151,18 @@ bool AttackMove::IsValid(const GameState &state) const
     return state.players.count(player) != 0 && state.players.count(victim) != 0;
 }
 
+json_spirit::Value PlayerState::ToJsonValue() const
+{
+    using namespace json_spirit;
+
+    Object obj;
+    obj.push_back(Pair("color", color));
+    obj.push_back(Pair("x", x));
+    obj.push_back(Pair("y", y));
+
+    return obj;
+}
+
 bool AttackMove::IsAttack(const GameState &state, PlayerID &outVictim) const
 {
     const PlayerState &p1 = state.players.find(player)->second;
@@ -167,6 +179,34 @@ GameState::GameState()
 {
     nHeight = -1;
     hashBlock = 0;
+}
+
+json_spirit::Value GameState::ToJsonValue() const
+{
+    using namespace json_spirit;
+
+    Object obj;
+
+    Object subobj;
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
+        subobj.push_back(Pair(p.first, p.second.ToJsonValue()));
+    obj.push_back(Pair("players", subobj));
+
+    Array arr;
+    BOOST_FOREACH(const PAIRTYPE(PAIRTYPE(int, int), uint64) &p, loot)
+    {
+        Object subobj;
+        subobj.push_back(Pair("x", p.first.first));
+        subobj.push_back(Pair("y", p.first.second));
+        subobj.push_back(Pair("amount", double(p.second) / COIN));
+        arr.push_back(subobj);
+    }
+    obj.push_back(Pair("loot", arr));
+
+    obj.push_back(Pair("height", nHeight));
+    obj.push_back(Pair("hashBlock", hashBlock.ToString().c_str()));
+
+    return obj;
 }
 
 void GameState::AddLoot(int x, int y, int64 nAmount)
@@ -265,4 +305,3 @@ bool PerformStep(const GameState &inState, const std::vector<Move*> &vpMoves, Ga
 
     return true;
 }
-

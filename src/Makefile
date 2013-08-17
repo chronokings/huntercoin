@@ -91,6 +91,8 @@ obj/%.o: %.cpp $(HEADERS)
 
 obj/chronokings.o: chronokings.h gamestate.h
 
+obj/gamestate.o: serialize.h uint256.h gamestate.h
+
 chronokingsd: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 

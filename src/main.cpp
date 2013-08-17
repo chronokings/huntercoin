@@ -264,30 +264,34 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
         hashBlock = pblock->GetHash();
 
         // Locate the transaction
-        for (nIndex = 0; nIndex < pblock->vtx.size(); nIndex++)
-            if (pblock->vtx[nIndex] == *(CTransaction*)this)
-                break;
-        if (nIndex < pblock->vtx.size())
-            fGame = false;   // Found normal tx
+        if (!IsGameTx())
+        {
+            for (nIndex = 0; nIndex < pblock->vtx.size(); nIndex++)
+                if (pblock->vtx[nIndex] == *(CTransaction*)this)
+                    break;
+
+            if (nIndex == pblock->vtx.size())
+                nIndex = -1;
+        }
         else
         {
             for (nIndex = 0; nIndex < pblock->vgametx.size(); nIndex++)
                 if (pblock->vgametx[nIndex] == *(CTransaction*)this)
                     break;
 
-            if (nIndex < pblock->vgametx.size())
-                fGame = true;  // Found game-created tx
-            else
-            {
-                vMerkleBranch.clear();
+            if (nIndex == pblock->vgametx.size())
                 nIndex = -1;
-                printf("ERROR: SetMerkleBranch() : couldn't find tx in block\n");
-                return 0;
-            }
+        }
+
+        if (nIndex == -1)
+        {
+            vMerkleBranch.clear();
+            printf("ERROR: SetMerkleBranch() : couldn't find tx in block\n");
+            return 0;
         }
 
         // Fill in merkle branch
-        vMerkleBranch = pblock->GetMerkleBranch(nIndex, fGame);
+        vMerkleBranch = pblock->GetMerkleBranch(nIndex, IsGameTx());
     }
 
     // Is the tx in a block that's in the main chain
@@ -337,12 +341,6 @@ bool CTransaction::CheckTransaction() const
     {
         if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 100)
             return error("CTransaction::CheckTransaction() : coinbase script size");
-    }
-    else if (IsGameTx())
-    {
-        BOOST_FOREACH(const CTxIn& txin, vin)
-            if (txin.scriptSig.size() != 0)
-                return error("CTransaction::CheckTransaction() : game tx must not contain signature");
     }
     else
     {
@@ -540,7 +538,7 @@ int CMerkleTx::GetDepthInMainChain(int& nHeightRet) const
     // Make sure the merkle branch connects to this block
     if (!fMerkleVerified)
     {
-        if (CBlock::CheckMerkleBranch(GetHash(), vMerkleBranch, nIndex) != (fGame ? pindex->hashGameMerkleRoot : pindex->hashMerkleRoot))
+        if (CBlock::CheckMerkleBranch(GetHash(), vMerkleBranch, nIndex) != (IsGameTx() ? pindex->hashGameMerkleRoot : pindex->hashMerkleRoot))
             return 0;
         fMerkleVerified = true;
     }

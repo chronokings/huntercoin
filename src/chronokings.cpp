@@ -143,11 +143,6 @@ string stringFromVch(const vector<unsigned char> &vch) {
     return res;
 }
 
-// For display purposes, pass the name height.
-int GetDisplayExpirationDepth(int nHeight) {
-    return INT_MAX;
-}
-
 int64 GetNetworkFee(int nHeight)
 {
     return 0;
@@ -536,6 +531,11 @@ Value sendtoname(const Array& params, bool fHelp)
     return wtx.GetHash().GetHex();
 }
 
+bool IsDead(const std::string &player)
+{
+    return false;  // TODO: check current game state for presence of player
+}
+
 Value name_list(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
@@ -598,18 +598,16 @@ Value name_list(const Array& params, bool fHelp)
             nHeight = GetTxPosHeight(txindex.pos);
 
             Object oName;
-            oName.push_back(Pair("name", stringFromVch(vchName)));
+            std::string sName = stringFromVch(vchName);
+            oName.push_back(Pair("name", sName));
             oName.push_back(Pair("value", stringFromVch(vchValue)));
             if (!hooks->IsMine(pwalletMain->mapWallet[tx.GetHash()]))
                 oName.push_back(Pair("transferred", 1));
             string strAddress = "";
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
-            oName.push_back(Pair("expires_in", nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight));
-            if(nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
-            {
-                oName.push_back(Pair("expired", 1));
-            }
+            if (IsDead(sName))
+                oName.push_back(Pair("dead", 1));
 
             // get last active name only
             if(vNamesI.find(vchName) != vNamesI.end() && vNamesI[vchName] > nHeight)
@@ -730,11 +728,8 @@ Value name_show(const Array& params, bool fHelp)
             string strAddress = "";
             GetNameAddress(txPos, strAddress);
             oName.push_back(Pair("address", strAddress));
-            oName.push_back(Pair("expires_in", nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight));
-            if(nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
-            {
-                oName.push_back(Pair("expired", 1));
-            }
+            if (IsDead(name))
+                oName.push_back(Pair("dead", 1));
             oLastName = oName;
         }
     }
@@ -784,11 +779,8 @@ Value name_history(const Array& params, bool fHelp)
                 string strAddress = "";
                 GetNameAddress(txPos, strAddress);
                 oName.push_back(Pair("address", strAddress));
-                oName.push_back(Pair("expires_in", nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight));
-                if(nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
-                {
-                    oName.push_back(Pair("expired", 1));
-                }
+                if (IsDead(name))
+                    oName.push_back(Pair("dead", 1));
                 oRes.push_back(oName);
             }
         }
@@ -865,19 +857,18 @@ Value name_filter(const Array& params, bool fHelp)
         oName.push_back(Pair("name", name));
         CTransaction tx;
         CDiskTxPos txPos = txName.txPos;
-        if ((nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
+        if (IsDead(name)
             || txPos.IsNull()
             || !tx.ReadFromDisk(txPos))
             //|| !GetValueOfNameTx(tx, vchValue))
         {
-            oName.push_back(Pair("expired", 1));
+            oName.push_back(Pair("dead", 1));
         }
         else
         {
             vector<unsigned char> vchValue = txName.vValue;
             string value = stringFromVch(vchValue);
             oName.push_back(Pair("value", value));
-            oName.push_back(Pair("expires_in", nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight));
         }
         oRes.push_back(oName);
 
@@ -948,12 +939,12 @@ Value name_scan(const Array& params, bool fHelp)
         //int nHeight = GetTxPosHeight(txPos);
         int nHeight = txName.nHeight;
         vector<unsigned char> vchValue = txName.vValue;
-        if ((nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
+        if (IsDead(name)
             || txPos.IsNull()
             || !tx.ReadFromDisk(txPos))
             //|| !GetValueOfNameTx(tx, vchValue))
         {
-            oName.push_back(Pair("expired", 1));
+            oName.push_back(Pair("dead", 1));
         }
         else
         {
@@ -963,7 +954,6 @@ Value name_scan(const Array& params, bool fHelp)
             oName.push_back(Pair("value", value));
             //oName.push_back(Pair("txid", tx.GetHash().GetHex()));
             //oName.push_back(Pair("address", strAddress));
-            oName.push_back(Pair("expires_in", nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight));
         }
         oRes.push_back(oName);
     }
@@ -1850,8 +1840,8 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         case OP_NAME_NEW:
             if (found)
                 return error("ConnectInputsHook() : name_new tx pointing to previous playername tx");
-            //if (tx.vout[nOut].nValue < NAMENEW_COIN_AMOUNT)
-            //    return error("ConnectInputsHook() : name_new tx: insufficient amount");
+            if (tx.vout[nOut].nValue < NAMENEW_COIN_AMOUNT)
+                return error("ConnectInputsHook() : name_new tx: insufficient amount");
             break;
         case OP_NAME_FIRSTUPDATE:
             nNetFee = GetNameNetFee(tx);

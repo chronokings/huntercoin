@@ -59,7 +59,7 @@ static const int64 NAME_COIN_AMOUNT = CENT;
 // We can make name_new cheaper, if we want, separately from name_(first)update
 // This can be used e.g. to send short messages in the hash field. The coin will be
 // destroyed in this case. We can try setting it to 0 though.
-static const int64 NAMENEW_COIN_AMOUNT = NAME_COIN_AMOUNT;
+static const int64 NAMENEW_COIN_AMOUNT = NAME_COIN_AMOUNT / 5;
 static const int MAX_NAME_LENGTH = 255;
 static const int MAX_VALUE_LENGTH = 4095;
 static const int OP_NAME_INVALID = 0x00;

@@ -714,7 +714,6 @@ public:
     uint256 hashBlock;
     std::vector<uint256> vMerkleBranch;
     int nIndex;
-    bool fGame; // false: normal transaction or coinbase; true: game-created transaction (e.g. reward for killing another player)
 
     // memory only
     mutable char fMerkleVerified;
@@ -734,7 +733,6 @@ public:
     {
         hashBlock = 0;
         nIndex = -1;
-        fGame = false;
         fMerkleVerified = false;
     }
 
@@ -746,7 +744,6 @@ public:
         READWRITE(hashBlock);
         READWRITE(vMerkleBranch);
         READWRITE(nIndex);
-        READWRITE(fGame);
     )
 
 
@@ -857,13 +854,14 @@ public:
     // header
     int nVersion;
     uint256 hashPrevBlock;
-    uint256 hashMerkleRoot, hashGameMerkleRoot;
+    uint256 hashMerkleRoot;
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
 
     // network and disk
     std::vector<CTransaction> vtx, vgametx;
+    uint256 hashGameMerkleRoot;
 
     // header
     boost::shared_ptr<CAuxPow> auxpow;
@@ -899,7 +897,7 @@ public:
                 // This is not a problem, because vgametx is re-created deterministically from the game state in ConnectBlock
                 READWRITE(vgametx);
                 if (nType & SER_GETHASH)
-                    printf("Error: nType contains both SER_DISK & SER_GETHASH");
+                    printf("Error: nType contains both SER_DISK & SER_GETHASH\n");
                 READWRITE(hashGameMerkleRoot);
             }
         }
