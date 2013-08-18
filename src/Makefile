@@ -74,6 +74,7 @@ OBJS= \
     obj/init.o \
     obj/chronokings.o \
     obj/gamestate.o \
+    obj/gamedb.o \
     cryptopp/obj/sha.o \
     cryptopp/obj/cpu.o
 
@@ -89,9 +90,11 @@ cryptopp/obj/%.o: cryptopp/%.cpp
 obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
-obj/chronokings.o: chronokings.h gamestate.h
+obj/chronokings.o: chronokings.h gamestate.h gamedb.h
 
-obj/gamestate.o: serialize.h uint256.h gamestate.h
+obj/gamestate.o: gamestate.h
+
+obj/gamedb.o: gamestate.h gamedb.h
 
 chronokingsd: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)

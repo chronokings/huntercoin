@@ -11,6 +11,7 @@
 #include "chronokings.h"
 
 #include "gamestate.h"
+#include "gamedb.h"
 
 #include "rpc.h"
 
@@ -475,6 +476,18 @@ bool GetNameAddress(const CTransaction& tx, std::string& strAddress)
     const CTxOut& txout = tx.vout[nOut];
     const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
     strAddress = scriptPubKey.GetBitcoinAddress();
+    return true;
+}
+
+bool GetNameAddress(const CTransaction& tx, uint160 &hash160)
+{
+    int op;
+    int nOut;
+    vector<vector<unsigned char> > vvch;
+    DecodeNameTx(tx, op, nOut, vvch);
+    const CTxOut& txout = tx.vout[nOut];
+    const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
+    hash160 = scriptPubKey.GetBitcoinAddressHash160();
     return true;
 }
 
@@ -1194,6 +1207,43 @@ Value name_new(const Array& params, bool fHelp)
     return res;
 }
 
+Value game_getstate(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+                "game_getstate [height]\n"
+                "Returns game state, either the most recent one or at given height (-1 = initial state, 0 = state after genesis block, k = state after k-th block for k>0)\n"
+                );
+
+    int64 height = params[0].get_int64();
+
+    if (height < -1 || height > nBestHeight)
+        throw JSONRPCError(RPC_INVALID_PARAMS, "Error: Invalid height specified");
+        
+    Game::GameState state;
+
+    CRITICAL_BLOCK(cs_main)
+    {
+        CBlockIndex* pindex;
+        if (height == -1)
+            pindex = NULL;
+        else
+        {
+            pindex = pindexBest;
+            while (pindex && pindex->nHeight > height)
+                pindex = pindex->pprev;
+            if (!pindex || pindex->nHeight != height)
+                throw JSONRPCError(RPC_DATABASE_ERROR, "Error: Cannot find block at specified height");
+        }
+            
+        CTxDB txdb("r");
+        if (!GetGameState(txdb, pindex, state))
+            throw JSONRPCError(RPC_DATABASE_ERROR, "Error: Cannot compute game state at specified height");
+    }
+
+    return state.ToJsonValue();
+}
+
 void UnspendInputs(CWalletTx& wtx)
 {
     set<CWalletTx*> setCoins;
@@ -1515,6 +1565,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_debug1", &name_debug1));
     mapCallTable.insert(make_pair("name_clean", &name_clean));
     mapCallTable.insert(make_pair("sendtoname", &sendtoname));
+    mapCallTable.insert(make_pair("game_getstate", &game_getstate));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
     hashGenesisBlock = hashChronoKingsGenesisBlock[fTestNet ? 1 : 0];
     printf("Setup chronokings genesis block %s\n", hashGenesisBlock.GetHex().c_str());
@@ -1750,7 +1801,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("GetNameOfTx() : could not decode a playername tx");
+        return error("GetNameOfTx() : could not decode a name tx");
 
     switch (op)
     {
@@ -1772,7 +1823,7 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("IsConflictedTx() : could not decode a playername tx");
+        return error("IsConflictedTx() : could not decode a name tx");
     int nPrevHeight;
     int nDepth;
     int64 nNetFee;
@@ -1820,7 +1871,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
         if (found)
-            return error("ConnectInputHook() : a non-playername transaction with a playername input");
+            return error("ConnectInputHook() : a non-name transaction with a name input");
         return true;
     }
 
@@ -1829,7 +1880,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     int nOut;
 
     if (!DecodeNameTx(tx, op, nOut, vvchArgs))
-        return error("ConnectInputsHook() : could not decode a playername tx");
+        return error("ConnectInputsHook() : could not decode a name tx");
 
     int nPrevHeight;
     int nDepth;
@@ -1839,7 +1890,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     {
         case OP_NAME_NEW:
             if (found)
-                return error("ConnectInputsHook() : name_new tx pointing to previous playername tx");
+                return error("ConnectInputsHook() : name_new tx pointing to previous name tx");
             if (tx.vout[nOut].nValue < NAMENEW_COIN_AMOUNT)
                 return error("ConnectInputsHook() : name_new tx: insufficient amount");
             break;
@@ -1959,7 +2010,7 @@ bool CChronoKingsHooks::DisconnectInputs(CTxDB& txdb,
 
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
-        return error("DisconnectInputsHook() : could not decode playername tx");
+        return error("DisconnectInputsHook() : could not decode name tx");
     if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
     {
         CNameDB dbName("cr+", txdb);
@@ -1998,38 +2049,35 @@ bool CChronoKingsHooks::CheckTransaction(const CTransaction& tx)
     bool good = DecodeNameTx(tx, op, nOut, vvch);
 
     if (!good)
-    {
         return error("name transaction has unknown script format");
-    }
 
     if (vvch[0].size() > MAX_NAME_LENGTH)
-    {
         return error("name transaction with name too long");
-    }
 
+    Game::Move *m;
     switch (op)
     {
         case OP_NAME_NEW:
             if (vvch[0].size() != 20)
-            {
                 return error("name_new tx with incorrect hash length");
-            }
             break;
         case OP_NAME_FIRSTUPDATE:
             if (vvch[1].size() > 20)
-            {
                 return error("name_firstupdate tx with rand too big");
-            }
             if (vvch[2].size() > MAX_VALUE_LENGTH)
-            {
                 return error("name_firstupdate tx with value too long");
-            }
+            m = Game::Move::Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
+            if (!m)
+                return error("name_firstupdate : incorrect game move");
+            delete m;
             break;
         case OP_NAME_UPDATE:
             if (vvch[1].size() > MAX_VALUE_LENGTH)
-            {
                 return error("name_update tx with value too long");
-            }
+            m = Game::Move::Parse(stringFromVch(vvch[0]), stringFromVch(vvch[1]));
+            if (!m)
+                return error("name_update : incorrect game move");
+            delete m;
             break;
         default:
             return error("name transaction has unknown op");
@@ -2087,11 +2135,19 @@ bool CChronoKingsHooks::ExtractAddress(const CScript& script, string& address)
 
 bool CChronoKingsHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
 {
-    return true;
+    if (!block.vgametx.empty())
+    {
+        block.vgametx.clear();
+        block.vGameMerkleTree.clear();
+        printf("ConnectBlock() : non-empty vgametx, clearing and re-creating");
+    }
+
+    return AdvanceGameState(txdb, pindex, &block);
 }
 
 bool CChronoKingsHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
 {
+    RollbackGameState(txdb, pindex);
     return true;
 }
 

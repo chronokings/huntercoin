@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include <string>
+#include <boost/noncopyable.hpp>
 #include "json/json_spirit_value.h"
 #include "serialize.h"
 #include "uint256.h"
@@ -127,10 +128,25 @@ struct GameState
     void DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties);
 };
 
+struct StepData : boost::noncopyable
+{
+    int64 nNameCoinAmount, nTreasureAmount;
+    uint256 newHash;
+    std::vector<const Move*> vpMoves;
+
+    ~StepData();
+};
+
+struct StepResult
+{
+    std::map<PlayerID, int64> bounties;
+    std::set<PlayerID> killedPlayers;
+};
+
 // All moves happen simultaneously, so this function must work identically
 // for any ordering of the moves, except non-critical cases (e.g. finding
 // an empty cell to spawn new player)
-bool PerformStep(const GameState &inState, const std::vector<Move*> &vpMoves, uint256 newHash, GameState &outState, std::map<PlayerID, int64> &outBounties);
+bool PerformStep(const GameState &inState, const StepData &stepData, GameState &outState, StepResult &stepResult);
 
 }
 

@@ -28,8 +28,10 @@ void RPCTypeCheck(const json_spirit::Array& params,
 void RPCTypeCheck(const json_spirit::Object& o,
                   const std::map<std::string, json_spirit::Value_type>& typesExpected, bool fAllowNull=false);
 
-extern std::string HelpRequiringPassphrase();
-extern void EnsureWalletIsUnlocked();
+std::string HelpRequiringPassphrase();
+void EnsureWalletIsUnlocked();
+json_spirit::Value ValueFromAmount(int64 amount);
+
 
 // Bitcoin RPC error codes
 enum RPCErrorCode

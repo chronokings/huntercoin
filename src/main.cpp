@@ -363,6 +363,8 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool fLimi
     // Coinbase is only valid in a block, not as a loose transaction
     if (IsCoinBase())
         return error("AcceptToMemoryPool() : coinbase as individual tx");
+    if (IsGameTx())
+        return error("AcceptToMemoryPool() : gametx as individual tx");
 
     // To help v0.1.5 clients who would see it as a negative number
     if ((int64)nLockTime > INT_MAX)
@@ -1077,18 +1079,21 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
         if (!hooks->ConnectInputs(txdb, mapTestPool, *this, vTxPrev, vTxindex, pindexBlock, posThisTx, fBlock, fMiner))
             return false;
 
-        if (nValueIn < GetValueOut())
-            return error("ConnectInputs() : %s value in < value out", GetHash().ToString().substr(0,10).c_str());
+        if (!IsGameTx())
+        {
+            if (nValueIn < GetValueOut())
+                return error("ConnectInputs() : %s value in < value out", GetHash().ToString().substr(0,10).c_str());
 
-        // Tally transaction fees
-        int64 nTxFee = nValueIn - GetValueOut();
-        if (nTxFee < 0)
-            return error("ConnectInputs() : %s nTxFee < 0", GetHash().ToString().substr(0,10).c_str());
-        if (nTxFee < nMinFee)
-            return false;
-        nFees += nTxFee;
-        if (!MoneyRange(nFees))
-            return error("ConnectInputs() : nFees out of range");
+            // Tally transaction fees
+            int64 nTxFee = nValueIn - GetValueOut();
+            if (nTxFee < 0)
+                return error("ConnectInputs() : %s nTxFee < 0", GetHash().ToString().substr(0,10).c_str());
+            if (nTxFee < nMinFee)
+                return false;
+            nFees += nTxFee;
+            if (!MoneyRange(nFees))
+                return error("ConnectInputs() : nFees out of range");
+        }
     }
 
     if (fBlock)
@@ -1109,7 +1114,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
 
 bool CTransaction::ClientConnectInputs()
 {
-    if (IsCoinBase())
+    if (IsCoinBase() || IsGameTx())
         return false;
 
     // Take over previous transactions' spent pointers
@@ -1145,6 +1150,7 @@ bool CTransaction::ClientConnectInputs()
             if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
                 return error("ClientConnectInputs() : txin values out of range");
         }
+
         if (GetValueOut() > nValueIn)
             return false;
     }
@@ -1157,9 +1163,6 @@ bool CTransaction::ClientConnectInputs()
 
 bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 {
-    if (!hooks->DisconnectBlock(*this, txdb, pindex))
-        return false;
-
     // Disconnect in reverse order
     for (int i = vgametx.size()-1; i >= 0; i--)
         if (!vgametx[i].DisconnectInputs(txdb, pindex))
@@ -1168,7 +1171,8 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         if (!vtx[i].DisconnectInputs(txdb, pindex))
             return false;
 
-    // TODO: roll back game state
+    if (!hooks->DisconnectBlock(*this, txdb, pindex))
+        return error("DisconnectBlock() : hook failed");
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -1205,14 +1209,9 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
     if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
         return false;
-        
-    if (!vgametx.empty())
-    {
-        vgametx.clear();
-        vGameMerkleTree.clear();
-        printf("ConnectBlock() : non-empty vgametx, clearing and re-creating");
-    }
-    // TODO: update game state, create vgametx
+
+    if (!hooks->ConnectBlock(*this, txdb, pindex))
+        return error("ConnectBlock() : hook failed");
 
     BOOST_FOREACH(CTransaction& tx, vgametx)
     {
@@ -1239,7 +1238,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     BOOST_FOREACH(CTransaction& tx, vgametx)
         SyncWithWallets(tx, this, true);
 
-    return hooks->ConnectBlock(*this, txdb, pindex);
+    return true;
 }
 
 bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
@@ -3101,6 +3100,9 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
             }
         }
 
+        // If we do not exclude invalid game transactions, the block won't be accepted by ConnectBlock
+        GameStepValidatorMiner gameStepValidator(txdb, pindexPrev);
+
         // Collect transactions into block
         map<uint256, CTxIndex> mapTestPool;
         uint64 nBlockSize = 1000;
@@ -3128,6 +3130,8 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
             // because we're already processing them in order of dependency
             map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
             if (!tx.ConnectInputs(txdb, mapTestPoolTmp, CDiskTxPos(1,1,1), pindexPrev, nFees, false, true, nMinFee))
+                continue;
+            if (!gameStepValidator.IsValid(tx))
                 continue;
             swap(mapTestPool, mapTestPoolTmp);
 

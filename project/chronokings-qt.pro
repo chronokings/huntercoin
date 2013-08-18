@@ -118,7 +118,8 @@ QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra -Wformat -Wform
 DEPENDPATH += ../src ../src/json ../src/cryptopp ../src/qt
 
 CHRONOKINGS_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
-    script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h rpc.h uibase.h ui.h noui.h init.h auxpow.h 
+    script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h rpc.h uibase.h ui.h noui.h init.h auxpow.h \
+    gamestate.h gamedb.h
     
 CHRONOKINGS_SOURCES = \
     auxpow.cpp \
@@ -137,7 +138,9 @@ CHRONOKINGS_SOURCES = \
     init.cpp \
     cryptopp/sha.cpp \
     cryptopp/cpu.cpp \
-    chronokings.cpp
+    chronokings.cpp \
+    gamestate.cpp \
+    gamedb.cpp
 
 HEADERS += $$join(CHRONOKINGS_HEADERS," ../src/",,)
 SOURCES += $$join(CHRONOKINGS_SOURCES," ../src/",,)
@@ -234,7 +237,7 @@ RESOURCES += ../src/qt/bitcoin.qrc
 FORMS += \
     ../src/qt/forms/sendcoinsdialog.ui \
     ../src/qt/forms/managenamespage.ui \
-	../src/qt/forms/configurenamedialog.ui \
+    ../src/qt/forms/configurenamedialog.ui \
     ../src/qt/forms/addressbookpage.ui \
     ../src/qt/forms/signverifymessagedialog.ui \
     ../src/qt/forms/aboutdialog.ui \

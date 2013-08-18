@@ -50,6 +50,16 @@ public:
     virtual std::string GetAlertPubkey2() { return GetAlertPubkey1(); }
 };
 
+// A simple wrapper (pImpl patter) to remove dependency on the game-related headers when miner just wants to check transactions
+class GameStepValidatorMiner
+{
+    class GameStepValidator *pImpl;
+public:
+    GameStepValidatorMiner(CTxDB &txdb, CBlockIndex *pindex);
+    ~GameStepValidatorMiner();
+    bool IsValid(const CTransaction& tx);
+};
+
 extern CHooks* InitHook();
 extern std::string GetDefaultDataDirSuffix();
 

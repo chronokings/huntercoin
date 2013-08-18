@@ -1,14 +1,14 @@
 #include "gamestate.h"
 
-#include <cstdarg>
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_writer_template.h"
 #include "json/json_spirit_utils.h"
 #include <boost/xpressive/xpressive_dynamic.hpp>
 #include <boost/assign/list_of.hpp>
+#include <boost/foreach.hpp>
 
-#include "headers.h"
-#include "chronokings.h"   // For NAME_COIN_AMOUNT
+#include "util.h"
+#include "bignum.h"
 
 using namespace Game;
 
@@ -39,6 +39,8 @@ static bool CheckJsonObject(const json_spirit::Object &obj, const std::map<std::
     }
     return obj.size() == n;    // Check that there are no extra fields in obj
 }
+
+json_spirit::Value ValueFromAmount(int64 amount);
 
 bool IsValidPlayerName(const PlayerID &player)
 {
@@ -198,7 +200,7 @@ json_spirit::Value GameState::ToJsonValue() const
         Object subobj;
         subobj.push_back(Pair("x", p.first.first));
         subobj.push_back(Pair("y", p.first.second));
-        subobj.push_back(Pair("amount", double(p.second) / COIN));
+        subobj.push_back(Pair("amount", ValueFromAmount(p.second)));
         arr.push_back(subobj);
     }
     obj.push_back(Pair("loot", arr));
@@ -254,54 +256,60 @@ void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
     }
 }
 
-bool PerformStep(const GameState &inState, const std::vector<Move*> &vpMoves, GameState &outState, uint256 newHash, std::map<PlayerID, int64> &outBounties)
+StepData::~StepData()
 {
     BOOST_FOREACH(const Move *m, vpMoves)
+        delete m;
+}
+
+bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameState &outState, StepResult &stepResult)
+{
+    BOOST_FOREACH(const Move *m, stepData.vpMoves)
         if (!m->IsValid(inState))
             return false;
 
     outState = inState;
-    outBounties.clear();
+    stepResult = StepResult();
 
-    BOOST_FOREACH(const Move *m, vpMoves)
+    BOOST_FOREACH(const Move *m, stepData.vpMoves)
         m->ApplySpawn(outState);
 
-    BOOST_FOREACH(const Move *m, vpMoves)
+    BOOST_FOREACH(const Move *m, stepData.vpMoves)
     {
         PlayerID victim;
         if (m->IsAttack(inState, victim))
         {
             outState.players.erase(victim);
             const PlayerState &victimState = inState.players.find(victim)->second;
-            outState.AddLoot(victimState.x, victimState.y, NAME_COIN_AMOUNT);
+            outState.AddLoot(victimState.x, victimState.y, stepData.nNameCoinAmount);
+            stepResult.killedPlayers.insert(victim);
         }
     }
 
-    BOOST_FOREACH(const Move *m, vpMoves)
+    BOOST_FOREACH(const Move *m, stepData.vpMoves)
     {
         if (outState.players.count(m->player) != 0)  // Skip players that have just been killed
             m->ApplyStep(outState);
     }
 
     outState.nHeight = inState.nHeight + 1;
-    outState.hashBlock = newHash;
+    outState.hashBlock = stepData.newHash;
 
     // Random reward placed on the map inside NxN square growing with each block, centered at (0, 0).
     // It can coincide with some player, who'll collect it immediately.
     // This is done to test that outBounties do not affect the block hash.
-    int64 nTreasureAmount = GetBlockValue(outState.nHeight, 0);
     CBigNum rnd(SerializeHash(outState.hashBlock, SER_GETHASH, 0));
     int n = 2 * outState.nHeight + 1;
     outState.AddLoot(
             (rnd % n).getint() - (n / 2),
             ((rnd / n) % n).getint() - (n / 2),
-            nTreasureAmount);
+            stepData.nTreasureAmount);
 
     // TODO: it could be good to attach description to each bounty
     // and then copy it to e.g. strFromAccount to show up in the wallet,
     // or when serializing vgametx
 
-    outState.DivideLootAmongPlayers(outBounties);
+    outState.DivideLootAmongPlayers(stepResult.bounties);
 
     return true;
 }

@@ -3777,6 +3777,7 @@ void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
     if (strMethod == "createrawtransaction"   && n > 1) ConvertTo<Object>(params[1]);
     if (strMethod == "signrawtransaction"     && n > 1) ConvertTo<Array>(params[1], true);
     if (strMethod == "signrawtransaction"     && n > 2) ConvertTo<Array>(params[2], true);
+    if (strMethod == "game_getstate"          && n > 0) ConvertTo<boost::int64_t>(params[0]);
 }
 
 int CommandLineRPC(int argc, char *argv[])
