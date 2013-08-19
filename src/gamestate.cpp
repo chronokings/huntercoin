@@ -150,7 +150,11 @@ bool AttackMove::IsValid() const
 
 bool AttackMove::IsValid(const GameState &state) const
 {
-    return state.players.count(player) != 0 && state.players.count(victim) != 0;
+    std::map<PlayerID, PlayerState>::const_iterator mi1 = state.players.find(player);
+    std::map<PlayerID, PlayerState>::const_iterator mi2 = state.players.find(victim);
+    if (mi1 == state.players.end() || mi2 == state.players.end() || mi1 == mi2)
+        return false;
+    return mi1->second.color != mi2->second.color;
 }
 
 json_spirit::Value PlayerState::ToJsonValue() const

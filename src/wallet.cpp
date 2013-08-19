@@ -608,6 +608,8 @@ void CWalletTx::RelayWalletTransaction()
    RelayWalletTransaction(txdb);
 }
 
+void EraseBadMoveTransactions();
+
 void CWallet::ResendWalletTransactions()
 {
     // Do this infrequently and randomly to avoid giving away
@@ -628,6 +630,7 @@ void CWallet::ResendWalletTransactions()
 
     // Rebroadcast any of our txes that aren't in a block yet
     printf("ResendWalletTransactions()\n");
+    EraseBadMoveTransactions();
     CTxDB txdb("r");
     CRITICAL_BLOCK(cs_mapWallet)
     {

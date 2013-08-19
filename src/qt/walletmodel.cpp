@@ -474,7 +474,7 @@ bool WalletModel::nameAvailable(const QString &name)
         return true;
 
     // TODO: should we subtract MIN_FIRSTUPDATE_DEPTH blocks? I think name_new may be possible when the previous registration is just about to expire
-    if(nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
+    if(false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
         return true;    // Expired
 
     return false;

@@ -546,7 +546,8 @@ Value sendtoname(const Array& params, bool fHelp)
 
 bool IsDead(const std::string &player)
 {
-    return false;  // TODO: check current game state for presence of player
+    CRITICAL_BLOCK(cs_main)
+        return GetCurrentGameState().players.count(player) != 0;
 }
 
 Value name_list(const Array& params, bool fHelp)
@@ -1215,7 +1216,15 @@ Value game_getstate(const Array& params, bool fHelp)
                 "Returns game state, either the most recent one or at given height (-1 = initial state, 0 = state after genesis block, k = state after k-th block for k>0)\n"
                 );
 
-    int64 height = params[0].get_int64();
+    int64 height = nBestHeight;
+
+    if (params.size() > 0)
+    {
+        height = params[0].get_int64();
+    }
+    else if (IsInitialBlockDownload())
+            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "chronokings is downloading blocks...");
+
 
     if (height < -1 || height > nBestHeight)
         throw JSONRPCError(RPC_INVALID_PARAMS, "Error: Invalid height specified");

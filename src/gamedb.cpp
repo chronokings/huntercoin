@@ -96,7 +96,7 @@ public:
         }
         return true;
     }
-    
+
     bool IsValid(const CTransaction& tx)
     {
         const Move *m;
@@ -173,7 +173,12 @@ bool PerformStep(CNameDB &dbName, const GameState &inState, const CBlock *block,
     return true;
 }
 
-// TODO: cache several recent states in the memory
+GameState currentState;
+
+const GameState &GetCurrentGameState()
+{
+    return currentState;
+}
 
 // pindex must belong to the main branch, i.e. corresponding blocks must be connected
 bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
@@ -183,7 +188,13 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         outState = GameState();
         return true;
     }
-        
+
+    if (*pindex->phashBlock == currentState.hashBlock)
+    {
+        outState = currentState;
+        return true;
+    }
+
     // Get the latest saved state
     CGameDB gameDb("r", txdb);
 
@@ -229,6 +240,8 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         plast = plast->pnext;
         lastState = outState;
     }
+    if (pindex == pindexBest)
+        currentState = outState;
     return true;
 }
 
@@ -238,9 +251,11 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
     GameState inState, outState;
     if (!GetGameState(txdb, pindex->pprev, inState))
         return false;
-        
+
     if (inState.nHeight != pindex->nHeight - 1)
         return error("AdvanceGameState: incorrect height encountered");
+    if (inState.hashBlock != block->hashPrevBlock)
+        return error("AdvanceGameState: incorrect hash encountered");
 
     CNameDB nameDb("r", txdb);
     if (!PerformStep(nameDb, inState, block, outState, block->vgametx))
@@ -251,12 +266,14 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
     if (inState.hashBlock != *pindex->phashBlock)
         return error("AdvanceGameState: incorrect hash stored");
 
+    currentState = outState;
+
     CGameDB gameDb("cr+", txdb);
     gameDb.Write(pindex->nHeight, outState);
     // Prune old states from DB, keeping every Nth for quick lookup (intermediate states can be obtained by integrating blocks)
     if (pindex->nHeight - 1 <= 0 || (pindex->nHeight - 1) % KEEP_EVERY_NTH_STATE != 0)
         gameDb.Erase(pindex->nHeight - 1);
-    
+
     return true;
 }
 
@@ -270,4 +287,76 @@ void RollbackGameState(CTxDB& txdb, CBlockIndex* pindex)
     }
 
     CGameDB("r", txdb).Erase(pindex->nHeight);
+}
+
+extern CWallet* pwalletMain;
+
+void EraseBadMoveTransactions()
+{
+    CRITICAL_BLOCK(cs_main)
+    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    {
+        std::map<uint256, CWalletTx> mapRemove;
+        std::vector<unsigned char> vchName;
+
+        GameStepValidator gameStepValidator(&currentState);
+
+        {
+            CTxDB txdb("r");
+            BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
+            {
+                CWalletTx& wtx = item.second;
+
+                if (wtx.GetDepthInMainChain() < 1 && (IsConflictedTx(txdb, wtx, vchName) || !gameStepValidator.IsValid(wtx)))
+                    mapRemove[wtx.GetHash()] = wtx;
+            }
+        }
+
+        if (mapRemove.empty())
+            return;
+
+        int countRemove = mapRemove.size();
+        printf("EraseBadMoveTransactions : erasing %d transactions\n", countRemove);
+
+        bool fRepeat = true;
+        while (fRepeat)
+        {
+            fRepeat = false;
+            BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
+            {
+                CWalletTx& wtx = item.second;
+                BOOST_FOREACH(const CTxIn& txin, wtx.vin)
+                {
+                    uint256 hash = wtx.GetHash();
+
+                    // If this tx depends on a tx to be removed, remove it too
+                    if (mapRemove.count(txin.prevout.hash) && !mapRemove.count(hash))
+                    {
+                        mapRemove[hash] = wtx;
+                        fRepeat = true;
+                    }
+                }
+            }
+        }
+        if (mapRemove.size() > countRemove)
+            printf("EraseBadMoveTransactions : erasing additional %d dependent transactions\n", mapRemove.size() - countRemove);
+
+        BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, mapRemove)
+        {
+            CWalletTx& wtx = item.second;
+
+            UnspendInputs(wtx);
+            wtx.RemoveFromMemoryPool();
+            pwalletMain->EraseFromWallet(wtx.GetHash());
+            if (GetNameOfTx(wtx, vchName) && mapNamePending.count(vchName))
+            {
+                std::string name = stringFromVch(vchName);
+                printf("EraseBadMoveTransactions : erase %s from pending of name %s",
+                        wtx.GetHash().GetHex().c_str(), name.c_str());
+                if (!mapNamePending[vchName].erase(wtx.GetHash()))
+                    error("EraseBadMoveTransactions : erase but it was not pending");
+            }
+            wtx.print();
+        }
+    }
 }

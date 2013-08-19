@@ -111,7 +111,7 @@ public:
                 if (fConfirmed)
                 {
                     nHeight = GetTxPosHeight(txindex.pos);
-                    if (nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
+                    if (false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
                         continue;  // Expired
                 }
                 else
@@ -194,7 +194,7 @@ public:
                 if (fConfirmed)
                 {
                     nHeight = GetTxPosHeight(txindex.pos);
-                    if (nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
+                    if (false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
                     {
                         printf("refreshName(%s): tx %s, nHeight = %d - expired\n", qPrintable(nameObj.name), hash.GetHex().c_str(), nHeight);
                         continue;  // Expired
@@ -373,7 +373,7 @@ void NameTableModel::updateExpiration()
             if (!item->HeightValid())
                 continue;       // Currently, unconfirmed names do not expire in the table
             int nHeight = item->nHeight;
-            if (nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0)
+            if (false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
             {
                 priv->updateEntry(item->name, item->value, item->nHeight, CT_DELETED);
                 // Data array changed - restart scan
@@ -445,7 +445,7 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
             if (!rec->HeightValid())
                 return QVariant();
             else
-                return rec->nHeight + GetDisplayExpirationDepth(rec->nHeight) - pindexBest->nHeight;
+                return QString("never"); //rec->nHeight + GetDisplayExpirationDepth(rec->nHeight) - pindexBest->nHeight;
         }
     }
     else if (role == Qt::TextAlignmentRole)
