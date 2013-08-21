@@ -200,7 +200,7 @@ CScript RemoveNameScriptPrefix(const CScript& scriptIn)
     vector<vector<unsigned char> > vvch;
     CScript::const_iterator pc = scriptIn.begin();
 
-    if (!DecodeNameScript(scriptIn, op, vvch,  pc))
+    if (!DecodeNameScript(scriptIn, op, vvch, pc))
         throw runtime_error("RemoveNameScriptPrefix() : could not decode name script");
     return CScript(pc, scriptIn.end());
 }
@@ -464,6 +464,8 @@ bool GetTxOfName(CNameDB& dbName, const vector<unsigned char> &vchName, CTransac
     if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
         return false;
     CNameIndex& txPos = vtxPos.back();
+    if (!tx.ReadFromDisk(txPos.txPos))
+        return error("GetTxOfName() : could not read tx from disk");
     return true;
 }
 
@@ -544,12 +546,6 @@ Value sendtoname(const Array& params, bool fHelp)
     return wtx.GetHash().GetHex();
 }
 
-bool IsDead(const std::string &player)
-{
-    CRITICAL_BLOCK(cs_main)
-        return GetCurrentGameState().players.count(player) != 0;
-}
-
 Value name_list(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
@@ -615,17 +611,31 @@ Value name_list(const Array& params, bool fHelp)
             std::string sName = stringFromVch(vchName);
             oName.push_back(Pair("name", sName));
             oName.push_back(Pair("value", stringFromVch(vchValue)));
-            if (!hooks->IsMine(pwalletMain->mapWallet[tx.GetHash()]))
+            const CWalletTx &nameTx = pwalletMain->mapWallet[tx.GetHash()];
+            if (!hooks->IsMine(nameTx))
                 oName.push_back(Pair("transferred", 1));
             string strAddress = "";
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
-            if (IsDead(sName))
-                oName.push_back(Pair("dead", 1));
 
             // get last active name only
             if(vNamesI.find(vchName) != vNamesI.end() && vNamesI[vchName] > nHeight)
                 continue;
+
+            // Detect if player is dead (its name is spent by a game transaction)
+            int nOut = IndexOfNameOutput(nameTx);
+            if (nOut < txindex.vSpent.size())
+            {
+                CDiskTxPos spentPos = txindex.vSpent[nOut];
+                if (!spentPos.IsNull())
+                {
+                    CTransaction tx2;
+                    if (!tx2.ReadFromDisk(spentPos))
+                        throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
+                    if (tx2.nVersion == GAME_TX_VERSION)
+                        oName.push_back(Pair("dead", 1));
+                }
+            }
 
             vNamesI[vchName] = nHeight;
             vNamesO[vchName] = oName;
@@ -720,7 +730,7 @@ Value name_show(const Array& params, bool fHelp)
         CNameDB dbName("r");
         if (!dbName.ReadName(vchName, vtxPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
-       
+
         if (vtxPos.size() < 1)
             throw JSONRPCError(RPC_WALLET_ERROR, "no result returned");
 
@@ -742,8 +752,8 @@ Value name_show(const Array& params, bool fHelp)
             string strAddress = "";
             GetNameAddress(txPos, strAddress);
             oName.push_back(Pair("address", strAddress));
-            if (IsDead(name))
-                oName.push_back(Pair("dead", 1));
+            if (tx.nVersion == GAME_TX_VERSION)
+                oName.push_back(Pair("dead", 1));     // Note: this flag is also duplicated in the "value" field
             oLastName = oName;
         }
     }
@@ -793,8 +803,6 @@ Value name_history(const Array& params, bool fHelp)
                 string strAddress = "";
                 GetNameAddress(txPos, strAddress);
                 oName.push_back(Pair("address", strAddress));
-                if (IsDead(name))
-                    oName.push_back(Pair("dead", 1));
                 oRes.push_back(oName);
             }
         }
@@ -871,14 +879,7 @@ Value name_filter(const Array& params, bool fHelp)
         oName.push_back(Pair("name", name));
         CTransaction tx;
         CDiskTxPos txPos = txName.txPos;
-        if (IsDead(name)
-            || txPos.IsNull()
-            || !tx.ReadFromDisk(txPos))
-            //|| !GetValueOfNameTx(tx, vchValue))
-        {
-            oName.push_back(Pair("dead", 1));
-        }
-        else
+        if (!txPos.IsNull() && tx.ReadFromDisk(txPos))
         {
             vector<unsigned char> vchValue = txName.vValue;
             string value = stringFromVch(vchValue);
@@ -953,14 +954,7 @@ Value name_scan(const Array& params, bool fHelp)
         //int nHeight = GetTxPosHeight(txPos);
         int nHeight = txName.nHeight;
         vector<unsigned char> vchValue = txName.vValue;
-        if (IsDead(name)
-            || txPos.IsNull()
-            || !tx.ReadFromDisk(txPos))
-            //|| !GetValueOfNameTx(tx, vchValue))
-        {
-            oName.push_back(Pair("dead", 1));
-        }
-        else
+        if (!txPos.IsNull() && !tx.ReadFromDisk(txPos))
         {
             string value = stringFromVch(vchValue);
             //string strAddress = "";
@@ -1690,14 +1684,14 @@ bool GetValueOfNameTx(const CTransaction& tx, vector<unsigned char>& value)
     }
 }
 
-int IndexOfNameOutput(CWalletTx& wtx)
+int IndexOfNameOutput(const CTransaction& tx)
 {
     vector<vector<unsigned char> > vvch;
 
     int op;
     int nOut;
 
-    bool good = DecodeNameTx(wtx, op, nOut, vvch);
+    bool good = DecodeNameTx(tx, op, nOut, vvch);
 
     if (!good)
         throw runtime_error("IndexOfNameOutput() : name output not found");
@@ -1848,6 +1842,49 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
     return false;
 }
 
+bool ConnectInputsGameTx(CTxDB& txdb,
+        map<uint256, CTxIndex>& mapTestPool,
+        const CTransaction& tx,
+        vector<CTransaction>& vTxPrev,
+        vector<CTxIndex>& vTxindex,
+        CBlockIndex* pindexBlock,
+        CDiskTxPos& txPos)
+{
+    // Update name records for killed players
+    CNameDB dbName("r+", txdb);
+        
+    for (int i = 0; i < tx.vin.size() ; i++)
+    {
+        CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
+        
+        int prevOp;
+        vector<vector<unsigned char> > vvchPrevArgs;
+
+        if (!DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
+            continue;
+
+        dbName.TxnBegin();
+
+        vector<CNameIndex> vtxPos;
+        if (dbName.ExistsName(vvchPrevArgs[0]))
+        {
+            if (!dbName.ReadName(vvchPrevArgs[0], vtxPos))
+                return error("ConnectInputsGameTx() : failed to read from name DB");
+        }
+        CNameIndex txPos2;
+        txPos2.nHeight = pindexBlock->nHeight;
+        txPos2.vValue = vchFromString("{\"dead\":1}");
+        txPos2.txPos = txPos;
+        vtxPos.push_back(txPos2); // fin add
+        if (!dbName.WriteName(vvchPrevArgs[0], vtxPos))
+            return error("ConnectInputsHook() : failed to write to name DB");
+
+        dbName.TxnCommit();
+        mapNamePending[vvchPrevArgs[0]].erase(tx.GetHash());
+    }
+    return true;
+}
+
 bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         map<uint256, CTxIndex>& mapTestPool,
         const CTransaction& tx,
@@ -1858,6 +1895,13 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
         bool fBlock,
         bool fMiner)
 {
+    if (tx.nVersion == GAME_TX_VERSION)
+    {
+        if (fBlock)
+            return ConnectInputsGameTx(txdb, mapTestPool, tx, vTxPrev, vTxindex, pindexBlock, txPos);
+        return true;
+    }
+
     bool nInput;
     bool found = false;
 
@@ -1995,7 +2039,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     {
         if (fBlock && op != OP_NAME_NEW)
         {
-            if (mapNamePending[vvchArgs[0]].count(tx.GetHash()))
+            //if (mapNamePending[vvchArgs[0]].count(tx.GetHash()))
                 mapNamePending[vvchArgs[0]].erase(tx.GetHash());
             //else
             //    printf("ConnectInputsHook() : connecting inputs on %s which was not in pending - must be someone elses\n",

@@ -20,6 +20,8 @@
 
 extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
 
+const QString STR_NAME_FIRSTUPDATE_DEFAULT = "{\"color\":0}";
+
 //
 // NameFilterProxyModel
 //
@@ -174,6 +176,8 @@ void ManageNamesPage::changedValueFilter(const QString &filter)
     proxyModel->setValueSearch(filter);
 }
 
+extern bool IsValidPlayerName(const std::string &);
+
 void ManageNamesPage::on_submitNameButton_clicked()
 {
     if (!walletModel)
@@ -188,9 +192,7 @@ void ManageNamesPage::on_submitNameButton_clicked()
         return;
     }
 
-    // TODO: name needs more exhaustive syntax checking, Unicode characters etc.
-    // TODO: maybe it should be done while the user is typing (e.g. show/hide a red notice below the input box)
-    if (name != name.simplified() || name.contains(" "))
+    if (!IsValidPlayerName(name.toStdString()))
     {
         if (QMessageBox::Yes != QMessageBox::warning(this, tr("Name registration warning"),
               tr("The name you entered contains whitespace characters. It is probably invalid. Are you sure you want to use this name?"),
@@ -200,25 +202,9 @@ void ManageNamesPage::on_submitNameButton_clicked()
             return;
         }
     }
-    if (!name.contains("/") || name.startsWith("/"))
-    {
-        if (QMessageBox::Yes != QMessageBox::warning(this, tr("Name registration warning"),
-              tr("The name you entered does not start with prefix (such as \"d/\"). It may be invalid for certain tasks. Are you sure you want to use this name?"),
-              QMessageBox::Yes | QMessageBox::Cancel,
-              QMessageBox::Cancel))
-        {
-            return;
-        }
-    }
-
-    QString msg;
-    if (name.startsWith("d/"))
-        msg = tr("Are you sure you want to register domain name %1, which corresponds to domain %2?").arg(name).arg(name.mid(2) + ".bit");
-    else
-        msg = tr("Are you sure you want to register non-domain name %1?").arg(name);
 
     if (QMessageBox::Yes != QMessageBox::question(this, tr("Confirm name registration"),
-          msg,
+          tr("Are you sure you want to create player %1?").arg(name),
           QMessageBox::Yes | QMessageBox::Cancel,
           QMessageBox::Cancel))
     {
@@ -237,17 +223,17 @@ void ManageNamesPage::on_submitNameButton_clicked()
 
         if (res.ok)
         {
-            ui->registerName->setText("d/");
+            ui->registerName->setText("");
             ui->submitNameButton->setDefault(true);
 
             int newRowIndex;
             // FIXME: CT_NEW may have been sent from nameNew (via transaction).
             // Currently updateEntry is modified so it does not complain
-            model->updateEntry(name, "", NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
+            model->updateEntry(name, STR_NAME_FIRSTUPDATE_DEFAULT, NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
             ui->tableView->selectRow(newRowIndex);
             ui->tableView->setFocus();
 
-            ConfigureNameDialog dlg(name, "", true, this);
+            ConfigureNameDialog dlg(name, STR_NAME_FIRSTUPDATE_DEFAULT, true, this);
             dlg.setModel(walletModel);
             if (dlg.exec() == QDialog::Accepted)
             {

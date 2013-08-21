@@ -6,7 +6,10 @@
 
 class NameTablePriv;
 class CWallet;
-class WalletModel; 
+class WalletModel;
+
+extern const QString STR_NAME_FIRSTUPDATE_DEFAULT;
+
 
 /**
    Qt model for "Manage Names" page.

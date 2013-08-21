@@ -47,6 +47,7 @@ static const int64 MIN_RELAY_TX_FEE = 10000;
 static const int64 MAX_MONEY = 21000000 * COIN;
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
 static const int COINBASE_MATURITY = 100;
+static const int COINBASE_MATURITY_DISPLAY = COINBASE_MATURITY + 20;
 #ifdef USE_UPNP
 static const int fHaveUPnP = true;
 #else
@@ -530,6 +531,11 @@ public:
         return nVersion == GAME_TX_VERSION;
     }
 
+    void SetGameTx()
+    {
+        nVersion = GAME_TX_VERSION;
+    }
+
     int GetSigOpCount() const
     {
         int n = 0;
@@ -716,7 +722,7 @@ public:
     int nIndex;
 
     // memory only
-    mutable char fMerkleVerified;
+    mutable bool fMerkleVerified;
 
 
     CMerkleTx()
@@ -1072,7 +1078,7 @@ public:
             for (int i = 0; i < vgametx.size(); i++)
             {
                 printf("  ");
-                vtx[i].print();
+                vgametx[i].print();
             }
         }
         printf("  vMerkleTree: ");

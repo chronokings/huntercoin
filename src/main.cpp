@@ -554,7 +554,9 @@ int CMerkleTx::GetBlocksToMaturity() const
 {
     if (!IsCoinBase())
         return 0;
-    return max(0, (COINBASE_MATURITY+20) - GetDepthInMainChain());
+    if (hashBlock == hashGenesisBlock)   // Genesis block is immediately spendable
+        return 0;
+    return max(0, COINBASE_MATURITY_DISPLAY - GetDepthInMainChain());
 }
 
 
@@ -745,6 +747,9 @@ int64 GetBlockValue(int nHeight, int64 nFees)
 {
     // Miner: 50% + fee
     // Game : 50%
+
+    // The value below is the miner reward only (i.e. equals 50% of the generated coins per block)
+    // E.g. if it says 50, then miner gets 50 and another 50 go to players.
     int64 nSubsidy = 50 * COIN;
 
     // Subsidy is cut in half every 210000 blocks
@@ -756,8 +761,8 @@ int64 GetBlockValue(int nHeight, int64 nFees)
 unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 {
     const int64 nTargetSpacing = 60;    // A block every minute
-    const int64 nTargetTimespan = nTargetSpacing * 2016;
-    const int64 nInterval = nTargetTimespan / nTargetSpacing;
+    const int64 nInterval = 2016;       // Retargetting interval in blocks
+    const int64 nTargetTimespan = nTargetSpacing * nInterval;   // Desired retargetting interval in seconds
 
     // Genesis block
     if (pindexLast == NULL)
@@ -1041,7 +1046,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
 
             // If prev is coinbase, check that it's matured
             if (txPrev.IsCoinBase())
-                for (CBlockIndex* pindex = pindexBlock; pindex && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
+                for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
                     if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nFile)
                         return error("ConnectInputs() : tried to spend coinbase at depth %d", pindexBlock->nHeight - pindex->nHeight);
 
@@ -1834,9 +1839,8 @@ bool LoadBlockIndex(bool fAllowNew)
         if (!block.AddToBlockIndex(nFile, nBlockPos))
             return error("LoadBlockIndex() : genesis block not accepted");
 
-        CBlockIndex blockIndex(nFile, nBlockPos, block);
         CTxDB txdb;
-        if (!block.ConnectBlock(txdb, &blockIndex))
+        if (!block.ConnectBlock(txdb, pindexGenesisBlock))
             return error("LoadBlockIndex() : genesis block not accepted");
     }
 
@@ -3030,7 +3034,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
     txNew.vin.resize(1);
     txNew.vin[0].prevout.SetNull();
     txNew.vout.resize(1);
-    txNew.vout[0].scriptPubKey << reservekey.GetReservedKey() << OP_CHECKSIG;
+    txNew.vout[0].scriptPubKey.SetBitcoinAddress(reservekey.GetReservedKey());
 
     // Add our coinbase tx as first transaction
     pblock->vtx.push_back(txNew);

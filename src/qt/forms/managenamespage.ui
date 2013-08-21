@@ -47,7 +47,7 @@
         <string>Enter the name that will be assigned to new player</string>
        </property>
        <property name="text">
-        <string notr="true">d/</string>
+        <string notr="true"/>
        </property>
       </widget>
      </item>

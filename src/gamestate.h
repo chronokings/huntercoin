@@ -31,51 +31,6 @@ struct Move
     static Move *Parse(const PlayerID &player, const std::string &json);
 };
 
-struct EmptyMove : public Move
-{
-    bool IsValid() const
-    {
-        return true;
-    }
-
-    bool IsValid(const GameState &state) const;
-};
-
-struct SpawnMove : public Move
-{
-    int color;
-
-    bool IsValid() const
-    {
-        return color == 0 || color == 1;
-    }
-
-    bool IsValid(const GameState &state) const;
-    void ApplySpawn(GameState &state) const;
-};
-
-struct StepMove : public Move
-{
-    int deltaX, deltaY;
-
-    bool IsValid() const
-    {
-        return abs(deltaX) + abs(deltaY) <= 1;
-    }
-
-    bool IsValid(const GameState &state) const;
-    void ApplyStep(GameState &state) const;
-};
-
-struct AttackMove : public Move
-{
-    PlayerID victim;
-
-    bool IsValid() const;
-    bool IsValid(const GameState &state) const;
-    bool IsAttack(const GameState &state, PlayerID &outVictim) const;
-};
-
 struct PlayerState
 {
     int color;

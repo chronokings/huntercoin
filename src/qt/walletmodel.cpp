@@ -467,15 +467,14 @@ bool WalletModel::nameAvailable(const QString &name)
     if (!tx.ReadFromDisk(txPos))
         return true;     // This may indicate error, rather than name availability
 
+    if (tx.nVersion == GAME_TX_VERSION)
+        return true;
+
     std::vector<unsigned char> vchValue;
     int nHeight;
     uint256 hash;
     if (txPos.IsNull() || !GetValueOfTxPos(txPos, vchValue, hash, nHeight))
         return true;
-
-    // TODO: should we subtract MIN_FIRSTUPDATE_DEPTH blocks? I think name_new may be possible when the previous registration is just about to expire
-    if(false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
-        return true;    // Expired
 
     return false;
 }
@@ -511,10 +510,11 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
         int64 nFirstUpdateFee = 0;
         int64 nPrevFirstUpdateFee;
         CReserveKey reservekey(wallet);
-        
+
         PreparedNameFirstUpdate prep;
         prep.rand = rand;
-        
+        prep.vchData = vchFromString(STR_NAME_FIRSTUPDATE_DEFAULT.toStdString());
+
         // 1st pass: compute fee for name_firstupdate
         // 2nd pass: try using that fee in name_new
         for (int pass = 1; pass <= 2; pass++)

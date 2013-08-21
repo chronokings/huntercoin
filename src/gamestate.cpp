@@ -53,6 +53,115 @@ bool IsValidPlayerName(const PlayerID &player)
     return regex_search(player, match, regex);
 }
 
+
+
+// Various types of moves
+
+struct EmptyMove : public Move
+{
+    bool IsValid() const
+    {
+        return true;
+    }
+
+    bool IsValid(const GameState &state) const
+    {
+        return state.players.count(player) != 0;
+    }
+};
+
+struct SpawnMove : public Move
+{
+    int color;
+
+    bool IsValid() const
+    {
+        return color == 0 || color == 1;
+    }
+
+    bool IsValid(const GameState &state) const
+    {
+        return state.players.count(player) == 0;
+    }
+
+    void ApplySpawn(GameState &state) const
+    {
+        PlayerState newPlayer;
+        newPlayer.color = color;
+        newPlayer.x = 0;
+        newPlayer.y = 0;
+        bool ok;
+        // Find a cell surrounded by empty cells, in the row 0
+        do
+        {
+            ok = true;
+            BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, state.players)
+            {
+                if (abs(p.second.x - newPlayer.x) <= 1 && abs(p.second.y - newPlayer.y) <= 1)
+                {
+                    newPlayer.x++;
+                    ok = false;
+                }
+            }
+        } while (!ok);
+        state.players[player] = newPlayer;
+    }
+};
+
+struct StepMove : public Move
+{
+    int deltaX, deltaY;
+
+    bool IsValid() const
+    {
+        return abs(deltaX) + abs(deltaY) <= 1;
+    }
+
+    bool IsValid(const GameState &state) const
+    {
+        return state.players.count(player) != 0;
+    }
+
+    void ApplyStep(GameState &state) const
+    {
+        state.players[player].x += deltaX;
+        state.players[player].y += deltaY;
+    }
+};
+
+struct AttackMove : public Move
+{
+    PlayerID victim;
+
+    bool IsValid() const
+    {
+        return IsValidPlayerName(victim);
+    }
+
+    bool IsValid(const GameState &state) const
+    {
+        std::map<PlayerID, PlayerState>::const_iterator mi1 = state.players.find(player);
+        std::map<PlayerID, PlayerState>::const_iterator mi2 = state.players.find(victim);
+        if (mi1 == state.players.end() || mi2 == state.players.end() || mi1 == mi2)
+            return false;
+        return mi1->second.color != mi2->second.color;
+    }
+
+    bool IsAttack(const GameState &state, PlayerID &outVictim) const
+    {
+        const PlayerState &p1 = state.players.find(player)->second;
+        const PlayerState &p2 = state.players.find(victim)->second;
+        if (abs(p1.x - p2.x) + abs(p1.y - p2.y) <= 1)
+        {
+            outVictim = victim;
+            return true;
+        }
+        return false;
+    }
+};
+
+
+
 /*static*/ Move *Move::Parse(const PlayerID &player, const std::string &json)
 {
     if (!IsValidPlayerName(player))
@@ -99,64 +208,6 @@ bool IsValidPlayerName(const PlayerID &player)
     return move;
 }
 
-bool EmptyMove::IsValid(const GameState &state) const
-{
-    return state.players.count(player) != 0;
-}
-
-bool SpawnMove::IsValid(const GameState &state) const
-{
-    return state.players.count(player) == 0;
-}
-
-void SpawnMove::ApplySpawn(GameState &state) const
-{
-    PlayerState newPlayer;
-    newPlayer.color = color;
-    newPlayer.x = 0;
-    newPlayer.y = 0;
-    bool ok;
-    // Find a cell surrounded by empty cells, in the row 0
-    do
-    {
-        ok = true;
-        BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, state.players)
-        {
-            if (abs(p.second.x - newPlayer.x) <= 1 && abs(p.second.y - newPlayer.y) <= 1)
-            {
-                newPlayer.x++;
-                ok = false;
-            }
-        }
-    } while (!ok);
-    state.players[player] = newPlayer;
-}
-
-bool StepMove::IsValid(const GameState &state) const
-{
-    return state.players.count(player) != 0;
-}
-
-void StepMove::ApplyStep(GameState &state) const
-{
-    state.players[player].x += deltaX;
-    state.players[player].y += deltaY;
-}
-
-bool AttackMove::IsValid() const
-{
-    return IsValidPlayerName(victim);
-}
-
-bool AttackMove::IsValid(const GameState &state) const
-{
-    std::map<PlayerID, PlayerState>::const_iterator mi1 = state.players.find(player);
-    std::map<PlayerID, PlayerState>::const_iterator mi2 = state.players.find(victim);
-    if (mi1 == state.players.end() || mi2 == state.players.end() || mi1 == mi2)
-        return false;
-    return mi1->second.color != mi2->second.color;
-}
-
 json_spirit::Value PlayerState::ToJsonValue() const
 {
     using namespace json_spirit;
@@ -167,18 +218,6 @@ json_spirit::Value PlayerState::ToJsonValue() const
     obj.push_back(Pair("y", y));
 
     return obj;
-}
-
-bool AttackMove::IsAttack(const GameState &state, PlayerID &outVictim) const
-{
-    const PlayerState &p1 = state.players.find(player)->second;
-    const PlayerState &p2 = state.players.find(victim)->second;
-    if (abs(p1.x - p2.x) + abs(p1.y - p2.y) <= 1)
-    {
-        outVictim = victim;
-        return true;
-    }
-    return false;
 }
 
 GameState::GameState()
@@ -242,7 +281,7 @@ void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
             if (mi != playersOnLootTile.end())
                 mi->second++;
             else
-                loot.insert(std::make_pair(xy, 1));
+                playersOnLootTile.insert(std::make_pair(xy, 1));
         }
     }
     // Split equally, if multiple players on loot cell
@@ -256,6 +295,8 @@ void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
             int64 nAmount = loot[xy] / (mi->second--);
             outBounties[p.first] += nAmount;
             AddLoot(xy.first, xy.second, -nAmount);
+            if (mi->second == 0)
+                assert(loot.count(xy) == 0);
         }
     }
 }

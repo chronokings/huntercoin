@@ -14,7 +14,7 @@ class CBlockIndex;
 class CTxDB;
 class CNameDB;
 
-bool PerformStep(CNameDB &dbName, const Game::GameState &inState, const CBlock *block, Game::GameState &outState, std::vector<CTransaction> &outvgametx);
+bool PerformStep(CNameDB *pnameDb, const Game::GameState &inState, const CBlock *block, Game::GameState &outState, std::vector<CTransaction> &outvgametx);
 
 // These functionsa must hold cs_main lock
 bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, Game::GameState &outState);

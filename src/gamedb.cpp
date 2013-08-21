@@ -77,10 +77,16 @@ public:
             delete pstate;
     }
 
+    // Returns:
+    //   false - invalid move tx (m becomes undefined)
+    //   true  - non-move tx (m set to NULL) or valid tx (move stored to m, caller must delete it)
     bool IsValid(const CTransaction& tx, const Move *&m)
     {
         if (!GetNameOfTx(tx, vchName) || !GetValueOfNameTx(tx, vchValue))
+        {
+            m = NULL;
             return true;
+        }
 
         std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
         if (dup.count(sName))
@@ -124,7 +130,7 @@ bool GameStepValidatorMiner::IsValid(const CTransaction& tx)
     return pImpl->IsValid(tx);
 }
 
-bool PerformStep(CNameDB &dbName, const GameState &inState, const CBlock *block, GameState &outState, std::vector<CTransaction> &outvgametx)
+bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block, GameState &outState, std::vector<CTransaction> &outvgametx)
 {
     if (block->hashPrevBlock != inState.hashBlock)
         return error("PerformStep: game state for wrong block");
@@ -141,34 +147,53 @@ bool PerformStep(CNameDB &dbName, const GameState &inState, const CBlock *block,
         const Move *m;
         if (!gameStepValidator.IsValid(tx, m))
             return error("GameStepValidator rejected transaction %s in block %s", tx.GetHash().ToString().substr(0,10).c_str(), block->GetHash().ToString().c_str());
-        stepData.vpMoves.push_back(m);
+        if (m)
+            stepData.vpMoves.push_back(m);
     }
 
     StepResult stepResult;
     if (!Game::PerformStep(inState, stepData, outState, stepResult))
         return error("PerformStep failed for block %s", block->GetHash().ToString().c_str());
 
-    // Create resulting game transactions (bounties for killing players etc.)
+    // Create resulting game transactions
     outvgametx.clear();
+
     CTransaction txNew;
+    txNew.SetGameTx();
+
+    // Destroy name-coins of killed players
+    txNew.vin.reserve(stepResult.killedPlayers.size());
+    BOOST_FOREACH(PlayerID player, stepResult.killedPlayers)
+    {
+        std::vector<unsigned char> vchName = vchFromString(player);
+        CTransaction tx;
+        if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
+            return error("Game engine killed a non-existing player");
+
+        CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
+        txNew.vin.push_back(txin);
+    }
+
+    // Pay bounties to players who collected them
     txNew.vout.reserve(stepResult.bounties.size());
 
     BOOST_FOREACH(PAIRTYPE(PlayerID, int64) bounty, stepResult.bounties)
     {
         std::vector<unsigned char> vchName = vchFromString(bounty.first);
         CTransaction tx;
-        if (!GetTxOfName(dbName, vchName, tx))
-            return error("Error: game engine created bounty for non-existing player");
+        if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
+            return error("Game engine created bounty for non-existing player");
         uint160 addr;
         if (!GetNameAddress(tx, addr))
-            return error("Error: cannot get name address for bounty");
+            return error("Cannot get name address for bounty");
 
         CTxOut txout;
         txout.nValue = bounty.second;
         txout.scriptPubKey.SetBitcoinAddress(addr);
         txNew.vout.push_back(txout);
     }
-    outvgametx.push_back(txNew);
+    if (!txNew.IsNull())
+        outvgametx.push_back(txNew);
 
     return true;
 }
@@ -218,7 +243,9 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
             break;
     }
 
-    CNameDB dbName("r", txdb);
+    // When connecting genesis block, there is no nameindexfull.dat file yet
+    std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
+
     // Integrate steps starting from the last saved state
     loop
     {
@@ -227,10 +254,25 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         CBlock block;
         block.ReadFromDisk(plast);
         
-        if (!PerformStep(dbName, lastState, &block, outState, vgametx))
+        if (!PerformStep(nameDb.get(), lastState, &block, outState, vgametx))
             return false;
-        if (block.vgametx.size() != vgametx.size())
-            return error("GetGameState: computed vgametx is different from the stored one");
+        if (block.vgametx != vgametx)
+        {
+            printf("Error: GetGameState: computed vgametx is different from the stored one\n");
+            printf("  block vgametx:\n");
+            BOOST_FOREACH (const CTransaction &tx, block.vgametx)
+            {
+                printf("    ");
+                tx.print();
+            }
+            printf("  computed vgametx:\n");
+            BOOST_FOREACH (const CTransaction &tx, vgametx)
+            {
+                printf("    ");
+                tx.print();
+            }
+            return false;
+        }
         if (outState.nHeight != plast->nHeight)
             return error("GetGameState: wrong height");
         if (outState.hashBlock != *plast->phashBlock)
@@ -257,13 +299,17 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
     if (inState.hashBlock != block->hashPrevBlock)
         return error("AdvanceGameState: incorrect hash encountered");
 
-    CNameDB nameDb("r", txdb);
-    if (!PerformStep(nameDb, inState, block, outState, block->vgametx))
-        return false;
+    {
+        // When connecting genesis block, there is no nameindexfull.dat file yet
+        std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
+
+        if (!PerformStep(nameDb.get(), inState, block, outState, block->vgametx))
+            return false;
+    }
 
     if (outState.nHeight != pindex->nHeight)
         return error("AdvanceGameState: incorrect height stored");
-    if (inState.hashBlock != *pindex->phashBlock)
+    if (outState.hashBlock != *pindex->phashBlock)
         return error("AdvanceGameState: incorrect hash stored");
 
     currentState = outState;
@@ -286,7 +332,7 @@ void RollbackGameState(CTxDB& txdb, CBlockIndex* pindex)
         return;
     }
 
-    CGameDB("r", txdb).Erase(pindex->nHeight);
+    CGameDB("r+", txdb).Erase(pindex->nHeight);
 }
 
 extern CWallet* pwalletMain;
