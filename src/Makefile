@@ -80,7 +80,6 @@ OBJS= \
 
 all: chronokingsd
 
-
 obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -DGUI -o $@ $<
 

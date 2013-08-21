@@ -252,6 +252,20 @@ Value getblockcount(const Array& params, bool fHelp)
     return nBestHeight;
 }
 
+Value getblockhash(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getblockhash <index>\n"
+            "Returns hash of block in best-block-chain at <index>.");
+
+    int nHeight = params[0].get_int();
+    if (nHeight < 0 || nHeight > nBestHeight)
+        throw runtime_error("Block number out of range.");
+
+    CBlockIndex* pblockindex = FindBlockByHeight(nHeight);
+    return pblockindex->phashBlock->GetHex();
+}
 
 Value getblocknumber(const Array& params, bool fHelp)
 {
@@ -321,25 +335,25 @@ Value BlockToValue(CBlock &block)
     Object obj;
     obj.push_back(Pair("hash", block.GetHash().ToString().c_str()));
     obj.push_back(Pair("version", block.nVersion));
-    obj.push_back(Pair("prev_block", block.hashPrevBlock.ToString().c_str()));
-    obj.push_back(Pair("mrkl_root", block.hashMerkleRoot.ToString().c_str()));
+    obj.push_back(Pair("previousblockhash", block.hashPrevBlock.ToString().c_str()));
+    obj.push_back(Pair("merkleroot", block.hashMerkleRoot.ToString().c_str()));
     obj.push_back(Pair("time", (uint64_t)block.nTime));
     obj.push_back(Pair("bits", (uint64_t)block.nBits));
     obj.push_back(Pair("nonce", (uint64_t)block.nNonce));
     obj.push_back(Pair("n_tx", (int)block.vtx.size()));
     obj.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK)));
     obj.push_back(Pair("n_gametx", (int)block.vgametx.size()));
-    obj.push_back(Pair("game_mrkl_root", block.hashGameMerkleRoot.ToString().c_str()));
+    obj.push_back(Pair("game_merkleroot", block.hashGameMerkleRoot.ToString().c_str()));
 
     Array tx;
     for (int i = 0; i < block.vtx.size(); i++)
-        tx.push_back(TxToValue(block.vtx[i]));
+        tx.push_back(block.vtx[i].GetHash().ToString().c_str());
 
     obj.push_back(Pair("tx", tx));
     
     tx = Array();
     for (int i = 0; i < block.vgametx.size(); i++)
-        tx.push_back(TxToValue(block.vtx[i]));
+        tx.push_back(block.vgametx[i].GetHash().ToString().c_str());
     obj.push_back(Pair("gametx", tx));
 
     Array mrkl;
@@ -399,11 +413,11 @@ Value getblockbycount(const Array& params, bool fHelp)
 }
 
 
-Value getblockbyhash(const Array& params, bool fHelp)
+Value getblock(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "getblockbyhash hash\n"
+            "getblock hash\n"
             "Dumps the block with specified hash");
 
     uint256 hash;
@@ -1198,6 +1212,7 @@ Value ListReceived(const Array& params, bool fByAccounts)
     // Tally
     map<uint160, tallyitem> mapTally;
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_mapKeys)
     {
         for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it)
         {
@@ -1211,9 +1226,10 @@ Value ListReceived(const Array& params, bool fByAccounts)
 
             BOOST_FOREACH(const CTxOut& txout, wtx.vout)
             {
-                // Only counting our own bitcoin addresses and not ip addresses
+                // -------------- Only counting our own bitcoin addresses and not ip addresses
+                // Now counting all addresses, because name tx can send change to pubkey, rather than hash160
                 uint160 hash160 = txout.scriptPubKey.GetBitcoinAddressHash160();
-                if (hash160 == 0 || !mapPubKeys.count(hash160)) // IsMine
+                if (hash160 == 0 || !pwalletMain->mapPubKeys.count(hash160)) // IsMine
                     continue;
 
                 tallyitem& item = mapTally[hash160];
@@ -1485,10 +1501,11 @@ Value listaccounts(const Array& params, bool fHelp)
     map<string, int64> mapAccountBalances;
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
+    CRITICAL_BLOCK(pwalletMain->cs_mapKeys)
     {
         BOOST_FOREACH(const PAIRTYPE(string, string)& entry, pwalletMain->mapAddressBook) {
             uint160 hash160;
-            if(AddressToHash160(entry.first, hash160) && mapPubKeys.count(hash160)) // This address belongs to me
+            if(AddressToHash160(entry.first, hash160) && pwalletMain->mapPubKeys.count(hash160)) // This address belongs to me
                 mapAccountBalances[entry.second] = 0;
         }
 
@@ -1764,7 +1781,8 @@ Value validateaddress(const Array& params, bool fHelp)
         // version of the address:
         string currentAddress = Hash160ToAddress(hash160);
         ret.push_back(Pair("address", currentAddress));
-        ret.push_back(Pair("ismine", (mapPubKeys.count(hash160) > 0)));
+        CRITICAL_BLOCK(pwalletMain->cs_mapKeys)
+            ret.push_back(Pair("ismine", (pwalletMain->mapPubKeys.count(hash160) > 0)));
         CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
         {
             if (pwalletMain->mapAddressBook.count(currentAddress))
@@ -2385,8 +2403,8 @@ Value dumpprivkey(const Array& params, bool fHelp)
     {
         EnsureWalletIsUnlocked();
 
-        std::map<uint160, std::vector<unsigned char> >::iterator mi = mapPubKeys.find(hash160);
-        if (mi != mapPubKeys.end() && pwalletMain->GetPrivKey(mi->second, privKey))
+        std::map<uint160, std::vector<unsigned char> >::const_iterator mi = pwalletMain->mapPubKeys.find(hash160);
+        if (mi != pwalletMain->mapPubKeys.end() && pwalletMain->GetPrivKey(mi->second, privKey))
             found = true;
     }
 
@@ -2420,8 +2438,8 @@ Value signmessage(const Array& params, bool fHelp)
     CPrivKey privKey;
     CRITICAL_BLOCK(pwalletMain->cs_mapKeys)
     {
-        std::map<uint160, std::vector<unsigned char> >::iterator mi = mapPubKeys.find(hash160);
-        if (mi == mapPubKeys.end())
+        std::map<uint160, std::vector<unsigned char> >::const_iterator mi = pwalletMain->mapPubKeys.find(hash160);
+        if (mi == pwalletMain->mapPubKeys.end())
             throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
 
         if (!pwalletMain->GetPrivKey(mi->second, privKey))
@@ -3018,7 +3036,26 @@ Value sendrawtransaction(const Array& params, bool fHelp)
     return hashTx.GetHex();
 }
 
+extern CCriticalSection cs_mapTransactions;
 
+Value getrawmempool(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getrawmempool\n"
+            "Returns all transaction ids in memory pool.");
+
+    Array a;
+
+    CRITICAL_BLOCK(cs_mapTransactions)
+    {
+        a.reserve(mapTransactions.size());
+        BOOST_FOREACH(const PAIRTYPE(uint256, CTransaction) &mi, mapTransactions)
+            a.push_back(mi.first.ToString());
+    }
+
+    return a;
+}
 
 
 
@@ -3031,8 +3068,9 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("help",                  &help),
     make_pair("stop",                  &stop),
     make_pair("getblockbycount",       &getblockbycount),
-    make_pair("getblockbyhash",        &getblockbyhash),
+    make_pair("getblock",              &getblock),
     make_pair("getblockcount",         &getblockcount),
+    make_pair("getblockhash",          &getblockhash),
     make_pair("getblocknumber",        &getblocknumber),
     make_pair("getconnectioncount",    &getconnectioncount),
     make_pair("getdifficulty",         &getdifficulty),
@@ -3089,6 +3127,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("decoderawtransaction",  &decoderawtransaction),
     make_pair("signrawtransaction",    &signrawtransaction),
     make_pair("sendrawtransaction",    &sendrawtransaction),
+    make_pair("getrawmempool",         &getrawmempool),
 };
 map<string, rpcfn_type> mapCallTable(pCallTable, pCallTable + sizeof(pCallTable)/sizeof(pCallTable[0]));
 
@@ -3120,6 +3159,7 @@ string pAllowInSafeMode[] =
     "getauxblock",
     "getmemorypool",
     "dumpprivkey",
+    "getrawmempool",
 };
 set<string> setAllowInSafeMode(pAllowInSafeMode, pAllowInSafeMode + sizeof(pAllowInSafeMode)/sizeof(pAllowInSafeMode[0]));
 
@@ -3758,6 +3798,7 @@ void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
     if (strMethod == "getworkaux"             && n > 2) ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "listaccounts"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getblockbycount"        && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getblockhash"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "sendmany"               && n > 1)
     {
         string s = params[1].get_str();
