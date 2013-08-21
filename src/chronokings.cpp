@@ -1853,11 +1853,11 @@ bool ConnectInputsGameTx(CTxDB& txdb,
 {
     // Update name records for killed players
     CNameDB dbName("r+", txdb);
-        
+
     for (int i = 0; i < tx.vin.size() ; i++)
     {
         CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
-        
+
         int prevOp;
         vector<vector<unsigned char> > vvchPrevArgs;
 

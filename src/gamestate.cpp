@@ -9,6 +9,7 @@
 
 #include "util.h"
 #include "bignum.h"
+#include "base58.h"
 
 using namespace Game;
 
@@ -162,6 +163,41 @@ struct AttackMove : public Move
 
 
 
+bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit::Value &v)
+{
+    for (std::vector<json_spirit::Pair>::iterator i = obj.begin(); i != obj.end(); ++i)
+    {
+        if (i->name_ == field)
+        {
+            v = i->value_;
+            obj.erase(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+MoveBase::MoveBase()
+    : has_message(false), has_address(false)
+{
+}
+
+MoveBase::MoveBase(const PlayerID &player_)
+    : player(player_), has_message(false), has_address(false)
+{
+}
+
+void MoveBase::ApplyCommon(GameState &state) const
+{
+    if (has_message)
+    {
+        state.players[player].message = message;
+        state.players[player].message_block = state.nHeight;
+    }
+    if (has_address)
+        state.players[player].address = address;
+}
+
 /*static*/ Move *Move::Parse(const PlayerID &player, const std::string &json)
 {
     if (!IsValidPlayerName(player))
@@ -172,6 +208,27 @@ struct AttackMove : public Move
     if (!read_string(json, v) || v.type() != obj_type)
         return NULL;
     Object obj = v.get_obj();
+
+    // Initialize common fields
+    MoveBase move_base(player);
+    if (ExtractField(obj, "message", v))
+    {
+        if (v.type() != str_type)
+            return NULL;
+        move_base.message = v.get_str();
+        move_base.has_message = true;
+    }
+    if (ExtractField(obj, "address", v))
+    {
+        if (v.type() != str_type)
+            return NULL;
+        move_base.address = v.get_str();
+        if (!move_base.address.empty() && !IsValidBitcoinAddress(move_base.address))
+            return NULL;
+        move_base.has_address = true;
+    }
+
+    // Create proper move type depending on the remaining (move-specific) fields
 
     Move *move;
 
@@ -197,7 +254,8 @@ struct AttackMove : public Move
         move = m;
     }
 
-    move->player = player;
+    // Copy fields that are common to all moves
+    *(MoveBase*)move = move_base;
 
     if (!move->IsValid())
     {
@@ -208,6 +266,13 @@ struct AttackMove : public Move
     return move;
 }
 
+PlayerState::PlayerState()
+    : x(0), y(0),
+    color(0),
+    message_block(0)
+{
+}
+
 json_spirit::Value PlayerState::ToJsonValue() const
 {
     using namespace json_spirit;
@@ -216,6 +281,13 @@ json_spirit::Value PlayerState::ToJsonValue() const
     obj.push_back(Pair("color", color));
     obj.push_back(Pair("x", x));
     obj.push_back(Pair("y", y));
+    if (!message.empty())
+    {
+        obj.push_back(Pair("message", message));
+        obj.push_back(Pair("message_block", message_block));
+    }
+    if (!address.empty())
+        obj.push_back(Pair("address", address));
 
     return obj;
 }
@@ -314,10 +386,16 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             return false;
 
     outState = inState;
+    outState.nHeight = inState.nHeight + 1;
+    outState.hashBlock = stepData.newHash;
+
     stepResult = StepResult();
 
     BOOST_FOREACH(const Move *m, stepData.vpMoves)
         m->ApplySpawn(outState);
+        
+    BOOST_FOREACH(const Move *m, stepData.vpMoves)
+        m->ApplyCommon(outState);
 
     BOOST_FOREACH(const Move *m, stepData.vpMoves)
     {
@@ -336,9 +414,6 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         if (outState.players.count(m->player) != 0)  // Skip players that have just been killed
             m->ApplyStep(outState);
     }
-
-    outState.nHeight = inState.nHeight + 1;
-    outState.hashBlock = stepData.newHash;
 
     // Random reward placed on the map inside NxN square growing with each block, centered at (0, 0).
     // It can coincide with some player, who'll collect it immediately.

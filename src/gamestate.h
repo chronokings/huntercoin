@@ -15,10 +15,25 @@ typedef std::string PlayerID;
 
 class GameState;
 
-struct Move
+struct MoveBase
 {
     PlayerID player;
 
+    // Updates to the player state (can be included in any move)
+    std::string message;
+    bool has_message;     // This move updates player's message
+
+    std::string address;
+    bool has_address;     // This move updates player's address
+
+    void ApplyCommon(GameState &state) const;
+
+    MoveBase();
+    MoveBase(const PlayerID &player_);
+};
+
+struct Move : public MoveBase
+{
     virtual bool IsValid() const = 0;
     virtual bool IsValid(const GameState &state) const = 0;
 
@@ -36,13 +51,21 @@ struct PlayerState
     int color;
     int x, y;
 
+    std::string message;   // Last message, can be shown as speech bubble
+    int message_block;     // Block number. Game visualizer can hide messages that are too old
+    std::string address;   // Address for receiving rewards. Empty means receive to the name address
+
     IMPLEMENT_SERIALIZE
     (
         READWRITE(color);
         READWRITE(x);
         READWRITE(y);
+        READWRITE(message);
+        READWRITE(message_block);
+        READWRITE(address);
     )
 
+    PlayerState();
     json_spirit::Value ToJsonValue() const;
 };
 

@@ -161,6 +161,14 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
     CTransaction txNew;
     txNew.SetGameTx();
 
+    // TODO: scriptSig must contain explanation, probably as JSON string (e.g. {"killed":"player1", "killed_by":"player2"},
+    // {"award_for":"player1", "location":{"x":0,"y":0,"t":10}}
+    // This is needed to make tx hash different, if the same player is awarded twice with the same type of reward,
+    // plus it can be used in transaction details window in the description.
+    // scriptSig should not include block height (though it's the easiest way to make hashes different), since it will
+    // invalidate the tx shall a fork happen. Unless fork is too severe, the transactions must be valid, even if it gets
+    // into a different block
+
     // Destroy name-coins of killed players
     txNew.vin.reserve(stepResult.killedPlayers.size());
     BOOST_FOREACH(PlayerID player, stepResult.killedPlayers)
@@ -183,13 +191,23 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
         CTransaction tx;
         if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
             return error("Game engine created bounty for non-existing player");
-        uint160 addr;
-        if (!GetNameAddress(tx, addr))
-            return error("Cannot get name address for bounty");
 
         CTxOut txout;
         txout.nValue = bounty.second;
-        txout.scriptPubKey.SetBitcoinAddress(addr);
+
+        if (!outState.players[bounty.first].address.empty())
+        {
+            if (!txout.scriptPubKey.SetBitcoinAddress(outState.players[bounty.first].address))
+                return error("Cannot use player-provided address for bounty");
+        }
+        else
+        {
+            uint160 addr;
+            if (!GetNameAddress(tx, addr))
+                return error("Cannot get name address for bounty");
+            txout.scriptPubKey.SetBitcoinAddress(addr);
+        }
+
         txNew.vout.push_back(txout);
     }
     if (!txNew.IsNull())
