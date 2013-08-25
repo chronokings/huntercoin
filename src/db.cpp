@@ -8,6 +8,7 @@
 #include "auxpow.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <boost/algorithm/string/predicate.hpp> // for starts_with(), ends_with()
 
 using namespace std;
 using namespace boost;
@@ -78,6 +79,8 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
             dbenv.set_lk_max_objects(10000);
             dbenv.set_errfile(fopen(strErrorFile.c_str(), "a")); /// debug
             dbenv.set_flags(DB_AUTO_COMMIT, 1);
+            dbenv.set_flags(DB_TXN_WRITE_NOSYNC, 1);
+            dbenv.log_set_config(DB_LOG_AUTO_REMOVE, 1);
             ret = dbenv.open(strDataDir.c_str(),
                              DB_CREATE     |
                              DB_INIT_LOCK  |
@@ -85,6 +88,7 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
                              DB_INIT_MPOOL |
                              DB_INIT_TXN   |
                              DB_THREAD     |
+                             DB_PRIVATE     |
                              DB_RECOVER,
                              S_IRUSR | S_IWUSR);
             if (ret > 0)
@@ -142,12 +146,20 @@ void CDB::Close()
     unsigned int nMinutes = 0;
     if (fReadOnly)
         nMinutes = 1;
+
     if (strFile == "addr.dat")
         nMinutes = 2;
-    if (strFile == "blkindex.dat")
-        nMinutes = 2;         
-    if (strFile == "blkindex.dat" && IsInitialBlockDownload() && nBestHeight % 5000 != 0)
-        nMinutes = 5;
+    else if (strFile == "nameindex.dat" || strFile == "nameindexfull.dat")
+        nMinutes = 2;
+    else if (strFile == "blkindex.dat")
+    {
+        nMinutes = 2;
+        if (IsInitialBlockDownload() && nBestHeight % 5000 != 0)
+            nMinutes = 5;
+    }
+    else if (boost::algorithm::starts_with(strFile, "blk") && boost::algorithm::ends_with(strFile, ".dat"))
+        nMinutes = 2;
+
     dbenv.txn_checkpoint(0, nMinutes, 0);
 
     CRITICAL_BLOCK(cs_db)
