@@ -1226,8 +1226,6 @@ Value ListReceived(const Array& params, bool fByAccounts)
 
             BOOST_FOREACH(const CTxOut& txout, wtx.vout)
             {
-                // -------------- Only counting our own bitcoin addresses and not ip addresses
-                // Now counting all addresses, because name tx can send change to pubkey, rather than hash160
                 uint160 hash160 = txout.scriptPubKey.GetBitcoinAddressHash160();
                 if (hash160 == 0 || !pwalletMain->mapPubKeys.count(hash160)) // IsMine
                     continue;

@@ -89,8 +89,7 @@ struct SpawnMove : public Move
     {
         PlayerState newPlayer;
         newPlayer.color = color;
-        newPlayer.x = 0;
-        newPlayer.y = 0;
+        newPlayer.coord = Coord(0, 0);
         bool ok;
         // Find a cell surrounded by empty cells, in the row 0
         do
@@ -98,9 +97,9 @@ struct SpawnMove : public Move
             ok = true;
             BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, state.players)
             {
-                if (abs(p.second.x - newPlayer.x) <= 1 && abs(p.second.y - newPlayer.y) <= 1)
+                if (distLInf(p.second.coord, newPlayer.coord) <= 1)
                 {
-                    newPlayer.x++;
+                    newPlayer.coord.x++;
                     ok = false;
                 }
             }
@@ -125,8 +124,8 @@ struct StepMove : public Move
 
     void ApplyStep(GameState &state) const
     {
-        state.players[player].x += deltaX;
-        state.players[player].y += deltaY;
+        state.players[player].coord.x += deltaX;
+        state.players[player].coord.y += deltaY;
     }
 };
 
@@ -152,7 +151,7 @@ struct AttackMove : public Move
     {
         const PlayerState &p1 = state.players.find(player)->second;
         const PlayerState &p2 = state.players.find(victim)->second;
-        if (abs(p1.x - p2.x) + abs(p1.y - p2.y) <= 1)
+        if (distL1(p1.coord, p2.coord) <= 1)
         {
             outVictim = victim;
             return true;
@@ -177,25 +176,15 @@ bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit
     return false;
 }
 
-MoveBase::MoveBase()
-    : has_message(false), has_address(false)
-{
-}
-
-MoveBase::MoveBase(const PlayerID &player_)
-    : player(player_), has_message(false), has_address(false)
-{
-}
-
 void MoveBase::ApplyCommon(GameState &state) const
 {
-    if (has_message)
+    if (message)
     {
-        state.players[player].message = message;
+        state.players[player].message = *message;
         state.players[player].message_block = state.nHeight;
     }
-    if (has_address)
-        state.players[player].address = address;
+    if (address)
+        state.players[player].address = *address;
 }
 
 /*static*/ Move *Move::Parse(const PlayerID &player, const std::string &json)
@@ -216,16 +205,15 @@ void MoveBase::ApplyCommon(GameState &state) const
         if (v.type() != str_type)
             return NULL;
         move_base.message = v.get_str();
-        move_base.has_message = true;
     }
     if (ExtractField(obj, "address", v))
     {
         if (v.type() != str_type)
             return NULL;
-        move_base.address = v.get_str();
-        if (!move_base.address.empty() && !IsValidBitcoinAddress(move_base.address))
+        const std::string &addr = v.get_str();
+        if (!addr.empty() && !IsValidBitcoinAddress(addr))
             return NULL;
-        move_base.has_address = true;
+        move_base.address = addr;
     }
 
     // Create proper move type depending on the remaining (move-specific) fields
@@ -267,8 +255,8 @@ void MoveBase::ApplyCommon(GameState &state) const
 }
 
 PlayerState::PlayerState()
-    : x(0), y(0),
-    color(0),
+    : color(0),
+    coord(0, 0),
     message_block(0)
 {
 }
@@ -279,8 +267,8 @@ json_spirit::Value PlayerState::ToJsonValue() const
 
     Object obj;
     obj.push_back(Pair("color", color));
-    obj.push_back(Pair("x", x));
-    obj.push_back(Pair("y", y));
+    obj.push_back(Pair("x", coord.x));
+    obj.push_back(Pair("y", coord.y));
     if (!message.empty())
     {
         obj.push_back(Pair("message", message));
@@ -310,11 +298,11 @@ json_spirit::Value GameState::ToJsonValue() const
     obj.push_back(Pair("players", subobj));
 
     Array arr;
-    BOOST_FOREACH(const PAIRTYPE(PAIRTYPE(int, int), uint64) &p, loot)
+    BOOST_FOREACH(const PAIRTYPE(Coord, uint64) &p, loot)
     {
         Object subobj;
-        subobj.push_back(Pair("x", p.first.first));
-        subobj.push_back(Pair("y", p.first.second));
+        subobj.push_back(Pair("x", p.first.x));
+        subobj.push_back(Pair("y", p.first.y));
         subobj.push_back(Pair("amount", ValueFromAmount(p.second)));
         arr.push_back(subobj);
     }
@@ -326,49 +314,47 @@ json_spirit::Value GameState::ToJsonValue() const
     return obj;
 }
 
-void GameState::AddLoot(int x, int y, int64 nAmount)
+void GameState::AddLoot(Coord coord, int64 nAmount)
 {
     if (nAmount == 0)
         return;
-    std::pair<int, int> xy(x, y);
-    std::map<std::pair<int, int>, int64>::iterator mi = loot.find(xy);
+    std::map<Coord, int64>::iterator mi = loot.find(coord);
     if (mi != loot.end())
     {
         if ((mi->second += nAmount) == 0)
             loot.erase(mi);
     }
     else
-        loot.insert(std::make_pair(xy, nAmount));
+        loot.insert(std::make_pair(coord, nAmount));
 }
 
 void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
 {
-    std::map<std::pair<int, int>, int> playersOnLootTile;
+    std::map<Coord, int> playersOnLootTile;
     BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
     {
-        std::pair<int, int> xy(p.second.x, p.second.y);
-        if (loot.count(xy) != 0)
+        const Coord &coord = p.second.coord;
+        if (loot.count(coord) != 0)
         {
-            std::map<std::pair<int, int>, int>::iterator mi = playersOnLootTile.find(xy);
+            std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
             if (mi != playersOnLootTile.end())
                 mi->second++;
             else
-                playersOnLootTile.insert(std::make_pair(xy, 1));
+                playersOnLootTile.insert(std::make_pair(coord, 1));
         }
     }
     // Split equally, if multiple players on loot cell
     // If not divisible, the amounts are dependent on the order of players
     BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
     {
-        std::pair<int, int> xy(p.second.x, p.second.y);
-        std::map<std::pair<int, int>, int>::iterator mi = playersOnLootTile.find(xy);
+        const Coord &coord = p.second.coord;
+        std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
         if (mi != playersOnLootTile.end())
         {
-            int64 nAmount = loot[xy] / (mi->second--);
+            int64 nAmount = loot[coord] / (mi->second--);
             outBounties[p.first] += nAmount;
-            AddLoot(xy.first, xy.second, -nAmount);
-            if (mi->second == 0)
-                assert(loot.count(xy) == 0);
+            AddLoot(coord, -nAmount);
+            assert((mi->second == 0) != (loot.count(coord) == 0));
         }
     }
 }
@@ -404,7 +390,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         {
             outState.players.erase(victim);
             const PlayerState &victimState = inState.players.find(victim)->second;
-            outState.AddLoot(victimState.x, victimState.y, stepData.nNameCoinAmount);
+            outState.AddLoot(victimState.coord, stepData.nNameCoinAmount);
             stepResult.killedPlayers.insert(victim);
         }
     }
@@ -420,10 +406,9 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     // This is done to test that outBounties do not affect the block hash.
     CBigNum rnd(SerializeHash(outState.hashBlock, SER_GETHASH, 0));
     int n = 2 * outState.nHeight + 1;
-    outState.AddLoot(
-            (rnd % n).getint() - (n / 2),
-            ((rnd / n) % n).getint() - (n / 2),
-            stepData.nTreasureAmount);
+    int x = (rnd % n).getint() - (n / 2);
+    int y = ((rnd / n) % n).getint() - (n / 2);
+    outState.AddLoot(Coord(x, y), stepData.nTreasureAmount);
 
     // TODO: it could be good to attach description to each bounty
     // and then copy it to e.g. strFromAccount to show up in the wallet,

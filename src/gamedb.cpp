@@ -302,6 +302,13 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
     }
     if (pindex == pindexBest)
         currentState = outState;
+
+    if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
+    {
+        CGameDB gameDb("r+", txdb);
+        gameDb.Write(outState.nHeight, outState);
+    }
+
     return true;
 }
 

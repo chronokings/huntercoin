@@ -3,9 +3,10 @@
 
 #include <string>
 #include <boost/noncopyable.hpp>
+#include <boost/optional.hpp>
 #include "json/json_spirit_value.h"
-#include "serialize.h"
 #include "uint256.h"
+#include "serialize.h"
 
 namespace Game
 {
@@ -15,21 +16,20 @@ typedef std::string PlayerID;
 
 class GameState;
 
+// MoveBase contains common data for each type of move.
+// Do not instantiate directly, use Move::Parse instead
 struct MoveBase
 {
     PlayerID player;
 
-    // Updates to the player state (can be included in any move)
-    std::string message;
-    bool has_message;     // This move updates player's message
-
-    std::string address;
-    bool has_address;     // This move updates player's address
+    // Updates to the player state
+    boost::optional<std::string> message;
+    boost::optional<std::string> address;
 
     void ApplyCommon(GameState &state) const;
 
-    MoveBase();
-    MoveBase(const PlayerID &player_);
+    MoveBase() { }
+    MoveBase(const PlayerID &player_) : player(player_) { }
 };
 
 struct Move : public MoveBase
@@ -46,10 +46,47 @@ struct Move : public MoveBase
     static Move *Parse(const PlayerID &player, const std::string &json);
 };
 
+struct Coord
+{
+    int x, y;
+    Coord() : x(0), y(0) { }
+    Coord(int x_, int y_) : x(x_), y(y_) { }
+
+    unsigned int GetSerializeSize(int = 0, int = VERSION) const
+    {
+        return sizeof(int) * 2;
+    }
+
+    template<typename Stream>
+    void Serialize(Stream& s, int = 0, int = VERSION) const
+    {
+        WRITEDATA(s, x);
+        WRITEDATA(s, y);
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s, int = 0, int = VERSION) const
+    {
+        READDATA(s, x);
+        READDATA(s, y);
+    }
+
+    bool operator==(const Coord &that) const { return x == that.x && y == that.y; }
+    bool operator!=(const Coord &that) const { return !(*this == that); }
+    // Lexicographical comparison
+    bool operator<(const Coord &that) const { return x < that.x || (x == that.x && y < that.y); }
+    bool operator>(const Coord &that) const { return that < *this; }
+    bool operator<=(const Coord &that) const { return !(*this > that); }
+    bool operator>=(const Coord &that) const { return !(*this < that); }
+};
+
+inline int distL1(const Coord &c1, const Coord &c2) { return abs(c1.x - c2.x) + abs(c1.y - c2.y); }
+inline int distLInf(const Coord &c1, const Coord &c2) { return std::max(abs(c1.x - c2.x), abs(c1.y - c2.y)); }
+
 struct PlayerState
 {
     int color;
-    int x, y;
+    Coord coord;
 
     std::string message;   // Last message, can be shown as speech bubble
     int message_block;     // Block number. Game visualizer can hide messages that are too old
@@ -58,8 +95,7 @@ struct PlayerState
     IMPLEMENT_SERIALIZE
     (
         READWRITE(color);
-        READWRITE(x);
-        READWRITE(y);
+        READWRITE(coord);
         READWRITE(message);
         READWRITE(message_block);
         READWRITE(address);
@@ -77,7 +113,7 @@ struct GameState
     std::map<PlayerID, PlayerState> players;
 
     // Rewards placed on the map
-    std::map<std::pair<int, int>, int64> loot;
+    std::map<Coord, int64> loot;
 
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
@@ -102,7 +138,7 @@ struct GameState
     json_spirit::Value ToJsonValue() const;
 
     // Helper functions
-    void AddLoot(int x, int y, int64 nAmount);
+    void AddLoot(Coord coord, int64 nAmount);
     void DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties);
 };
 

@@ -273,6 +273,8 @@ int CWalletTx::GetRequestCount() const
 {
     // Returns -1 if it wasn't being tracked
     int nRequests = -1;
+    if (IsGameTx())
+        return nRequests;
     CRITICAL_BLOCK(pwallet->cs_mapRequestCount)
     {
         if (IsCoinBase())
@@ -584,14 +586,14 @@ void CWalletTx::RelayWalletTransaction(CTxDB& txdb)
 {
     BOOST_FOREACH(const CMerkleTx& tx, vtxPrev)
     {
-        if (!tx.IsCoinBase())
+        if (!tx.IsCoinBase() && !tx.IsGameTx())
         {
             uint256 hash = tx.GetHash();
             if (!txdb.ContainsTx(hash))
                 RelayMessage(CInv(MSG_TX, hash), (CTransaction)tx);
         }
     }
-    if (!IsCoinBase())
+    if (!IsCoinBase() && !IsGameTx())
     {
         uint256 hash = GetHash();
         if (!txdb.ContainsTx(hash))
