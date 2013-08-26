@@ -66,6 +66,10 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
         {
             strHTML += "<b>" + tr("Source") + ":</b> " + tr("Generated") + "<br>";
         }
+        else if (wtx.IsGameTx())
+        {
+            strHTML += "<b>" + tr("Source") + ":</b> " + tr("Game transaction") + "<br>";
+        }
         else if (wtx.mapValue.count("from") && !wtx.mapValue["from"].empty())
         {
             // Online transaction
@@ -119,7 +123,7 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
         //
         // Amount
         //
-        if (wtx.IsCoinBase() && nCredit == 0)
+        if ((wtx.IsCoinBase() || wtx.IsGameTx()) && nCredit == 0)
         {
             //
             // Coinbase
@@ -127,11 +131,14 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
             int64 nUnmatured = 0;
             BOOST_FOREACH(const CTxOut& txout, wtx.vout)
                 nUnmatured += wallet->GetCredit(txout);
-            strHTML += "<b>" + tr("Credit") + ":</b> ";
-            if (wtx.IsInMainChain())
-                strHTML += BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, nUnmatured)+ " (" + tr("matures in %n more block(s)", "", wtx.GetBlocksToMaturity()) + ")";
-            else
-                strHTML += "(" + tr("not accepted") + ")";
+            if (wtx.IsCoinBase() || nUnmatured > 0)
+            {
+                strHTML += "<b>" + tr("Credit") + ":</b> ";
+                if (wtx.IsInMainChain())
+                    strHTML += BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, nUnmatured)+ " (" + tr("matures in %n more block(s)", "", wtx.GetBlocksToMaturity()) + ")";
+                else
+                    strHTML += "(" + tr("not accepted") + ")";
+            }
             strHTML += "<br>";
         }
         else if (nNet > 0)
@@ -288,6 +295,8 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
 
         if (wtx.IsCoinBase())
             strHTML += "<br>" + tr("Generated coins must mature %1 blocks before they can be spent. When you generated this block, it was broadcast to the network to be added to the block chain. If it fails to get into the chain, its state will change to \"not accepted\" and it won't be spendable. This may occasionally happen if another node generates a block within a few seconds of yours.").arg(COINBASE_MATURITY_DISPLAY) + "<br>";
+        else if (wtx.IsGameTx())
+            strHTML += "<br>" + tr("Game rewards must mature %1 blocks before they can be spent.").arg(GAME_REWARD_MATURITY_DISPLAY) + "<br>";
 
         //
         // Debug view

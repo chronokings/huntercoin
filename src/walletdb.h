@@ -67,6 +67,7 @@ public:
     bool WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
                               const uint256& hex,
                               const uint64& rand,
+                              bool fPostponed,
                               const std::vector<unsigned char>& vchData,
                               const CWalletTx &wtx);
     bool EraseNameFirstUpdate(const std::vector<unsigned char>& vchName);

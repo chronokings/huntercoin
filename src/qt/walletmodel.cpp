@@ -126,6 +126,9 @@ void WalletModel::sendPendingNameFirstUpdates()
         for (std::map<std::vector<unsigned char>, PreparedNameFirstUpdate>::iterator mi = mapMyNameFirstUpdate.begin();
                 mi != mapMyNameFirstUpdate.end(); )
         {
+            if (mi->second.fPostponed)
+                continue;
+
             const std::vector<unsigned char> &vchName = mi->first;
 
             std::map<std::vector<unsigned char>, uint256>::const_iterator it1 = mapMyNames.find(vchName);
@@ -150,7 +153,7 @@ void WalletModel::sendPendingNameFirstUpdates()
                     mapMyNameFirstUpdate.erase(mi++);
                     fSkip = true;
                 }
-                if (it2->second.GetDepthInMainChain() < MIN_FIRSTUPDATE_DEPTH)
+                else if (it2->second.GetDepthInMainChain() < MIN_FIRSTUPDATE_DEPTH)
                 {
                     mi++;
                     fSkip = true;
@@ -514,6 +517,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
 
         PreparedNameFirstUpdate prep;
         prep.rand = rand;
+        prep.fPostponed = true;
         prep.vchData = vchFromString(STR_NAME_FIRSTUPDATE_DEFAULT.toStdString());
 
         // 1st pass: compute fee for name_firstupdate
@@ -556,7 +560,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
         if (nPrevFirstUpdateFee != nFirstUpdateFee)
             printf("name_new GUI warning: cannot prepare fee for automatic name_firstupdate - fee changed from %s to %s\n", FormatMoney(nPrevFirstUpdateFee).c_str(), FormatMoney(nFirstUpdateFee).c_str());
             
-        printf("Automatic name_firstupdate created for name %s (initial, with empty value), created tx: %s:\n%s", qPrintable(name), prep.wtx.GetHash().GetHex().c_str(), prep.wtx.ToString().c_str());
+        printf("Automatic name_firstupdate created for name %s (initial, with default value%s), created tx: %s:\n%s", qPrintable(name), prep.fPostponed ? ", postponed" : "", prep.wtx.GetHash().GetHex().c_str(), prep.wtx.ToString().c_str());
 
         // name_firstupdate prepared, let's commit name_new
         if (!wallet->CommitTransaction(wtx, reservekey))
@@ -579,14 +583,14 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
             {
                 // Fill vtxPrev by copying from previous transactions vtxPrev
                 prep.wtx.AddSupportingTransactions(txdb);
-                wallet->WriteNameFirstUpdate(ret.vchName, ret.hex, rand, prep.vchData, prep.wtx);
+                wallet->WriteNameFirstUpdate(ret.vchName, ret.hex, rand, prep.fPostponed, prep.vchData, prep.wtx);
             }
         }
     }
     return ret;
 }
 
-QString WalletModel::nameFirstUpdatePrepare(const QString &name, const QString &data)
+QString WalletModel::nameFirstUpdatePrepare(const QString &name, const QString &data, bool fPostponed)
 {
     std::string strName = name.toStdString();
     std::vector<unsigned char> vchName(strName.begin(), strName.end());
@@ -613,10 +617,11 @@ QString WalletModel::nameFirstUpdatePrepare(const QString &name, const QString &
             return QString::fromStdString(err_msg);
         it2->second.vchData = vchValue;
         it2->second.wtx = wtx;
+        it2->second.fPostponed = fPostponed;
 
         CRITICAL_BLOCK(wallet->cs_wallet)
-            wallet->WriteNameFirstUpdate(vchName, wtxInHash, rand, vchValue, wtx);
-        printf("Automatic name_firstupdate created for name %s, created tx: %s:\n%s", qPrintable(name), wtx.GetHash().GetHex().c_str(), wtx.ToString().c_str());
+            wallet->WriteNameFirstUpdate(vchName, wtxInHash, rand, fPostponed, vchValue, wtx);
+        printf("Automatic name_firstupdate created for name %s%s, created tx: %s:\n%s", qPrintable(name), fPostponed ? ", postponed" : "", wtx.GetHash().GetHex().c_str(), wtx.ToString().c_str());
     }
 
     return "";

@@ -31,7 +31,7 @@
         </sizepolicy>
        </property>
        <property name="text">
-        <string>&amp;New name:</string>
+        <string>&amp;New player:</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -60,7 +60,7 @@
         </sizepolicy>
        </property>
        <property name="text">
-        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:600;&quot;&gt;d/&lt;/span&gt; prefix for domain names. E.g. &lt;span style=&quot; font-weight:600;&quot;&gt;d/mysite&lt;/span&gt; will register &lt;span style=&quot; font-weight:600;&quot;&gt;mysite.bit&lt;/span&gt; (note: domains can be lower-case only, valid characters are alphanumeric and hyphen; hyphen can't be first/last character).&lt;/p&gt;&lt;p&gt;See &lt;a href=&quot;http://dot-bit.org/Namespace:Domain_names&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;Domain names&lt;/span&gt;&lt;/a&gt; in Chrono Kings wiki for reference. Other prefixes can be used for miscellaneous purposes (not domain names).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        <string>Valid characters: alphanumeric, underscore, hyphen, whitespace (but not at start/end and no double whitespaces)</string>
        </property>
        <property name="textFormat">
         <enum>Qt::RichText</enum>
@@ -128,7 +128,7 @@ to the network and creates a pending name_firstupdate transaction.</string>
         </sizepolicy>
        </property>
        <property name="text">
-        <string>Your registered names:</string>
+        <string>Your players:</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -191,7 +191,17 @@ to the network and creates a pending name_firstupdate transaction.</string>
           </widget>
          </item>
          <item>
-          <spacer name="horizontalSpacer_ExpiresIn">
+          <widget class="QValidatedLineEdit" name="stateFilter">
+           <property name="toolTip">
+            <string>Enter part of state object to search for</string>
+           </property>
+           <property name="text">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_Status">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>

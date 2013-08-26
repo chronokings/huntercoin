@@ -9,6 +9,7 @@ class CWallet;
 class WalletModel;
 
 extern const QString STR_NAME_FIRSTUPDATE_DEFAULT;
+extern const QString NON_REWARD_ADDRESS_PREFIX;
 
 
 /**
@@ -26,7 +27,8 @@ public:
         Name = 0,
         Value = 1,
         Address = 2,
-        ExpiresIn = 3
+        State = 3,
+        Status = 4
     };
 
     /** @name Methods overridden from QAbstractTableModel
@@ -45,15 +47,14 @@ private:
     QStringList columns;
     NameTablePriv *priv;
     int cachedNumBlocks;
-    
+
     /** Notify listeners that data changed. */
     void emitDataChanged(int index);
 
 public slots:
     void updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex = NULL);
-    void updateExpiration();
+    void updateGameState();
     void updateTransaction(const QString &hash, int status);
-
     friend class NameTablePriv;
 };
 
@@ -62,6 +63,8 @@ struct NameTableEntry
     QString name;
     QString value;
     QString address;
+    bool fRewardAddressDifferent;
+    QString state;
     int nHeight;
     bool transferred;
 
@@ -74,9 +77,15 @@ struct NameTableEntry
 
     NameTableEntry() : nHeight(NAME_NON_EXISTING), transferred(false) {}
     NameTableEntry(const QString &name, const QString &value, const QString &address, int nHeight, bool transferred = false) :
-        name(name), value(value), address(address), nHeight(nHeight), transferred(transferred) {}
+        name(name), value(value), address(address),
+        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred)
+    {
+    }
     NameTableEntry(const std::string &name, const std::string &value, const std::string &address, int nHeight, bool transferred = false) :
-        name(QString::fromStdString(name)), value(QString::fromStdString(value)), address(QString::fromStdString(address)), nHeight(nHeight), transferred(transferred) {}
+        name(QString::fromStdString(name)), value(QString::fromStdString(value)), address(QString::fromStdString(address)),
+        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred)
+    {
+    }
 };
 
 #endif // NAMETABLEMODEL_H

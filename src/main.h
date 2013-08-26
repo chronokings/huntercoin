@@ -48,6 +48,8 @@ static const int64 MAX_MONEY = 21000000 * COIN;
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
 static const int COINBASE_MATURITY = 100;
 static const int COINBASE_MATURITY_DISPLAY = COINBASE_MATURITY + 20;
+static const int GAME_REWARD_MATURITY = 100;
+static const int GAME_REWARD_MATURITY_DISPLAY = GAME_REWARD_MATURITY + 20;
 #ifdef USE_UPNP
 static const int fHaveUPnP = true;
 #else

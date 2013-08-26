@@ -22,6 +22,7 @@
 extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
 
 const QString STR_NAME_FIRSTUPDATE_DEFAULT = "{\"color\":0}";
+const QString NON_REWARD_ADDRESS_PREFIX = "-";    // Prefix that indicates for the user that the player's reward address isn't the one shown
 
 //
 // NameFilterProxyModel
@@ -50,6 +51,12 @@ void NameFilterProxyModel::setAddressSearch(const QString &search)
     invalidateFilter();
 }
 
+void NameFilterProxyModel::setStateSearch(const QString &search)
+{
+    stateSearch = search;
+    invalidateFilter();
+}
+
 bool NameFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
 {
     QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
@@ -57,11 +64,17 @@ bool NameFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &so
     QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
     QString value = index.sibling(index.row(), NameTableModel::Value).data(Qt::EditRole).toString();
     QString address = index.sibling(index.row(), NameTableModel::Address).data(Qt::EditRole).toString();
+    QString state = index.sibling(index.row(), NameTableModel::State).data(Qt::EditRole).toString();
 
     Qt::CaseSensitivity case_sens = filterCaseSensitivity();
     return name.contains(nameSearch, case_sens)
         && value.contains(valueSearch, case_sens)
-        && address.startsWith(addressSearch, Qt::CaseSensitive);   // Address is always case-sensitive
+        && (address.startsWith(addressSearch, Qt::CaseSensitive)
+               || (address.startsWith(NON_REWARD_ADDRESS_PREFIX)
+                      && address.mid(NON_REWARD_ADDRESS_PREFIX.size()).startsWith(addressSearch, Qt::CaseSensitive)
+                  )
+           )
+        && state.contains(stateSearch, case_sens);
 }
 
 //
@@ -70,7 +83,7 @@ bool NameFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &so
 
 const static int COLUMN_WIDTH_NAME = 300,
                  COLUMN_WIDTH_ADDRESS = 256,
-                 COLUMN_WIDTH_EXPIRES_IN = 100;
+                 COLUMN_WIDTH_STATUS = 100;
 
 ManageNamesPage::ManageNamesPage(QWidget *parent) :
     QDialog(parent),
@@ -85,25 +98,28 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     QAction *copyNameAction = new QAction(tr("Copy &Name"), this);
     QAction *copyValueAction = new QAction(tr("Copy &Value"), this);
     QAction *copyAddressAction = new QAction(tr("Copy &Address"), this);
+    QAction *copyStateAction = new QAction(tr("Copy &State"), this);
     QAction *configureNameAction = new QAction(tr("&Configure Name..."), this);
-    
+
     // Build context menu
     contextMenu = new QMenu();
     contextMenu->addAction(copyNameAction);
     contextMenu->addAction(copyValueAction);
     contextMenu->addAction(copyAddressAction);
+    contextMenu->addAction(copyStateAction);
     contextMenu->addAction(configureNameAction);
-    
+
     // Connect signals for context menu actions
     connect(copyNameAction, SIGNAL(triggered()), this, SLOT(onCopyNameAction()));
     connect(copyValueAction, SIGNAL(triggered()), this, SLOT(onCopyValueAction()));
     connect(copyAddressAction, SIGNAL(triggered()), this, SLOT(onCopyAddressAction()));
+    connect(copyStateAction, SIGNAL(triggered()), this, SLOT(onCopyStateAction()));
     connect(configureNameAction, SIGNAL(triggered()), this, SLOT(on_configureNameButton_clicked()));
 
     connect(ui->tableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(contextualMenu(QPoint)));
     connect(ui->tableView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(on_configureNameButton_clicked()));
     ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    
+
     // Catch focus changes to make the appropriate button the default one (Submit or Configure)
     ui->registerName->installEventFilter(this);
     ui->submitNameButton->installEventFilter(this);
@@ -111,10 +127,11 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     ui->nameFilter->installEventFilter(this);
     ui->valueFilter->installEventFilter(this);
     ui->addressFilter->installEventFilter(this);
+    ui->stateFilter->installEventFilter(this);
     ui->configureNameButton->installEventFilter(this);
 
     ui->registerName->setMaxLength(MAX_NAME_LENGTH);
-    
+
     ui->nameFilter->setMaxLength(MAX_NAME_LENGTH);
     ui->valueFilter->setMaxLength(MAX_VALUE_LENGTH);
     GUIUtil::setupAddressWidget(ui->addressFilter, this, true);
@@ -124,12 +141,13 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     ui->nameFilter->setPlaceholderText(tr("Name filter"));
     ui->valueFilter->setPlaceholderText(tr("Value filter"));
     ui->addressFilter->setPlaceholderText(tr("Address filter"));
+    ui->stateFilter->setPlaceholderText(tr("State filter"));
 #endif
 
     ui->nameFilter->setFixedWidth(COLUMN_WIDTH_NAME);
     ui->addressFilter->setFixedWidth(COLUMN_WIDTH_ADDRESS);
-    ui->horizontalSpacer_ExpiresIn->changeSize(
-        COLUMN_WIDTH_EXPIRES_IN + ui->tableView->verticalScrollBar()->sizeHint().width()
+    ui->horizontalSpacer_Status->changeSize(
+        COLUMN_WIDTH_STATUS + ui->tableView->verticalScrollBar()->sizeHint().width()
             
 #ifdef Q_OS_MAC
         // Not sure if this is needed, but other Mac code adds 2 pixels to scroll bar width;
@@ -138,7 +156,7 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
 #endif
 
         ,
-        ui->horizontalSpacer_ExpiresIn->sizeHint().height(),
+        ui->horizontalSpacer_Status->sizeHint().height(),
         QSizePolicy::Fixed);
 }
 
@@ -170,8 +188,10 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
             NameTableModel::Value, QHeaderView::Stretch);
     ui->tableView->horizontalHeader()->resizeSection(
             NameTableModel::Address, COLUMN_WIDTH_ADDRESS);
+    ui->tableView->horizontalHeader()->setResizeMode(
+            NameTableModel::State, QHeaderView::Stretch);
     ui->tableView->horizontalHeader()->resizeSection(
-            NameTableModel::ExpiresIn, COLUMN_WIDTH_EXPIRES_IN);
+            NameTableModel::Status, COLUMN_WIDTH_STATUS);
 
     connect(ui->tableView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)),
             this, SLOT(selectionChanged()));
@@ -179,6 +199,7 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
     connect(ui->nameFilter, SIGNAL(textChanged(QString)), this, SLOT(changedNameFilter(QString)));
     connect(ui->valueFilter, SIGNAL(textChanged(QString)), this, SLOT(changedValueFilter(QString)));
     connect(ui->addressFilter, SIGNAL(textChanged(QString)), this, SLOT(changedAddressFilter(QString)));
+    connect(ui->stateFilter, SIGNAL(textChanged(QString)), this, SLOT(changedStateFilter(QString)));
 
     selectionChanged();
 }
@@ -202,6 +223,13 @@ void ManageNamesPage::changedAddressFilter(const QString &filter)
     if (!proxyModel)
         return;
     proxyModel->setAddressSearch(filter);
+}
+
+void ManageNamesPage::changedStateFilter(const QString &filter)
+{
+    if (!proxyModel)
+        return;
+    proxyModel->setStateSearch(filter);
 }
 
 extern bool IsValidPlayerName(const std::string &);
@@ -316,14 +344,7 @@ void ManageNamesPage::selectionChanged()
     if(!table->selectionModel())
         return;
 
-    if(table->selectionModel()->hasSelection())
-    {
-        ui->configureNameButton->setEnabled(true);
-    }
-    else
-    {
-        ui->configureNameButton->setEnabled(false);
-    }
+    ui->configureNameButton->setEnabled(table->selectionModel()->hasSelection());
 }
 
 void ManageNamesPage::contextualMenu(const QPoint &point)
@@ -348,6 +369,11 @@ void ManageNamesPage::onCopyAddressAction()
     GUIUtil::copyEntryData(ui->tableView, NameTableModel::Address);
 }
 
+void ManageNamesPage::onCopyStateAction()
+{
+    GUIUtil::copyEntryData(ui->tableView, NameTableModel::State);
+}
+
 void ManageNamesPage::on_configureNameButton_clicked()
 {
     if(!ui->tableView->selectionModel())
@@ -361,6 +387,9 @@ void ManageNamesPage::on_configureNameButton_clicked()
     QString name = index.data(Qt::EditRole).toString();
     QString value = index.sibling(index.row(), NameTableModel::Value).data(Qt::EditRole).toString();
     QString address = index.sibling(index.row(), NameTableModel::Address).data(Qt::EditRole).toString();
+
+    if (address.startsWith(NON_REWARD_ADDRESS_PREFIX))
+        address = address.mid(NON_REWARD_ADDRESS_PREFIX.size());
 
     std::vector<unsigned char> vchName = vchFromString(name.toStdString());
     bool fFirstUpdate = mapMyNameFirstUpdate.count(vchName) != 0;
@@ -392,9 +421,10 @@ void ManageNamesPage::exportClicked()
     writer.setModel(proxyModel);
     // name, column, role
     writer.addColumn("Name", NameTableModel::Name, Qt::EditRole);
-    writer.addColumn("Value", NameTableModel::Value, Qt::EditRole);
+    writer.addColumn("Last Move", NameTableModel::Value, Qt::EditRole);
     writer.addColumn("Address", NameTableModel::Address, Qt::EditRole);
-    writer.addColumn("Expires In", NameTableModel::ExpiresIn, Qt::EditRole);
+    writer.addColumn("State", NameTableModel::State, Qt::EditRole);
+    writer.addColumn("Status", NameTableModel::Status, Qt::EditRole);
 
     if(!writer.write())
     {

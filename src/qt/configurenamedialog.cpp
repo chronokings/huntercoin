@@ -220,7 +220,7 @@ void ConfigureNameDialog::accept()
     try
     {
         if (firstUpdate)
-            err_msg = walletModel->nameFirstUpdatePrepare(name, returnData);
+            err_msg = walletModel->nameFirstUpdatePrepare(name, returnData, false);
         else
             err_msg = walletModel->nameUpdate(name, returnData, addr);
     }

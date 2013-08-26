@@ -327,6 +327,15 @@ void CWalletTx::GetAmounts(int64& nGeneratedImmature, int64& nGeneratedMature, l
             nGeneratedMature = GetCredit();
         return;
     }
+    else if (IsGameTx())
+    {
+        if (GetBlocksToMaturity() > 0)
+            nGeneratedImmature = pwallet->GetCredit(*this);
+        else
+            nGeneratedMature = GetCredit();
+        if (nGeneratedImmature != 0 || nGeneratedMature != 0)
+            return;
+    }
 
     // Compute fee:
     int64 nDebit = GetDebitInclName();
@@ -349,7 +358,6 @@ void CWalletTx::GetAmounts(int64& nGeneratedImmature, int64& nGeneratedMature, l
         string address;
         uint160 hash160;
         vector<unsigned char> vchPubKey;
-        bool fAddressOperation = false;
         if (ExtractHash160(txout.scriptPubKey, hash160))
             address = Hash160ToAddress(hash160);
         else if (ExtractPubKey(txout.scriptPubKey, NULL, vchPubKey))
@@ -742,7 +750,7 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed) const
             if (fOnlyConfirmed && !pcoin->IsConfirmed())
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+            if (pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             for (unsigned int i = 0; i < pcoin->vout.size(); i++) {
@@ -780,7 +788,7 @@ bool CWallet::SelectCoinsMinConf(int64 nTargetValue, int nConfMine, int nConfThe
             if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+            if (pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -1199,12 +1207,13 @@ bool CWallet::DelAddressBookName(const string& strAddress)
 bool CWallet::WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
                                    const uint256& hex,
                                    const uint64& rand,
+                                   bool fPostponed,
                                    const std::vector<unsigned char>& vchData,
                                    const CWalletTx &wtx)
 {
     if (!fFileBacked)
         return false;
-    return CWalletDB(strWalletFile).WriteNameFirstUpdate(vchName, hex, rand, vchData, wtx);
+    return CWalletDB(strWalletFile).WriteNameFirstUpdate(vchName, hex, rand, fPostponed, vchData, wtx);
 }
 
 bool CWallet::EraseNameFirstUpdate(const std::vector<unsigned char>& vchName)
@@ -1379,7 +1388,7 @@ std::map<std::string, int64> CWallet::GetAddressBalances()
             if (!pcoin->IsConfirmed())
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+            if (pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();

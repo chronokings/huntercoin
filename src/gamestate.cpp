@@ -298,12 +298,16 @@ json_spirit::Value GameState::ToJsonValue() const
     obj.push_back(Pair("players", subobj));
 
     Array arr;
-    BOOST_FOREACH(const PAIRTYPE(Coord, uint64) &p, loot)
+    BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo) &p, loot)
     {
         Object subobj;
         subobj.push_back(Pair("x", p.first.x));
         subobj.push_back(Pair("y", p.first.y));
-        subobj.push_back(Pair("amount", ValueFromAmount(p.second)));
+        subobj.push_back(Pair("amount", ValueFromAmount(p.second.nAmount)));
+        Array blk_rng;
+        blk_rng.push_back(p.second.firstBlock);
+        blk_rng.push_back(p.second.lastBlock);
+        subobj.push_back(Pair("blockRange", blk_rng));
         arr.push_back(subobj);
     }
     obj.push_back(Pair("loot", arr));
@@ -318,17 +322,19 @@ void GameState::AddLoot(Coord coord, int64 nAmount)
 {
     if (nAmount == 0)
         return;
-    std::map<Coord, int64>::iterator mi = loot.find(coord);
+    std::map<Coord, LootInfo>::iterator mi = loot.find(coord);
     if (mi != loot.end())
     {
-        if ((mi->second += nAmount) == 0)
+        if ((mi->second.nAmount += nAmount) == 0)
             loot.erase(mi);
+        else
+            mi->second.lastBlock = nHeight;
     }
     else
-        loot.insert(std::make_pair(coord, nAmount));
+        loot.insert(std::make_pair(coord, LootInfo(nAmount, nHeight)));
 }
 
-void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
+void GameState::DivideLootAmongPlayers(std::map<PlayerID, BountyInfo> &outBounties)
 {
     std::map<Coord, int> playersOnLootTile;
     BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
@@ -351,10 +357,14 @@ void GameState::DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties)
         std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
         if (mi != playersOnLootTile.end())
         {
-            int64 nAmount = loot[coord] / (mi->second--);
-            outBounties[p.first] += nAmount;
-            AddLoot(coord, -nAmount);
-            assert((mi->second == 0) != (loot.count(coord) == 0));
+            const LootInfo &lootInfo = loot[coord];
+            int64 nAmount = lootInfo.nAmount / (mi->second--);
+            if (nAmount > 0)   // If amount was ~1e-8 and several players moved onto it, then some of them will get nothing
+            {
+                outBounties[p.first].Add(coord, lootInfo, nAmount);
+                AddLoot(coord, -nAmount);
+            }
+            assert((mi->second == 0) == (loot.count(coord) == 0));   // If no more players on this tile, then all loot must be collected
         }
     }
 }
@@ -392,6 +402,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             const PlayerState &victimState = inState.players.find(victim)->second;
             outState.AddLoot(victimState.coord, stepData.nNameCoinAmount);
             stepResult.killedPlayers.insert(victim);
+            stepResult.killedBy.insert(std::make_pair(victim, m->player));
         }
     }
 
@@ -409,10 +420,6 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     int x = (rnd % n).getint() - (n / 2);
     int y = ((rnd / n) % n).getint() - (n / 2);
     outState.AddLoot(Coord(x, y), stepData.nTreasureAmount);
-
-    // TODO: it could be good to attach description to each bounty
-    // and then copy it to e.g. strFromAccount to show up in the wallet,
-    // or when serializing vgametx
 
     outState.DivideLootAmongPlayers(stepResult.bounties);
 

@@ -105,6 +105,8 @@ struct PlayerState
     json_spirit::Value ToJsonValue() const;
 };
 
+struct BountyInfo;
+
 struct GameState
 {
     GameState();
@@ -113,7 +115,25 @@ struct GameState
     std::map<PlayerID, PlayerState> players;
 
     // Rewards placed on the map
-    std::map<Coord, int64> loot;
+    struct LootInfo
+    {
+        int64 nAmount;
+        // Time span over the which this loot accumulated
+        // This is merely for informative purposes, plus to make
+        // hash of the loot tx unique
+        int firstBlock, lastBlock;
+
+        LootInfo() : nAmount(0), firstBlock(-1), lastBlock(-1) { }
+        LootInfo(int64 nAmount_, int nHeight) : nAmount(nAmount_), firstBlock(nHeight), lastBlock(nHeight) { }
+
+        IMPLEMENT_SERIALIZE
+        (
+            READWRITE(nAmount);
+            READWRITE(firstBlock);
+            READWRITE(lastBlock);
+        )
+    };
+    std::map<Coord, LootInfo> loot;
 
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
@@ -139,7 +159,24 @@ struct GameState
 
     // Helper functions
     void AddLoot(Coord coord, int64 nAmount);
-    void DivideLootAmongPlayers(std::map<PlayerID, int64> &outBounties);
+    void DivideLootAmongPlayers(std::map<PlayerID, BountyInfo> &outBounties);
+};
+
+// Information about the collected loot. Added to scriptSig of the bounty transaction.
+struct BountyInfo : public GameState::LootInfo
+{
+    Coord coord;
+
+    BountyInfo() : LootInfo(0, -1) { }
+
+    // Add given amount, and set other info from the provided objects
+    void Add(const Coord &coord_, const LootInfo &lootInfo, int64 nAmount_)
+    {
+        nAmount += nAmount_;
+        firstBlock = lootInfo.firstBlock;
+        lastBlock = lootInfo.lastBlock;
+        coord = coord_;
+    }
 };
 
 struct StepData : boost::noncopyable
@@ -153,8 +190,9 @@ struct StepData : boost::noncopyable
 
 struct StepResult
 {
-    std::map<PlayerID, int64> bounties;
+    std::map<PlayerID, BountyInfo> bounties;
     std::set<PlayerID> killedPlayers;
+    std::multimap<PlayerID, PlayerID> killedBy;
 };
 
 // All moves happen simultaneously, so this function must work identically

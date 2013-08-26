@@ -6,19 +6,15 @@
 
 #include "../headers.h"
 #include "../chronokings.h"
+#include "../gamedb.h"
+#include "../gamestate.h"
 #include "ui_interface.h"
+
+#include "../json/json_spirit_writer_template.h"
 
 #include <QTimer>
 
 extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
-
-// ExpiresIn column is right-aligned as it contains numbers
-static int column_alignments[] = {
-        Qt::AlignLeft|Qt::AlignVCenter,     // Name
-        Qt::AlignLeft|Qt::AlignVCenter,     // Value
-        Qt::AlignLeft|Qt::AlignVCenter,     // Address
-        Qt::AlignRight|Qt::AlignVCenter     // Expires in
-    };
 
 struct NameTableEntryLessThan
 {
@@ -59,9 +55,12 @@ public:
     CWallet *wallet;
     QList<NameTableEntry> cachedNameTable;
     NameTableModel *parent;
+    uint256 cachedLastBlock;
 
     NameTablePriv(CWallet *wallet, NameTableModel *parent):
-        wallet(wallet), parent(parent) {}
+        wallet(wallet), parent(parent), cachedLastBlock(0)
+    {
+    }
 
     void refreshNameTable()
     {
@@ -107,14 +106,10 @@ public:
 
                 if (!hooks->IsMine(wallet->mapWallet[tx.GetHash()]))
                     fTransferred = true;
-                    
+
                 // height
                 if (fConfirmed)
-                {
                     nHeight = GetTxPosHeight(txindex.pos);
-                    if (false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
-                        continue;  // Expired
-                }
                 else
                     nHeight = NameTableEntry::NAME_UNCONFIRMED;
 
@@ -202,15 +197,7 @@ public:
                 if (fConfirmed)
                 {
                     nHeight = GetTxPosHeight(txindex.pos);
-                    if (false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
-                    {
-                        printf("refreshName(\"%s\"): tx %s, nHeight = %d - expired\n", qPrintable(nameObj.name), hash.GetHex().c_str(), nHeight);
-                        continue;  // Expired
-                    }
-                    else
-                    {
-                        printf("refreshName(\"%s\"): tx %s, nHeight = %d\n", qPrintable(nameObj.name), hash.GetHex().c_str(), nHeight);
-                    }
+                    printf("refreshName(\"%s\"): tx %s, nHeight = %d\n", qPrintable(nameObj.name), hash.GetHex().c_str(), nHeight);
                 }
                 else
                 {
@@ -341,6 +328,48 @@ public:
         }
     }
 
+    bool updateGameState(bool &fRewardAddrChanged)
+    {
+        LOCK(cs_main);
+
+        const Game::GameState &gameState = GetCurrentGameState();
+        if (gameState.hashBlock == cachedLastBlock)
+            return false;
+
+        bool fChanged = false;
+        for (int i = 0, n = size(); i < n; i++)
+        {
+            NameTableEntry *item = index(i);
+            QString s;
+
+            if (item->HeightValid())
+            {
+                std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
+                if (it != gameState.players.end())
+                {
+                    bool fRewardAddressDifferent = !it->second.address.empty() && item->address != it->second.address.c_str();
+
+                    if (item->fRewardAddressDifferent != fRewardAddressDifferent)
+                    {
+                        item->fRewardAddressDifferent = fRewardAddressDifferent;
+                        fRewardAddrChanged = true;
+                    }
+
+                    s = QString::fromStdString(json_spirit::write_string(it->second.ToJsonValue(), false));
+                }
+            }
+
+            if (item->state != s)
+            {
+                item->state = s;
+                fChanged = true;
+            }
+        }
+
+        cachedLastBlock = gameState.hashBlock;
+        return fChanged;
+    }
+
     int size()
     {
         return cachedNameTable.size();
@@ -362,12 +391,12 @@ public:
 NameTableModel::NameTableModel(CWallet *wallet, WalletModel *parent) :
     QAbstractTableModel(parent), walletModel(parent), wallet(wallet), priv(0), cachedNumBlocks(0)
 {
-    columns << tr("Name") << tr("Value") << tr("Address") << tr("Expires in");
+    columns << tr("Name") << tr("Last Move") << tr("Address") << tr("State") << tr("Status");
     priv = new NameTablePriv(wallet, this);
     priv->refreshNameTable();
     
     QTimer *timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), this, SLOT(updateExpiration()));
+    connect(timer, SIGNAL(timeout()), this, SLOT(updateGameState()));
     timer->start(MODEL_UPDATE_DELAY);
 }
 
@@ -376,36 +405,15 @@ NameTableModel::~NameTableModel()
     delete priv;
 }
 
-void NameTableModel::updateExpiration()
+void NameTableModel::updateGameState()
 {
-    if (nBestHeight != cachedNumBlocks)
-    {
-        LOCK(cs_main);
-
-        cachedNumBlocks = nBestHeight;
-        // Blocks came in since last poll.
-        // Delete expired names
-        for (int i = 0, n = priv->size(); i < n; i++)
-        {
-            NameTableEntry *item = priv->index(i);
-            if (!item->HeightValid())
-                continue;       // Currently, unconfirmed names do not expire in the table
-            int nHeight = item->nHeight;
-            if (false /*nHeight + GetDisplayExpirationDepth(nHeight) - pindexBest->nHeight <= 0*/)
-            {
-                priv->updateEntry(item->name, item->value, item->address, item->nHeight, CT_DELETED);
-                // Data array changed - restart scan
-                n = priv->size();
-                i = -1;
-            }            
-        }
-        // Invalidate expiration counter for all rows.
-        // Qt is smart enough to only actually request the data for the
-        // visible rows.
-        emit dataChanged(index(0, ExpiresIn), index(priv->size()-1, ExpiresIn));
-    }
+    bool fRewardAddrChanged = false;
+    if (priv->updateGameState(fRewardAddrChanged))
+        emit dataChanged(index(0, State), index(priv->size()-1, State));
+    if (fRewardAddrChanged)
+        emit dataChanged(index(0, Address), index(priv->size()-1, Address));
 }
-
+ 
 void NameTableModel::updateTransaction(const QString &hash, int status)
 {
     uint256 hash256;
@@ -479,20 +487,24 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
         case Value:
             return rec->value;
         case Address:
+            if (rec->fRewardAddressDifferent)
+                return NON_REWARD_ADDRESS_PREFIX + rec->address;
             return rec->address;
-        case ExpiresIn:
+        case State:
+            return rec->state;
+        case Status:
             if (!rec->HeightValid())
             {
                 if (rec->nHeight == NameTableEntry::NAME_NEW)
-                    return QString("pending (new)");
-                return QString("pending (update)");
+                    return QString("Pending (new)");
+                return QString("Pending (update)");
             }
             else
-                return QString("never"); //rec->nHeight + GetDisplayExpirationDepth(rec->nHeight) - pindexBest->nHeight;
+                return QString("OK");
         }
     }
     else if (role == Qt::TextAlignmentRole)
-        return column_alignments[index.column()];
+        return QVariant(int(Qt::AlignLeft|Qt::AlignVCenter));
     else if (role == Qt::FontRole)
     {
         QFont font;
@@ -509,25 +521,23 @@ QVariant NameTableModel::headerData(int section, Qt::Orientation orientation, in
     if (orientation == Qt::Horizontal)
     {
         if (role == Qt::DisplayRole)
-        {
             return columns[section];
-        }
         else if (role == Qt::TextAlignmentRole)
-        {
-            return column_alignments[section];
-        }
+            return QVariant(int(Qt::AlignLeft|Qt::AlignVCenter));
         else if (role == Qt::ToolTipRole)
         {
             switch(section)
             {
             case Name:
-                return tr("Player name for Chrono Kings.");
+                return tr("Player name for Chrono Kings");
             case Value:
-                return tr("Data associated with the name.");
+                return tr("Last move of the player");
             case Address:
-                return tr("Namecoin address to which the name is registered.");
-            case ExpiresIn:
-                return tr("Number of blocks, after which the name will expire. Update name to renew it.\nEmpty cell means pending (awaiting automatic name_firstupdate or awaiting network confirmation).");
+                return tr("Chrono Kings address to which the name is registered.\n\nNote: rewards can go to another address, if specified in the player profile");
+            case State:
+                return tr("State of the player in the game");
+            case Status:
+                return tr("Status of the latest move transaction for this player");
             }
         } 
     }

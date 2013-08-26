@@ -41,11 +41,12 @@ bool CWalletDB::EraseName(const string& strAddress)
 bool CWalletDB::WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
                                      const uint256& hex,
                                      const uint64& rand,
+                                     bool fPostponed,
                                      const std::vector<unsigned char>& vchData,
                                      const CWalletTx &wtx)
 {
     CDataStream ssValue;
-    ssValue << hex << rand << vchData << wtx;
+    ssValue << hex << rand << fPostponed << vchData << wtx;
 
     nWalletDBUpdated++;
     return Write(make_pair(string("name_firstupdate"), vchName), ssValue, true);
@@ -326,7 +327,7 @@ bool CWalletDB::LoadWallet(CWallet* pwallet)
                 // Note: name, rand and data are stored unencrypted. Even if we encrypt them,
                 // they are recoverable from prep.wtx, which has to be unencrypted (so it can be
                 // auto-broadcasted, when name_new is 2 blocks old)
-                ssValue >> wtxInHash >> prep.rand >> prep.vchData >> prep.wtx;
+                ssValue >> wtxInHash >> prep.rand >> prep.fPostponed >> prep.vchData >> prep.wtx;
                 
                 prep.wtx.pwallet = pwallet;
 

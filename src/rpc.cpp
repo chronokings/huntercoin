@@ -1348,12 +1348,18 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
         entry.push_back(Pair("account", string("")));
         if (nGeneratedImmature)
         {
-            entry.push_back(Pair("category", wtx.GetDepthInMainChain() ? "immature" : "orphan"));
+            std::string s;
+            if (wtx.IsGameTx())
+                s = "game_reward_";
+            entry.push_back(Pair("category", s + (wtx.GetDepthInMainChain() ? "immature" : "orphan")));
             entry.push_back(Pair("amount", ValueFromAmount(nGeneratedImmature)));
         }
         else
         {
-            entry.push_back(Pair("category", "generate"));
+            if (wtx.IsGameTx())
+                entry.push_back(Pair("category", "game_reward"));
+            else
+                entry.push_back(Pair("category", "generate"));
             entry.push_back(Pair("amount", ValueFromAmount(nGeneratedMature)));
         }
         if (fLong)

@@ -230,6 +230,7 @@ public:
     bool WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
                               const uint256& hex,
                               const uint64& rand,
+                              bool fPostponed,
                               const std::vector<unsigned char>& vchData,
                               const CWalletTx &wtx);
     bool EraseNameFirstUpdate(const std::vector<unsigned char>& vchName);
@@ -513,7 +514,7 @@ public:
     int64 GetCredit(bool fUseCache=true) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
-        if (IsCoinBase() && GetBlocksToMaturity() > 0)
+        if (GetBlocksToMaturity() > 0)
             return 0;
 
         // GetBalance can assume transactions in mapWallet won't change
@@ -526,7 +527,7 @@ public:
     
     int64 GetImmatureCredit(bool fUseCache=true) const
     {
-        if (IsCoinBase() && GetBlocksToMaturity() > 0 && IsInMainChain())
+        if (GetBlocksToMaturity() > 0 && IsInMainChain())
         {
             if (fUseCache && fImmatureCreditCached)
                 return nImmatureCreditCached;
@@ -541,7 +542,7 @@ public:
     int64 GetAvailableCredit(bool fUseCache=true) const
     {
         // Must wait until coinbase is safely deep enough in the chain before valuing it
-        if (IsCoinBase() && GetBlocksToMaturity() > 0)
+        if (GetBlocksToMaturity() > 0)
             return 0;
 
         if (fUseCache && fAvailableCreditCached)
@@ -779,6 +780,7 @@ struct PreparedNameFirstUpdate
     uint64 rand;
     std::vector<unsigned char> vchData;
     CWalletTx wtx;
+    bool fPostponed;     // Do not send while Configure Name dialog is open
 };
 #endif
 

@@ -27,12 +27,13 @@ public:
     void setNameSearch(const QString &search);
     void setValueSearch(const QString &search);
     void setAddressSearch(const QString &search);
+    void setStateSearch(const QString &search);
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
 
 private:
-    QString nameSearch, valueSearch, addressSearch;
+    QString nameSearch, valueSearch, addressSearch, stateSearch;
 };
 
 /** Page for managing names */
@@ -59,6 +60,7 @@ public slots:
     void changedNameFilter(const QString &filter);
     void changedValueFilter(const QString &filter);
     void changedAddressFilter(const QString &filter);
+    void changedStateFilter(const QString &filter);
 
 private slots:
     void on_submitNameButton_clicked();
@@ -72,6 +74,7 @@ private slots:
     void onCopyNameAction();
     void onCopyValueAction();
     void onCopyAddressAction();
+    void onCopyStateAction();
     void on_configureNameButton_clicked();
 };
 

@@ -549,6 +549,11 @@ int CMerkleTx::GetDepthInMainChain(int& nHeightRet) const
 
 int CMerkleTx::GetBlocksToMaturity() const
 {
+    if (IsGameTx())
+    {
+        return max(0, GAME_REWARD_MATURITY_DISPLAY - GetDepthInMainChain());
+    }
+
     if (!IsCoinBase())
         return 0;
     if (hashBlock == hashGenesisBlock)   // Genesis block is immediately spendable
@@ -1061,9 +1066,17 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
 
             // If prev is coinbase, check that it's matured
             if (txPrev.IsCoinBase())
+            {
                 for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
                     if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nFile)
                         return error("ConnectInputs() : tried to spend coinbase at depth %d", pindexBlock->nHeight - pindex->nHeight);
+            }
+            else if (txPrev.IsGameTx())
+            {
+                for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < GAME_REWARD_MATURITY; pindex = pindex->pprev)
+                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nFile)
+                        return error("ConnectInputs() : tried to spend game reward at depth %d", pindexBlock->nHeight - pindex->nHeight);
+            }
 
             // Verify signature
             if (!VerifySignature(txPrev, *this, i))

@@ -156,36 +156,38 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
         return error("PerformStep failed for block %s", block->GetHash().ToString().c_str());
 
     // Create resulting game transactions
+    // Transaction hashes must be unique
     outvgametx.clear();
 
     CTransaction txNew;
     txNew.SetGameTx();
 
-    // TODO: scriptSig must contain explanation, probably as JSON string (e.g. {"killed":"player1", "killed_by":"player2"},
-    // {"award_for":"player1", "location":{"x":0,"y":0,"t":10}}
-    // This is needed to make tx hash different, if the same player is awarded twice with the same type of reward,
-    // plus it can be used in transaction details window in the description.
-    // scriptSig should not include block height (though it's the easiest way to make hashes different), since it will
-    // invalidate the tx shall a fork happen. Unless fork is too severe, the transactions must be valid, even if it gets
-    // into a different block
-
     // Destroy name-coins of killed players
     txNew.vin.reserve(stepResult.killedPlayers.size());
-    BOOST_FOREACH(PlayerID player, stepResult.killedPlayers)
+    BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
     {
-        std::vector<unsigned char> vchName = vchFromString(player);
+        std::vector<unsigned char> vchName = vchFromString(victim);
         CTransaction tx;
         if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
             return error("Game engine killed a non-existing player");
 
         CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
+
+        txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+
+        // List all killers, if player was simultaneously killed by several other players
+        typedef std::multimap<PlayerID, PlayerID>::const_iterator Iter;
+        std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range(victim);
+        for (Iter it = iters.first; it != iters.second; ++it)
+            txin.scriptSig << vchFromString(it->second);
         txNew.vin.push_back(txin);
     }
 
-    // Pay bounties to players who collected them
+    // Pay bounties to the players who collected them
+    txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
     txNew.vout.reserve(stepResult.bounties.size());
 
-    BOOST_FOREACH(PAIRTYPE(PlayerID, int64) bounty, stepResult.bounties)
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, BountyInfo) &bounty, stepResult.bounties)
     {
         std::vector<unsigned char> vchName = vchFromString(bounty.first);
         CTransaction tx;
@@ -193,7 +195,7 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
             return error("Game engine created bounty for non-existing player");
 
         CTxOut txout;
-        txout.nValue = bounty.second;
+        txout.nValue = bounty.second.nAmount;
 
         if (!outState.players[bounty.first].address.empty())
         {
@@ -209,6 +211,15 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
         }
 
         txNew.vout.push_back(txout);
+
+        CTxIn txin;
+        txin.scriptSig << vchName << GAMEOP_COLLECTED_BOUNTY
+                << bounty.second.coord.x
+                << bounty.second.coord.y
+                << bounty.second.firstBlock
+                << bounty.second.lastBlock
+            ;
+        txNew.vin.push_back(txin);
     }
     if (!txNew.IsNull())
         outvgametx.push_back(txNew);
@@ -218,6 +229,7 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
 
 GameState currentState;
 
+// Must hold cs_main lock
 const GameState &GetCurrentGameState()
 {
     return currentState;
