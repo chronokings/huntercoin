@@ -1,6 +1,6 @@
 CXX=g++
 
-DEFS=-DNOPCH -DFOURWAYSSE2 -DUSE_SSL 
+DEFS=-D_MT -DNOPCH -DFOURWAYSSE2 -DUSE_SSL 
 
 # Detect MinGW
 MINGW=$(shell uname -s|grep -i mingw32)
@@ -41,7 +41,7 @@ chronokingsd: USE_UPNP:=0
 	ifneq "$(MINGW)" ""
 		# MinGW-specific
 		DEFS += -D__NO_SYSTEM_INCLUDES -D__WXMSW__
-		LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
+		LIBS += -l mingwthrd -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
 		LIBBOOST_SUFFIX=-mgw46-mt-1_50
 	else
 		# Linux-specific
