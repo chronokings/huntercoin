@@ -1096,10 +1096,10 @@ void ThreadMapPort2(void* parg)
 
 #if !defined(__WXMSW__) && !defined(MAC_OSX)
         r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
-	                        port, port, lanaddr, 0, "TCP", 0);
+                                port, port, lanaddr, 0, "TCP", 0);
 #else
         r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
-	                        port, port, lanaddr, 0, "TCP", 0, "0");
+                                port, port, lanaddr, 0, "TCP", 0, "0");
 #endif
         if(r!=UPNPCOMMAND_SUCCESS)
             printf("AddPortMapping(%s, %s, %s) failed with code %d (%s)\n",

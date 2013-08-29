@@ -160,6 +160,7 @@ struct GameState
     // Helper functions
     void AddLoot(Coord coord, int64 nAmount);
     void DivideLootAmongPlayers(std::map<PlayerID, BountyInfo> &outBounties);
+    std::vector<PlayerID> ListPossibleAttacks(const PlayerID &player) const;
 };
 
 // Information about the collected loot. Added to scriptSig of the bounty transaction.

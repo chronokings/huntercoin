@@ -183,7 +183,7 @@ to the network and creates a pending name_firstupdate transaction.</string>
             </sizepolicy>
            </property>
            <property name="toolTip">
-            <string>Enter Namecoin address (or prefix of it)</string>
+            <string>Enter Chrono Kings address (or prefix of it)</string>
            </property>
            <property name="text">
             <string notr="true"/>

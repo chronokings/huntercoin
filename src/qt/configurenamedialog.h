@@ -3,6 +3,9 @@
 
 #include <QDialog>
 
+#include "../json/json_spirit.h"
+
+
 namespace Ui {
     class ConfigureNameDialog;
 }
@@ -29,12 +32,18 @@ public slots:
     void on_addressBookButton_clicked();
     void on_copyButton_clicked();
     void on_pasteButton_clicked();
-    void on_nsEdit_textChanged()                              { if (initialized) SetDNS(); }
-    void on_nsTranslateEdit_textChanged(const QString &text)  { if (initialized) SetDNS(); }
-    void on_nsFingerprintEdit_textChanged()                   { if (initialized) SetDNS(); }
-    void on_ipEdit_textChanged(const QString &text)           { if (initialized) SetIP();  }
-    void on_ipFingerprintEdit_textChanged()                   { if (initialized) SetIP(); }
     void on_dataEdit_textChanged(const QString &text);
+
+    void on_redButton_clicked();
+    void on_blueButton_clicked();
+    void on_upButton_clicked();
+    void on_downButton_clicked();
+    void on_leftButton_clicked();
+    void on_rightButton_clicked();
+
+    void on_comboBoxAttack_currentIndexChanged(int index);
+
+    void on_messageEdit_textChanged();
 
 private:
     QString returnData;
@@ -42,10 +51,8 @@ private:
     WalletModel *walletModel;
     QString name, address;
     bool firstUpdate;
-    bool initialized;
 
-    void SetDNS();
-    void SetIP();
+    void SetJson(json_spirit::Object &obj);
 };
 
 #endif // CONFIGURENAMEDIALOG_H

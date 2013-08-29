@@ -120,7 +120,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
 
     sendCoinsPage = new SendCoinsDialog(this);
 
-	manageNamesPage = new ManageNamesPage(this);
+    manageNamesPage = new ManageNamesPage(this);
 
     signVerifyMessageDialog = new SignVerifyMessageDialog(this);
 
@@ -423,7 +423,7 @@ void BitcoinGUI::setWalletModel(WalletModel *walletModel)
         addressBookPage->setModel(walletModel->getAddressTableModel());
         receiveCoinsPage->setModel(walletModel->getAddressTableModel());
         sendCoinsPage->setModel(walletModel);
-		manageNamesPage->setModel(walletModel);
+        manageNamesPage->setModel(walletModel);
         signVerifyMessageDialog->setModel(walletModel);
 
         setEncryptionStatus(walletModel->getEncryptionStatus());

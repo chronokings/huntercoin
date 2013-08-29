@@ -1,6 +1,9 @@
 #ifndef GUICONSTANTS_H
 #define GUICONSTANTS_H
 
+#include "../headers.h"
+#include "../chronokings.h"  // For MAX_VALUE_LENGTH
+
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 250;
 
@@ -30,7 +33,7 @@ static const int MAX_URI_LENGTH = 255;
 
 // Should be set to MAX_VALUE_LENGTH (from namecoin.h) when it's supported by the network
 // (currently due to limitations of CScript the limit is 519 bytes)
-static const int GUI_MAX_VALUE_LENGTH = 519;
+static const int GUI_MAX_VALUE_LENGTH = MAX_VALUE_LENGTH;
 
 /* QRCodeDialog -- size of exported QR Code image */
 #define EXPORT_IMAGE_SIZE 256

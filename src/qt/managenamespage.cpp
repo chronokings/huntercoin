@@ -250,13 +250,10 @@ void ManageNamesPage::on_submitNameButton_clicked()
 
     if (!IsValidPlayerName(name.toStdString()))
     {
-        if (QMessageBox::Yes != QMessageBox::warning(this, tr("Name registration warning"),
-              tr("The name you entered contains whitespace characters. It is probably invalid. Are you sure you want to use this name?"),
-              QMessageBox::Yes | QMessageBox::Cancel,
-              QMessageBox::Cancel))
-        {
-            return;
-        }
+        QMessageBox::warning(this, tr("Name registration error"),
+              tr("The entered name is invalid. Allowed characters: alphanumeric, underscore, hyphen, whitespace (but not at start/end and no double whitespaces)."),
+              QMessageBox::Ok);
+        return;
     }
 
     if (QMessageBox::Yes != QMessageBox::question(this, tr("Confirm name registration"),
@@ -392,7 +389,21 @@ void ManageNamesPage::on_configureNameButton_clicked()
         address = address.mid(NON_REWARD_ADDRESS_PREFIX.size());
 
     std::vector<unsigned char> vchName = vchFromString(name.toStdString());
-    bool fFirstUpdate = mapMyNameFirstUpdate.count(vchName) != 0;
+
+    bool fFirstUpdate, fOldPostponed;
+
+    {
+        LOCK(cs_main);
+        fFirstUpdate = mapMyNameFirstUpdate.count(vchName) != 0;
+        if (fFirstUpdate)
+        {
+            // Postpone the firstupdate, while the dialog is open
+            // If OK is pressed, fPostponed is always set to false
+            // If Cancel is pressed, we restore the old fPostponed value
+            fOldPostponed = mapMyNameFirstUpdate[vchName].fPostponed;
+            mapMyNameFirstUpdate[vchName].fPostponed = true;
+        }
+    }
 
     ConfigureNameDialog dlg(name, value, address, fFirstUpdate, this);
     dlg.setModel(walletModel);
@@ -402,6 +413,13 @@ void ManageNamesPage::on_configureNameButton_clicked()
         // name_firstupdate could have been sent, while the user was editing the value
         if (mapMyNameFirstUpdate.count(vchName) != 0)
             model->updateEntry(name, dlg.getReturnData(), address, NameTableEntry::NAME_NEW, CT_UPDATED);
+    }
+    else if (fFirstUpdate)
+    {
+        LOCK(cs_main);
+        // If cancel was pressed, restore the old fPostponed value
+        if (mapMyNameFirstUpdate.count(vchName) != 0)
+            mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
     }
 }
 

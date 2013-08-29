@@ -5,10 +5,10 @@
 #include "addressbookpage.h"
 #include "walletmodel.h"
 #include "guiconstants.h"
-#include "../main.h"
-#include "../hook.h"
-#include "../wallet.h"
+#include "../headers.h"
 #include "../chronokings.h"
+#include "../gamestate.h"
+#include "../gamedb.h"
 
 #include "../json/json_spirit.h"
 #include "../json/json_spirit_utils.h"
@@ -25,7 +25,6 @@ ConfigureNameDialog::ConfigureNameDialog(const QString &name_, const QString &da
     name(name_),
     address(address_),
     firstUpdate(firstUpdate_),
-    initialized(false),
     ui(new Ui::ConfigureNameDialog)
 {
     ui->setupUi(this);
@@ -45,120 +44,6 @@ ConfigureNameDialog::ConfigureNameDialog(const QString &name_, const QString &da
 
     returnData = data;
 
-    if (name.startsWith("d/"))
-        ui->labelDomain->setText(GUIUtil::HtmlEscape(name.mid(2) + ".bit"));
-    else
-        ui->labelDomain->setText(tr("(not a domain name)"));
-        
-    // Try to select the most appropriate wizard
-    json_spirit::Value val;
-    if (data.trimmed().isEmpty())
-    {
-        // Empty data - select DNS for domains, custom for other
-        if (name.startsWith("d/"))
-            ui->tabWidget->setCurrentWidget(ui->tab_dns);
-        else
-            ui->tabWidget->setCurrentWidget(ui->tab_json);
-    }
-    else if (!json_spirit::read_string(data.toStdString(), val) || val.type() != json_spirit::obj_type)
-    {
-        // Non-JSON data - select custom tab
-        ui->tabWidget->setCurrentWidget(ui->tab_json);
-    }
-    else
-    {
-        // Check conformance to DNS type
-        bool ok = true;
-        QStringList ns;
-        QString translate, fingerprint;
-        BOOST_FOREACH(json_spirit::Pair& item, val.get_obj())
-        {
-            if (item.name_ == "ns")
-            {
-                if (item.value_.type() == json_spirit::array_type)
-                {
-                    BOOST_FOREACH(json_spirit::Value val, item.value_.get_array())
-                    {
-                        if (val.type() == json_spirit::str_type)
-                            ns.append(QString::fromStdString(val.get_str()));
-                        else
-                        {
-                            ok = false;
-                            break;
-                        }
-                    }
-                }
-                else
-                    ok = false;
-            }
-            else if (item.name_ == "translate")
-            {
-                if (item.value_.type() == json_spirit::str_type)
-                    translate = QString::fromStdString(item.value_.get_str());
-                else
-                    ok = false;
-            }
-            else if (item.name_ == "fingerprint")
-            {
-                if (item.value_.type() == json_spirit::str_type)
-                    fingerprint = QString::fromStdString(item.value_.get_str());
-                else
-                    ok = false;
-            }
-            else
-                ok = false;
-
-            if (!ok)
-                break;
-        }
-        if (ns.empty())
-            ok = false;
-
-        if (ok)
-        {
-            ui->nsEdit->setPlainText(ns.join("\n"));
-            ui->nsTranslateEdit->setText(translate);
-            ui->nsFingerprintEdit->setText(fingerprint);
-            ui->tabWidget->setCurrentWidget(ui->tab_dns);
-        }
-        else
-        {
-            // Check conformance to IP type
-            json_spirit::Object obj = val.get_obj();
-            QString ip, fingerprint;
-            json_spirit::Value ipVal = json_spirit::find_value(obj, "ip");
-            json_spirit::Value mapVal = json_spirit::find_value(obj, "map");
-            json_spirit::Value fingerprintVal = json_spirit::find_value(obj, "fingerprint");
-            int n = 2;
-            if (fingerprintVal.type() == json_spirit::str_type)
-            {
-                fingerprint = QString::fromStdString(fingerprintVal.get_str());
-                n++;
-            }
-            if (obj.size() == n && ipVal.type() == json_spirit::str_type && mapVal.type() == json_spirit::obj_type)
-            {
-                ip = QString::fromStdString(ipVal.get_str());
-                json_spirit::Object map = mapVal.get_obj();
-                json_spirit::Value starVal = json_spirit::find_value(map, "*");
-                if (map.size() == 1 && starVal.type() == json_spirit::str_type)
-                    ok = starVal.get_str() == ipVal.get_str();
-                else
-                    ok = false;
-            }
-            else
-                ok = false;
-
-            if (ok)
-            {
-                ui->ipEdit->setText(ip);
-                ui->ipFingerprintEdit->setText(fingerprint);
-                ui->tabWidget->setCurrentWidget(ui->tab_ip);
-            }
-            else
-                ui->tabWidget->setCurrentWidget(ui->tab_json);
-        }
-    }
-
     on_dataEdit_textChanged(data);
 
     if (firstUpdate)
@@ -172,14 +57,36 @@ ConfigureNameDialog::ConfigureNameDialog(const QString &name_, const QString &da
             tr("Name_firstupdate transaction will be queued and broadcasted when corresponding name_new is %1 blocks old").arg(MIN_FIRSTUPDATE_DEPTH)
             + "<br/><span style='color:red'>" + tr("Do not close your client while the name is pending!") + "</span>"
         );
+
+        ui->labelStep->setEnabled(false);
+        ui->labelAttack->setEnabled(false);
+        ui->upButton->setEnabled(false);
+        ui->downButton->setEnabled(false);
+        ui->leftButton->setEnabled(false);
+        ui->rightButton->setEnabled(false);
+        ui->labelReachablePlayers->setEnabled(false);
+        ui->comboBoxAttack->setEnabled(false);        
     }
     else
     {
+        ui->labelSpawn->setEnabled(false);
+        ui->labelColor->setEnabled(false);
+        ui->redButton->setEnabled(false);
+        ui->blueButton->setEnabled(false);
+
         ui->labelSubmitHint->setText(tr("Name_update transaction will be issued immediately"));
+
+        std::vector<std::string> victims;
+        CRITICAL_BLOCK(cs_main)
+            victims = GetCurrentGameState().ListPossibleAttacks(name.toStdString());
+        BOOST_FOREACH(std::string victim, victims)
+        {
+            QString s = QString::fromStdString(victim);
+            ui->comboBoxAttack->addItem(GUIUtil::HtmlEscape(s), s);
+        }
+
         setWindowTitle(tr("Update Name"));
     }
-
-    initialized = true;
 }
 
 ConfigureNameDialog::~ConfigureNameDialog()
@@ -272,61 +179,120 @@ void ConfigureNameDialog::on_addressBookButton_clicked()
         ui->transferTo->setText(dlg.getReturnValue());
 }
 
-void ConfigureNameDialog::SetDNS()
+void ConfigureNameDialog::SetJson(json_spirit::Object &obj)
 {
-    json_spirit::Object data;
-    QStringList vLines = ui->nsEdit->toPlainText().split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
-
-    json_spirit::Array ns;
-
-    for (int i = 0; i < vLines.size(); i++)
-    {
-        QString item = vLines.at(i).trimmed();
-        if (item.isEmpty())
-            continue;
-        ns.push_back(json_spirit::Value(item.toStdString()));
-    }
-    data.push_back(json_spirit::Pair("ns", ns));
-    QString translate = ui->nsTranslateEdit->text().trimmed();
-    if (!translate.isEmpty())
-    {
-        if (!translate.endsWith("."))
-            translate += ".";
-        data.push_back(json_spirit::Pair("translate", translate.toStdString()));
-    }
-    QString fingerprint = ui->nsFingerprintEdit->text().trimmed();
-    if (!fingerprint.isEmpty())
-        data.push_back(json_spirit::Pair("fingerprint", fingerprint.toStdString()));
-
-    ui->dataEdit->setText(QString::fromStdString(json_spirit::write_string(json_spirit::Value(data), false)));
+    std::string msgStr = ui->messageEdit->toPlainText().toStdString();
+    if (!msgStr.empty())
+        obj.push_back(json_spirit::Pair("message", msgStr));
+    json_spirit::Value val(obj);
+    std::string jsonStr = json_spirit::write_string(val, false);
+    ui->dataEdit->setText(QString::fromStdString(jsonStr)); 
 }
 
-void ConfigureNameDialog::SetIP()
+void ConfigureNameDialog::on_redButton_clicked()
 {
-    json_spirit::Object data;
-    data.push_back(json_spirit::Pair("ip", ui->ipEdit->text().trimmed().toStdString()));
-    json_spirit::Object map;
-    map.push_back(json_spirit::Pair("*", ui->ipEdit->text().trimmed().toStdString()));
-    data.push_back(json_spirit::Pair("map", map));
-    QString ipFingerprint = ui->ipFingerprintEdit->text().trimmed();
-    if (!ipFingerprint.isEmpty())
-        data.push_back(json_spirit::Pair("fingerprint", ipFingerprint.toStdString()));
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("color", 0));
+    SetJson(obj);
+}
 
-    ui->dataEdit->setText(QString::fromStdString(json_spirit::write_string(json_spirit::Value(data), false)));
+void ConfigureNameDialog::on_blueButton_clicked()
+{
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("color", 1));
+    SetJson(obj);
+}
+
+void ConfigureNameDialog::on_upButton_clicked()
+{
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("deltaX", 0));
+    obj.push_back(json_spirit::Pair("deltaY", -1));
+    SetJson(obj);
+}
+
+void ConfigureNameDialog::on_downButton_clicked()
+{
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("deltaX", 0));
+    obj.push_back(json_spirit::Pair("deltaY", 1));
+    SetJson(obj);
+}
+
+void ConfigureNameDialog::on_leftButton_clicked()
+{
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("deltaX", -1));
+    obj.push_back(json_spirit::Pair("deltaY", 0));
+    SetJson(obj);
+}
+
+void ConfigureNameDialog::on_rightButton_clicked()
+{
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("deltaX", 1));
+    obj.push_back(json_spirit::Pair("deltaY", 0));
+    SetJson(obj);
+}
+
+void ConfigureNameDialog::on_comboBoxAttack_currentIndexChanged(int index)
+{
+    json_spirit::Object obj;
+    obj.push_back(json_spirit::Pair("attack", ui->comboBoxAttack->itemData(index).toString().toStdString()));
+    SetJson(obj);
+}
+
+void ConfigureNameDialog::on_messageEdit_textChanged()
+{
+    std::string jsonStr = ui->dataEdit->text().trimmed().toStdString();
+    if (jsonStr == "")
+        jsonStr = "{}";
+    json_spirit::Value val;
+    if (!json_spirit::read_string(jsonStr, val) || val.type() != json_spirit::obj_type)
+        return;
+    json_spirit::Object &obj = val.get_obj();
+
+    // Add or replace the message field
+    bool found = false;
+    for (std::vector<json_spirit::Pair>::iterator it = obj.begin(); it != obj.end(); ++it)
+    {
+        if (it->name_ == "message")
+        {
+            it->value_ = ui->messageEdit->toPlainText().toStdString();
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+        obj.push_back(json_spirit::Pair("message", ui->messageEdit->toPlainText().toStdString()));
+    jsonStr = json_spirit::write_string(val, false);
+    ui->dataEdit->setText(QString::fromStdString(jsonStr)); 
 }
 
 void ConfigureNameDialog::on_dataEdit_textChanged(const QString &text)
 {
-    json_spirit::Value val;
-    if (json_spirit::read_string(text.toStdString(), val))
+    Game::Move *m = Game::Move::Parse(name.toStdString(), text.toStdString());
+    if (m == NULL)
     {
-        ui->labelJsonValid->setText(tr("Valid JSON string"));
-        ui->labelJsonValid->setStyleSheet("color:green");
+        ui->labelJsonValid->setText(tr("Invalid move"));
+        ui->labelJsonValid->setStyleSheet("color:brown");
     }
     else
     {
-        ui->labelJsonValid->setText(tr("Invalid JSON string (can still be used, if not intended as JSON string)"));
-        ui->labelJsonValid->setStyleSheet("color:brown");
+        bool fValidInGameState;
+        CRITICAL_BLOCK(cs_main)
+            fValidInGameState = m->IsValid(GetCurrentGameState());
+
+        if (!fValidInGameState)
+        {
+            ui->labelJsonValid->setText(tr("Invalid move for the current game state"));
+            ui->labelJsonValid->setStyleSheet("color:brown");
+        }
+        else
+        {
+            ui->labelJsonValid->setText(tr("Valid move"));
+            ui->labelJsonValid->setStyleSheet("color:green");
+        }
+        delete m;
     }
 }
-

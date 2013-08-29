@@ -358,13 +358,13 @@ Value BlockToValue(CBlock &block)
 
     Array mrkl;
     for (int i = 0; i < block.vMerkleTree.size(); i++)
-    	mrkl.push_back(block.vMerkleTree[i].ToString().c_str());
+        mrkl.push_back(block.vMerkleTree[i].ToString().c_str());
 
     obj.push_back(Pair("mrkl_tree", mrkl));
 
     mrkl = Array();
     for (int i = 0; i < block.vGameMerkleTree.size(); i++)
-    	mrkl.push_back(block.vGameMerkleTree[i].ToString().c_str());
+        mrkl.push_back(block.vGameMerkleTree[i].ToString().c_str());
 
     obj.push_back(Pair("game_mrkl_tree", mrkl));
 
@@ -392,11 +392,11 @@ Value getblockbycount(const Array& params, bool fHelp)
     for (map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.begin();
          mi != mapBlockIndex.end(); ++mi)
     {
-    	pindex = (*mi).second;
-	if ((pindex->nHeight == height) && (pindex->IsInMainChain())) {
-		found = true;
-		break;
-	}
+        pindex = (*mi).second;
+        if ((pindex->nHeight == height) && (pindex->IsInMainChain())) {
+            found = true;
+            break;
+        }
     }
 
     if (!found)

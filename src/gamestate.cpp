@@ -144,7 +144,10 @@ struct AttackMove : public Move
         std::map<PlayerID, PlayerState>::const_iterator mi2 = state.players.find(victim);
         if (mi1 == state.players.end() || mi2 == state.players.end() || mi1 == mi2)
             return false;
-        return mi1->second.color != mi2->second.color;
+
+        // The following line allows restricting killings to opposite teams. It can be moved to IsAttack.
+        //return mi1->second.color != mi2->second.color;
+        return true;
     }
 
     bool IsAttack(const GameState &state, PlayerID &outVictim) const
@@ -366,6 +369,21 @@ void GameState::DivideLootAmongPlayers(std::map<PlayerID, BountyInfo> &outBounti
             }
             assert((mi->second == 0) == (loot.count(coord) == 0));   // If no more players on this tile, then all loot must be collected
         }
+    }
+}
+
+std::vector<PlayerID> GameState::ListPossibleAttacks(const PlayerID &player) const
+{
+    std::vector<PlayerID> ret;
+
+    AttackMove attack;
+    attack.player = player;
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
+    {
+        attack.victim = p.first;
+        PlayerID victim;
+        if (attack.IsValid(*this) && attack.IsAttack(*this, victim))
+            ret.push_back(victim);
     }
 }
 
