@@ -13,6 +13,7 @@
 #include "guiconstants.h"
 #include "ui_interface.h"
 #include "configurenamedialog.h"
+#include "gamemapview.h"
 
 #include <QSortFilterProxyModel>
 #include <QMessageBox>
@@ -158,6 +159,10 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
         ,
         ui->horizontalSpacer_Status->sizeHint().height(),
         QSizePolicy::Fixed);
+
+    gameMapView = new GameMapView(this);
+    ui->verticalLayoutGameMap->addWidget(gameMapView);
+    ui->labelGameMap->setBuddy(gameMapView);
 }
 
 ManageNamesPage::~ManageNamesPage()
@@ -195,13 +200,16 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
 
     connect(ui->tableView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)),
             this, SLOT(selectionChanged()));
-            
+
     connect(ui->nameFilter, SIGNAL(textChanged(QString)), this, SLOT(changedNameFilter(QString)));
     connect(ui->valueFilter, SIGNAL(textChanged(QString)), this, SLOT(changedValueFilter(QString)));
     connect(ui->addressFilter, SIGNAL(textChanged(QString)), this, SLOT(changedAddressFilter(QString)));
     connect(ui->stateFilter, SIGNAL(textChanged(QString)), this, SLOT(changedStateFilter(QString)));
 
     selectionChanged();
+
+    connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), gameMapView, SLOT(updateGameMap(const Game::GameState &)));
+    model->emitGameStateChanged();
 }
 
 void ManageNamesPage::changedNameFilter(const QString &filter)

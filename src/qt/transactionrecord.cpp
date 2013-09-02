@@ -33,7 +33,12 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
     uint256 hash = wtx.GetHash();
     std::map<std::string, std::string> mapValue = wtx.mapValue;
 
-    if (nNet > 0 || wtx.IsCoinBase())
+    if (wtx.IsGameTx())
+    {
+        // TODO: parse inputs and outputs, extract info from scriptSig
+        parts.append(TransactionRecord(hash, nTime, TransactionRecord::Game, "", -nDebit, nCredit));
+    }    
+    else if (nNet > 0 || wtx.IsCoinBase())
     {
         //
         // Credit
@@ -170,7 +175,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                     sub.type = TransactionRecord::SendToOther;
                     sub.address = mapValue["to"];
                 }
-
+                
                 // Carried over coin can be used to pay fee, if it the required
                 // amount was reserved in OP_NAME_NEW
                 if (nCarriedOverCoin > 0)

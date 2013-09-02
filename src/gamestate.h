@@ -74,7 +74,7 @@ struct Coord
     bool operator==(const Coord &that) const { return x == that.x && y == that.y; }
     bool operator!=(const Coord &that) const { return !(*this == that); }
     // Lexicographical comparison
-    bool operator<(const Coord &that) const { return x < that.x || (x == that.x && y < that.y); }
+    bool operator<(const Coord &that) const { return y < that.y || (y == that.y && x < that.x); }
     bool operator>(const Coord &that) const { return that < *this; }
     bool operator<=(const Coord &that) const { return !(*this > that); }
     bool operator>=(const Coord &that) const { return !(*this < that); }

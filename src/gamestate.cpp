@@ -114,7 +114,11 @@ struct StepMove : public Move
 
     bool IsValid() const
     {
-        return abs(deltaX) + abs(deltaY) <= 1;
+        // Allow move by 1 tile vertically or horizontally. Empty move also allowed.
+        return
+            deltaX >= -1 && deltaY >= -1          // Prevent abs overflow on INT_MIN
+            && deltaX <= 1 && deltaY <= 1         // Prevent addition overflow
+            && abs(deltaX) + abs(deltaY) <= 1;
     }
 
     bool IsValid(const GameState &state) const

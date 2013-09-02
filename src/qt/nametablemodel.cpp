@@ -68,6 +68,7 @@ public:
 
         std::map< std::vector<unsigned char>, NameTableEntry > vNamesO;
 
+        CRITICAL_BLOCK(cs_main)
         CRITICAL_BLOCK(wallet->cs_mapWallet)
         {
             CTxIndex txindex;
@@ -144,10 +145,9 @@ public:
 
     void refreshName(const std::vector<unsigned char> &inName)
     {
-        LOCK(cs_main);
-
         NameTableEntry nameObj(stringFromVch(inName), std::string(), std::string(), NameTableEntry::NAME_NON_EXISTING);
 
+        CRITICAL_BLOCK(cs_main)
         CRITICAL_BLOCK(wallet->cs_mapWallet)
         {
             CTxIndex txindex;
@@ -335,6 +335,8 @@ public:
         const Game::GameState &gameState = GetCurrentGameState();
         if (gameState.hashBlock == cachedLastBlock)
             return false;
+
+        emit parent->gameStateChanged(gameState);
 
         bool fChanged = false;
         for (int i = 0, n = size(); i < n; i++)
@@ -575,4 +577,10 @@ void NameTableModel::updateEntry(const QString &name, const QString &value, cons
 void NameTableModel::emitDataChanged(int idx)
 {
     emit dataChanged(index(idx, 0), index(idx, columns.length()-1));
+}
+
+void NameTableModel::emitGameStateChanged()
+{
+    LOCK(cs_main);
+    emit gameStateChanged(GetCurrentGameState());
 }

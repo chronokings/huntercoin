@@ -182,6 +182,7 @@ HEADERS += \
     src/qt/notificator.h \
     src/qt/paymentserver.h \
     src/qt/ui_interface.h \
+    src/qt/gamemapview.h \
     src/qt/rpcconsole.h \
     src/json/json_spirit_writer_template.h \
     src/json/json_spirit_writer.h \
@@ -230,6 +231,7 @@ SOURCES += \
     src/qt/askpassphrasedialog.cpp \
     src/qt/notificator.cpp \
     src/qt/paymentserver.cpp \
+    src/qt/gamemapview.cpp \
     src/qt/rpcconsole.cpp
 
 RESOURCES += src/qt/bitcoin.qrc

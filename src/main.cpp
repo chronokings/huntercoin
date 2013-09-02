@@ -302,6 +302,49 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
     return pindexBest->nHeight - pindex->nHeight + 1;
 }
 
+int64 CTransaction::GetMinFee(unsigned int nBlockSize/*=1*/, bool fAllowFree/*=true*/, bool fForRelay/*=false*/) const
+{
+    // Base fee is either MIN_TX_FEE or MIN_RELAY_TX_FEE
+    int64 nBaseFee = fForRelay ? MIN_RELAY_TX_FEE : MIN_TX_FEE;
+
+    unsigned int nBytes = ::GetSerializeSize(*this, SER_NETWORK);
+    unsigned int nNewBlockSize = nBlockSize + nBytes;
+    int64 nMinFee = (1 + (int64)nBytes / 1000) * nBaseFee;
+
+    if (fAllowFree)
+    {
+        if (nBlockSize == 1)
+        {
+            // Transactions under 1K are free
+            if (nBytes < 1000)
+                nMinFee = 0;
+        }
+        else
+        {
+            // Free transaction area
+            if (nNewBlockSize < 9000)
+                nMinFee = 0;
+        }
+    }
+    hooks->GetMinFee(nMinFee, nBaseFee, *this, nBlockSize, fAllowFree, fForRelay, nBytes, nNewBlockSize);
+
+    // To limit dust spam, require MIN_TX_FEE/MIN_RELAY_TX_FEE for any output less than 0.01
+    BOOST_FOREACH(const CTxOut& txout, vout)
+        if (txout.nValue < CENT)
+            nMinFee += nBaseFee;
+
+    // Raise the price as the block approaches full
+    if (nBlockSize != 1 && nNewBlockSize >= MAX_BLOCK_SIZE_GEN/2)
+    {
+        if (nNewBlockSize >= MAX_BLOCK_SIZE_GEN)
+            return MAX_MONEY;
+        nMinFee *= MAX_BLOCK_SIZE_GEN / (MAX_BLOCK_SIZE_GEN - nNewBlockSize);
+    }
+
+    if (!MoneyRange(nMinFee))
+        nMinFee = MAX_MONEY;
+    return nMinFee;
+}
 
 
 

@@ -100,16 +100,31 @@ public:
     {
         return 0;
     }
-
-    // TODO: ChronoKings needs its own alert pubkey
-    string GetAlertPubkey1()
+    
+    virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
+        unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
+        unsigned int nBytes, unsigned int nNewBlockSize)
     {
-        return "04ba207043c1575208f08ea6ac27ed2aedd4f84e70b874db129acb08e6109a3bbb7c479ae22565973ebf0ac0391514511a22cb9345bdb772be20cfbd38be578b0c";
+        if (tx.nVersion != NAMECOIN_TX_VERSION)
+            return;
+            
+        vector<vector<unsigned char> > vvch;
+
+        int op;
+        int nOut;
+
+        if (!DecodeNameTx(tx, op, nOut, vvch))
+            return;
+
+        // Allow free moves
+        if (op == OP_NAME_UPDATE && nBytes < 500)
+            nMinFee = 0;
     }
 
-    string GetAlertPubkey2()
+    string GetAlertPubkey1()
     {
-        return "04fc4366270096c7e40adb8c3fcfbff12335f3079e5e7905bce6b1539614ae057ee1e61a25abdae4a7a2368505db3541cd81636af3f7c7afe8591ebc85b2a1acdd";
+        // ChronoKings alert pubkey
+        return "04d55568f5688898159fd01640f6c7ef2e63fef95376e8418244b4c7c4dd57110d8028f4086a092f2586dc09b36359e67e0717a0bec2a483c81aaf252377fc666a";
     }
 };
 

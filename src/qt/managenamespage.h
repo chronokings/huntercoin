@@ -9,6 +9,7 @@ namespace Ui {
 }
 class WalletModel;
 class NameTableModel;
+class GameMapView;
 
 QT_BEGIN_NAMESPACE
 class QTableView;
@@ -53,6 +54,8 @@ private:
     WalletModel *walletModel;
     NameFilterProxyModel *proxyModel;
     QMenu *contextMenu;
+    
+    GameMapView *gameMapView;
     
 public slots:
     void exportClicked();

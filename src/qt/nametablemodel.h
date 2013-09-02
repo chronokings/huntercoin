@@ -11,6 +11,10 @@ class WalletModel;
 extern const QString STR_NAME_FIRSTUPDATE_DEFAULT;
 extern const QString NON_REWARD_ADDRESS_PREFIX;
 
+namespace Game
+{
+    class GameState;
+}
 
 /**
    Qt model for "Manage Names" page.
@@ -41,6 +45,9 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const;
     /*@}*/
 
+    // Ensures that all listeners update game state to then one returned by GetCurrentGameState()
+    void emitGameStateChanged();
+
 private:
     WalletModel *walletModel;
     CWallet *wallet;
@@ -51,11 +58,15 @@ private:
     /** Notify listeners that data changed. */
     void emitDataChanged(int index);
 
+signals:
+    void gameStateChanged(const Game::GameState &gameState);
+
 public slots:
     void updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex = NULL);
     void updateGameState();
     void updateTransaction(const QString &hash, int status);
     friend class NameTablePriv;
+   
 };
 
 struct NameTableEntry

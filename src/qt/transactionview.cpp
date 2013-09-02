@@ -73,6 +73,7 @@ TransactionView::TransactionView(QWidget *parent) :
     typeWidget->addItem(tr("To yourself"), TransactionFilterProxy::TYPE(TransactionRecord::SendToSelf));
     typeWidget->addItem(tr("Mined"), TransactionFilterProxy::TYPE(TransactionRecord::Generated));
     typeWidget->addItem(tr("Name operation"), TransactionFilterProxy::TYPE(TransactionRecord::NameOp));
+    typeWidget->addItem(tr("Game transaction"), TransactionFilterProxy::TYPE(TransactionRecord::Game));
     typeWidget->addItem(tr("Other"), TransactionFilterProxy::TYPE(TransactionRecord::Other));
 
     hlayout->addWidget(typeWidget);

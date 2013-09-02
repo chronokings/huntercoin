@@ -42,11 +42,12 @@ public:
     virtual int GetAuxPowStartBlock() = 0;
     virtual int GetFullRetargetStartBlock() = 0;
 
-    virtual std::string GetAlertPubkey1()
-    {
-        return "04fc9702847840aaf195de8442ebecedf5b095cdbb9bc716bda9110971b28a49e0ead8564ff0db22209e0374782c093bb899692d524e9d6a6956e7c5ecbcd68284";
-    }
+    // Allows overriding of the default fee for certain transaction types
+    virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
+        unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
+        unsigned int nBytes, unsigned int nNewBlockSize) = 0;
 
+    virtual std::string GetAlertPubkey1() = 0;
     virtual std::string GetAlertPubkey2() { return GetAlertPubkey1(); }
 };
 

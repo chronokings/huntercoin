@@ -182,8 +182,12 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
             txin.scriptSig << vchFromString(it->second);
         txNew.vin.push_back(txin);
     }
+    if (!txNew.IsNull())
+        outvgametx.push_back(txNew);
 
     // Pay bounties to the players who collected them
+    txNew.SetNull();
+    txNew.SetGameTx();
     txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
     txNew.vout.reserve(stepResult.bounties.size());
 
@@ -232,6 +236,11 @@ GameState currentState;
 // Must hold cs_main lock
 const GameState &GetCurrentGameState()
 {
+    if (currentState.nHeight != nBestHeight)
+    {
+        CTxDB txdb("r");
+        GetGameState(txdb, pindexBest, currentState);
+    }
     return currentState;
 }
 
@@ -251,7 +260,7 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
     }
 
     // Get the latest saved state
-    CGameDB gameDb("r", txdb);
+    CGameDB gameDb("cr", txdb);
 
     if (gameDb.Read(pindex->nHeight, outState))
     {
