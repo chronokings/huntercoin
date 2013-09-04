@@ -55,6 +55,9 @@ void GameMapView::updateGameMap(const GameState &gameState)
         scene->addItem(text);
     }
 
+    playerLocations.clear();
+    playerLocations.reserve(gameState.players.size());
+
     // Sort by coordinate bottom-up, so the stacking (multiple players on tile) looks correct
     typedef const std::pair<const PlayerID, PlayerState> *PlayerEntryPtr;
     std::multimap<Coord, PlayerEntryPtr> sortedPlayers;
@@ -63,6 +66,7 @@ void GameMapView::updateGameMap(const GameState &gameState)
     {
         const Coord &coord = mi->second.coord;
         sortedPlayers.insert(std::make_pair(Coord(-coord.x, -coord.y), &(*mi)));
+        playerLocations[QString::fromStdString(mi->first)] = QPoint(coord.x, coord.y);
     }
 
     Coord prev_coord;
@@ -92,4 +96,14 @@ void GameMapView::updateGameMap(const GameState &gameState)
     }
 
     setScene(scene);
+}
+
+const static QPoint NO_POINT(INT_MAX, INT_MAX);
+
+void GameMapView::CenterMapOnPlayer(const QString &name)
+{
+    QPoint p = playerLocations.value(name, NO_POINT);
+    if (p == NO_POINT)
+        return;
+    centerOn((p.x() + 0.5) * TILE_SIZE, (p.y() + 0.5) * TILE_SIZE);
 }

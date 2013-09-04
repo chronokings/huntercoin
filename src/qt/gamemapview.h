@@ -2,6 +2,7 @@
 #define GAMEMAPVIEW_H
 
 #include <QGraphicsView>
+#include <QHash>
 
 namespace Game
 {
@@ -15,9 +16,15 @@ class GameMapView : public QGraphicsView
 public:
 
     explicit GameMapView(QWidget *parent = 0);
+    void CenterMapOnPlayer(const QString &name);
 
 public slots:
+
     void updateGameMap(const Game::GameState &gameState);
+
+private:
+
+    QHash<QString, QPoint> playerLocations;
 };
 
 #endif // GAMEMAPVIEW_H

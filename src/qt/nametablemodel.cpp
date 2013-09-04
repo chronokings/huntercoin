@@ -461,13 +461,13 @@ void NameTableModel::updateTransaction(const QString &hash, int status)
     priv->refreshName(vchName);
 }
 
-int NameTableModel::rowCount(const QModelIndex &parent /*= QModelIndex()*/) const
+int NameTableModel::rowCount(const QModelIndex &parent /* = QModelIndex()*/) const
 {
     Q_UNUSED(parent);
     return priv->size();
 }
 
-int NameTableModel::columnCount(const QModelIndex &parent /*= QModelIndex()*/) const
+int NameTableModel::columnCount(const QModelIndex &parent /* = QModelIndex()*/) const
 {
     Q_UNUSED(parent);
     return columns.length();
@@ -569,7 +569,7 @@ QModelIndex NameTableModel::index(int row, int column, const QModelIndex &parent
     }
 }
 
-void NameTableModel::updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex /*= NULL*/)
+void NameTableModel::updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex /* = NULL*/)
 {
     priv->updateEntry(name, value, address, nHeight, status, outNewRowIndex);
 }

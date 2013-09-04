@@ -14,6 +14,7 @@
 #include "ui_interface.h"
 #include "configurenamedialog.h"
 #include "gamemapview.h"
+#include "gamechatview.h"
 
 #include <QSortFilterProxyModel>
 #include <QMessageBox>
@@ -29,7 +30,7 @@ const QString NON_REWARD_ADDRESS_PREFIX = "-";    // Prefix that indicates for t
 // NameFilterProxyModel
 //
 
-NameFilterProxyModel::NameFilterProxyModel(QObject *parent /*= 0*/)
+NameFilterProxyModel::NameFilterProxyModel(QObject *parent /* = 0*/)
     : QSortFilterProxyModel(parent)
 {
 }
@@ -118,7 +119,8 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     connect(configureNameAction, SIGNAL(triggered()), this, SLOT(on_configureNameButton_clicked()));
 
     connect(ui->tableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(contextualMenu(QPoint)));
-    connect(ui->tableView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(on_configureNameButton_clicked()));
+    connect(ui->tableView, SIGNAL(clicked(QModelIndex)), this, SLOT(onCenterMapOnPlayer()));
+    connect(ui->tableView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(onConfigureName(QModelIndex)));
     ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     // Catch focus changes to make the appropriate button the default one (Submit or Configure)
@@ -163,6 +165,9 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     gameMapView = new GameMapView(this);
     ui->verticalLayoutGameMap->addWidget(gameMapView);
     ui->labelGameMap->setBuddy(gameMapView);
+
+    gameChatView = new GameChatView(this);
+    connect(gameChatView, SIGNAL(chatUpdated(const QString &)), ui->textChat, SLOT(setHtml(const QString &)));
 }
 
 ManageNamesPage::~ManageNamesPage()
@@ -209,6 +214,7 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
     selectionChanged();
 
     connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), gameMapView, SLOT(updateGameMap(const Game::GameState &)));
+    connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), gameChatView, SLOT(updateChat(const Game::GameState &)));
     model->emitGameStateChanged();
 }
 
@@ -383,13 +389,15 @@ void ManageNamesPage::on_configureNameButton_clicked()
 {
     if(!ui->tableView->selectionModel())
         return;
-    QModelIndexList indexes = ui->tableView->selectionModel()->selectedRows(NameTableModel::Name);
+    QModelIndexList indexes = ui->tableView->selectionModel()->selectedRows();
     if(indexes.isEmpty())
         return;
-
-    QModelIndex index = indexes.at(0);
-
-    QString name = index.data(Qt::EditRole).toString();
+    onConfigureName(indexes.at(0));
+}
+        
+void ManageNamesPage::onConfigureName(const QModelIndex &index)
+{
+    QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
     QString value = index.sibling(index.row(), NameTableModel::Value).data(Qt::EditRole).toString();
     QString address = index.sibling(index.row(), NameTableModel::Address).data(Qt::EditRole).toString();
 
@@ -429,6 +437,12 @@ void ManageNamesPage::on_configureNameButton_clicked()
         if (mapMyNameFirstUpdate.count(vchName) != 0)
             mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
     }
+}
+
+void ManageNamesPage::onCenterMapOnPlayer(const QModelIndex &index)
+{
+    QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
+    gameMapView->CenterMapOnPlayer(name);
 }
 
 void ManageNamesPage::exportClicked()

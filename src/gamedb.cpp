@@ -1,5 +1,6 @@
 #include "gamedb.h"
 #include "gamestate.h"
+#include "gametx.h"
 
 #include "headers.h"
 #include "chronokings.h"
@@ -155,85 +156,12 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
     if (!Game::PerformStep(inState, stepData, outState, stepResult))
         return error("PerformStep failed for block %s", block->GetHash().ToString().c_str());
 
-    // Create resulting game transactions
-    // Transaction hashes must be unique
-    outvgametx.clear();
-
-    CTransaction txNew;
-    txNew.SetGameTx();
-
-    // Destroy name-coins of killed players
-    txNew.vin.reserve(stepResult.killedPlayers.size());
-    BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
-    {
-        std::vector<unsigned char> vchName = vchFromString(victim);
-        CTransaction tx;
-        if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
-            return error("Game engine killed a non-existing player");
-
-        CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
-
-        txin.scriptSig << vchName << GAMEOP_KILLED_BY;
-
-        // List all killers, if player was simultaneously killed by several other players
-        typedef std::multimap<PlayerID, PlayerID>::const_iterator Iter;
-        std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range(victim);
-        for (Iter it = iters.first; it != iters.second; ++it)
-            txin.scriptSig << vchFromString(it->second);
-        txNew.vin.push_back(txin);
-    }
-    if (!txNew.IsNull())
-        outvgametx.push_back(txNew);
-
-    // Pay bounties to the players who collected them
-    txNew.SetNull();
-    txNew.SetGameTx();
-    txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
-    txNew.vout.reserve(stepResult.bounties.size());
-
-    BOOST_FOREACH(const PAIRTYPE(PlayerID, BountyInfo) &bounty, stepResult.bounties)
-    {
-        std::vector<unsigned char> vchName = vchFromString(bounty.first);
-        CTransaction tx;
-        if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
-            return error("Game engine created bounty for non-existing player");
-
-        CTxOut txout;
-        txout.nValue = bounty.second.nAmount;
-
-        if (!outState.players[bounty.first].address.empty())
-        {
-            if (!txout.scriptPubKey.SetBitcoinAddress(outState.players[bounty.first].address))
-                return error("Cannot use player-provided address for bounty");
-        }
-        else
-        {
-            uint160 addr;
-            if (!GetNameAddress(tx, addr))
-                return error("Cannot get name address for bounty");
-            txout.scriptPubKey.SetBitcoinAddress(addr);
-        }
-
-        txNew.vout.push_back(txout);
-
-        CTxIn txin;
-        txin.scriptSig << vchName << GAMEOP_COLLECTED_BOUNTY
-                << bounty.second.coord.x
-                << bounty.second.coord.y
-                << bounty.second.firstBlock
-                << bounty.second.lastBlock
-            ;
-        txNew.vin.push_back(txin);
-    }
-    if (!txNew.IsNull())
-        outvgametx.push_back(txNew);
-
-    return true;
+    return CreateGameTransactions(pnameDb, outState, stepResult, outvgametx);
 }
 
-GameState currentState;
+static GameState currentState;
 
-// Must hold cs_main lock
+// Caller must hold cs_main lock
 const GameState &GetCurrentGameState()
 {
     if (currentState.nHeight != nBestHeight)
@@ -383,6 +311,8 @@ void RollbackGameState(CTxDB& txdb, CBlockIndex* pindex)
 
 extern CWallet* pwalletMain;
 
+// Erase unconfirmed transactions, that should not be re-broadcasted, because they're not
+// valid for the current game state (e.g. attack on some player who's already killed)
 void EraseBadMoveTransactions()
 {
     CRITICAL_BLOCK(cs_main)

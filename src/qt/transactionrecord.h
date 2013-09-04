@@ -72,7 +72,8 @@ public:
         RecvFromOther,
         SendToSelf,
         NameOp,
-        Game,
+        GameDeath,
+        GameReward,
     };
 
     /** Number of confirmation needed for transaction */

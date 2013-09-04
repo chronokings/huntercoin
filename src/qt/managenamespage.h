@@ -10,6 +10,7 @@ namespace Ui {
 class WalletModel;
 class NameTableModel;
 class GameMapView;
+class GameChatView;
 
 QT_BEGIN_NAMESPACE
 class QTableView;
@@ -56,6 +57,7 @@ private:
     QMenu *contextMenu;
     
     GameMapView *gameMapView;
+    GameChatView *gameChatView;
     
 public slots:
     void exportClicked();
@@ -79,6 +81,8 @@ private slots:
     void onCopyAddressAction();
     void onCopyStateAction();
     void on_configureNameButton_clicked();
+    void onConfigureName(const QModelIndex &index);
+    void onCenterMapOnPlayer(const QModelIndex &index);
 };
 
 #endif // MANAGENAMESPAGE_H

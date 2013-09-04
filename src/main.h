@@ -526,7 +526,7 @@ public:
 
     bool IsCoinBase() const
     {
-        return (vin.size() == 1 && vin[0].prevout.IsNull());
+        return !IsGameTx() && vin.size() == 1 && vin[0].prevout.IsNull();
     }
     
     bool IsGameTx() const

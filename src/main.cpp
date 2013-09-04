@@ -302,7 +302,7 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
     return pindexBest->nHeight - pindex->nHeight + 1;
 }
 
-int64 CTransaction::GetMinFee(unsigned int nBlockSize/*=1*/, bool fAllowFree/*=true*/, bool fForRelay/*=false*/) const
+int64 CTransaction::GetMinFee(unsigned int nBlockSize/* =1*/, bool fAllowFree/* =true*/, bool fForRelay/* =false*/) const
 {
     // Base fee is either MIN_TX_FEE or MIN_RELAY_TX_FEE
     int64 nBaseFee = fForRelay ? MIN_RELAY_TX_FEE : MIN_TX_FEE;
@@ -947,12 +947,18 @@ bool CTransaction::DisconnectInputs(CTxDB& txdb, CBlockIndex* pindex)
     if (!hooks->DisconnectInputs(txdb, *this, pindex))
         return false;
 
+    bool fGameTx = IsGameTx();
+
     // Relinquish previous transactions' spent pointers
     if (!IsCoinBase())
     {
         BOOST_FOREACH(const CTxIn& txin, vin)
         {
             COutPoint prevout = txin.prevout;
+
+            // Game transactions can be like coin-base, i.e. produce coins out of nothing
+            if (fGameTx && prevout.IsNull())
+                continue;
 
             // Get prev txindex from disk
             CTxIndex txindex;
@@ -3562,7 +3568,7 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 // is printed to debug.log and has to be manually copied from there.
 // In the production code calls to this function should be commented out
 // and the hash should be hard-coded.
-void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /*= true*/)
+void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
 {
 
     printf("# Mining genesis block...\n");

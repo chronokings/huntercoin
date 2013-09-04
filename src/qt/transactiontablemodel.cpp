@@ -364,8 +364,10 @@ QString TransactionTableModel::formatTxType(const TransactionRecord *wtx) const
         return tr("Mined");
     case TransactionRecord::NameOp:
         return tr("Name operation");
-    case TransactionRecord::Game:
-        return tr("Game transaction");
+    case TransactionRecord::GameDeath:
+        return tr("Game: player death");
+    case TransactionRecord::GameReward:
+        return tr("Game: reward");
     default:
         return QString();
     }
@@ -385,7 +387,9 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
         return QIcon(":/icons/tx_output");
     case TransactionRecord::NameOp:
         return QIcon(":/icons/tx_nameop");
-    case TransactionRecord::Game:
+    case TransactionRecord::GameDeath:
+        return QIcon(":/icons/tx_game");
+    case TransactionRecord::GameReward:
         return QIcon(":/icons/tx_game");
     default:
         return QIcon(":/icons/tx_inout");
@@ -405,9 +409,9 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, b
         return lookupAddress(wtx->address, tooltip);
     case TransactionRecord::SendToOther:
     case TransactionRecord::NameOp:
+    case TransactionRecord::GameDeath:
+    case TransactionRecord::GameReward:
         return QString::fromStdString(wtx->address);
-    case TransactionRecord::Game:
-        return wtx->address.empty() ? tr("(n/a)") : QString::fromStdString(wtx->address);
     case TransactionRecord::SendToSelf:
     default:
         return tr("(n/a)");

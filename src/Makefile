@@ -75,6 +75,7 @@ OBJS= \
     obj/chronokings.o \
     obj/gamestate.o \
     obj/gamedb.o \
+    obj/gametx.o \
     cryptopp/obj/sha.o \
     cryptopp/obj/cpu.o
 
@@ -93,7 +94,9 @@ obj/chronokings.o: chronokings.h gamestate.h gamedb.h
 
 obj/gamestate.o: gamestate.h
 
-obj/gamedb.o: gamestate.h gamedb.h
+obj/gamedb.o: gamestate.h gamedb.h gametx.h
+
+obj/gametx.o: gametx.h gamestate.h
 
 chronokingsd: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)

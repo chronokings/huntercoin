@@ -149,7 +149,8 @@ struct AttackMove : public Move
         if (mi1 == state.players.end() || mi2 == state.players.end() || mi1 == mi2)
             return false;
 
-        // The following line allows restricting killings to opposite teams. It can be moved to IsAttack.
+        // The following statement allows restricting killings to opposite teams.
+        // It can be moved to IsAttack to allow incorrect kill moves, but make them always fail
         //return mi1->second.color != mi2->second.color;
         return true;
     }

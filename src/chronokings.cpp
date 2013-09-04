@@ -1743,7 +1743,7 @@ bool CChronoKingsHooks::IsMine(const CTransaction& tx)
     return false;
 }
 
-bool CChronoKingsHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new /*= false*/)
+bool CChronoKingsHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new /* = false*/)
 {
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
