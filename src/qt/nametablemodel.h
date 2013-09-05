@@ -66,7 +66,6 @@ public slots:
     void updateGameState();
     void updateTransaction(const QString &hash, int status);
     friend class NameTablePriv;
-   
 };
 
 struct NameTableEntry
@@ -80,8 +79,9 @@ struct NameTableEntry
     bool transferred;
 
     static const int NAME_NEW = -1;             // Dummy nHeight value for not-yet-created names
-    static const int NAME_NON_EXISTING = -2;    // Dummy nHeight value for unitinialized entries
-    static const int NAME_UNCONFIRMED = -3;     // Dummy nHeight value for unconfirmed name transactions
+    static const int NAME_NEW_POSTPONED = -2;   // Same as above, but "OK" was not pressed in the configure dialog
+    static const int NAME_NON_EXISTING = -3;    // Dummy nHeight value for unitinialized entries
+    static const int NAME_UNCONFIRMED = -4;     // Dummy nHeight value for unconfirmed name transactions
 
     bool HeightValid() { return nHeight >= 0; }
     static bool CompareHeight(int nOldHeight, int nNewHeight);    // Returns true if new height is better
@@ -92,6 +92,7 @@ struct NameTableEntry
         fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred)
     {
     }
+
     NameTableEntry(const std::string &name, const std::string &value, const std::string &address, int nHeight, bool transferred = false) :
         name(QString::fromStdString(name)), value(QString::fromStdString(value)), address(QString::fromStdString(address)),
         fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred)

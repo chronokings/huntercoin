@@ -136,7 +136,10 @@ public:
         {
             std::string strAddress = "";
             GetNameAddress(item.second.wtx, strAddress);
-            cachedNameTable.append(NameTableEntry(stringFromVch(item.first), stringFromVch(item.second.vchData), strAddress, NameTableEntry::NAME_NEW));
+            int nDummyHeight = NameTableEntry::NAME_NEW;
+            if (item.second.fPostponed)
+                nDummyHeight = NameTableEntry::NAME_NEW_POSTPONED;
+            cachedNameTable.append(NameTableEntry(stringFromVch(item.first), stringFromVch(item.second.vchData), strAddress, nDummyHeight));
         }
 
         // qLowerBound() and qUpperBound() require our cachedNameTable list to be sorted in asc order
@@ -487,6 +490,8 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
         case Name:
             return rec->name;
         case Value:
+            if (rec->nHeight == NameTableEntry::NAME_NEW_POSTPONED)
+                return QString("");
             return rec->value;
         case Address:
             if (rec->fRewardAddressDifferent)
@@ -499,6 +504,8 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
             {
                 if (rec->nHeight == NameTableEntry::NAME_NEW)
                     return QString("Pending (new)");
+                else if (rec->nHeight == NameTableEntry::NAME_NEW_POSTPONED)
+                    return QString("Not configured");
                 return QString("Pending (update)");
             }
             else

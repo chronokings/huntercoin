@@ -127,7 +127,10 @@ void WalletModel::sendPendingNameFirstUpdates()
                 mi != mapMyNameFirstUpdate.end(); )
         {
             if (mi->second.fPostponed)
+            {
+                mi++;
                 continue;
+            }
 
             const std::vector<unsigned char> &vchName = mi->first;
 

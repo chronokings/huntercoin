@@ -142,10 +142,10 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
 
     if (!scriptSig.GetOp(pc, opcode))
         return strRet;
-        
+
     bool fFirst = true; // For writing comma-separated values
 
-    switch (opcode)
+    switch (opcode - OP_1 + 1)
     {
         case GAMEOP_KILLED_BY:
             if (fBrief)
@@ -162,12 +162,15 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
                 strRet += nameStartTag;
                 strRet += stringFromVch(vch) + nameEndTag;
             }
-            return strRet;
+            break;
         case GAMEOP_COLLECTED_BOUNTY:
             strRet += " ";
             strRet += _("collected bounty");
             break;
         default:
-            return strRet + " " + _("(unknown tx type)");
+            strRet += " ";
+            strRet += _("(unknown tx type)");
+            break;
     }
+    return strRet;
 }

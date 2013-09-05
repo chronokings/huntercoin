@@ -390,6 +390,7 @@ std::vector<PlayerID> GameState::ListPossibleAttacks(const PlayerID &player) con
         if (attack.IsValid(*this) && attack.IsAttack(*this, victim))
             ret.push_back(victim);
     }
+    return ret;
 }
 
 StepData::~StepData()

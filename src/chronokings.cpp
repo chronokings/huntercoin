@@ -485,13 +485,10 @@ bool GetTxOfName(CNameDB& dbName, const vector<unsigned char> &vchName, CTransac
 
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress)
 {
-    int op;
-    int nOut;
-    vector<vector<unsigned char> > vvch;
-    DecodeNameTx(tx, op, nOut, vvch);
-    const CTxOut& txout = tx.vout[nOut];
-    const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
-    strAddress = scriptPubKey.GetBitcoinAddress();
+    uint160 hash160;
+    if (!GetNameAddress(tx, hash160))
+        return false;
+    strAddress = Hash160ToAddress(hash160);
     return true;
 }
 
@@ -1864,17 +1861,24 @@ bool ConnectInputsGameTx(CTxDB& txdb,
         CBlockIndex* pindexBlock,
         CDiskTxPos& txPos)
 {
+    if (!tx.IsGameTx())
+        return error("ConnectInputsGameTx called for non-game tx");
     // Update name records for killed players
     CNameDB dbName("r+", txdb);
 
     for (int i = 0; i < tx.vin.size() ; i++)
     {
-        CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
+        if (tx.vin[i].prevout.IsNull())
+            continue;
+        int nout = tx.vin[i].prevout.n;
+        if (nout >= vTxPrev[i].vout.size())
+            continue;
+        CTxOut prevout = vTxPrev[i].vout[nout];
 
         int prevOp;
         vector<vector<unsigned char> > vvchPrevArgs;
 
-        if (!DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
+        if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
             continue;
 
         dbName.TxnBegin();
@@ -1891,7 +1895,7 @@ bool ConnectInputsGameTx(CTxDB& txdb,
         txPos2.txPos = txPos;
         vtxPos.push_back(txPos2); // fin add
         if (!dbName.WriteName(vvchPrevArgs[0], vtxPos))
-            return error("ConnectInputsHook() : failed to write to name DB");
+            return error("ConnectInputsGameTx() : failed to write to name DB");
 
         dbName.TxnCommit();
         mapNamePending[vvchPrevArgs[0]].erase(tx.GetHash());

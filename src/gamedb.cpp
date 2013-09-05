@@ -167,7 +167,9 @@ const GameState &GetCurrentGameState()
     if (currentState.nHeight != nBestHeight)
     {
         CTxDB txdb("r");
-        GetGameState(txdb, pindexBest, currentState);
+        GameState gameState;
+        if (GetGameState(txdb, pindexBest, gameState))
+            currentState = gameState;
     }
     return currentState;
 }
@@ -220,19 +222,19 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 
         CBlock block;
         block.ReadFromDisk(plast);
-        
+
         if (!PerformStep(nameDb.get(), lastState, &block, outState, vgametx))
             return false;
         if (block.vgametx != vgametx)
         {
             printf("Error: GetGameState: computed vgametx is different from the stored one\n");
-            printf("  block vgametx:\n");
+            printf("  block %s (height = %d) vgametx:\n", block.GetHash().ToString().c_str(), plast->nHeight);
             BOOST_FOREACH (const CTransaction &tx, block.vgametx)
             {
                 printf("    ");
                 tx.print();
             }
-            printf("  computed vgametx:\n");
+            printf("  computed vgametx (height = %d):\n", outState.nHeight);
             BOOST_FOREACH (const CTransaction &tx, vgametx)
             {
                 printf("    ");

@@ -119,7 +119,7 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     connect(configureNameAction, SIGNAL(triggered()), this, SLOT(on_configureNameButton_clicked()));
 
     connect(ui->tableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(contextualMenu(QPoint)));
-    connect(ui->tableView, SIGNAL(clicked(QModelIndex)), this, SLOT(onCenterMapOnPlayer()));
+    connect(ui->tableView, SIGNAL(clicked(QModelIndex)), this, SLOT(onCenterMapOnPlayer(QModelIndex)));
     connect(ui->tableView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(onConfigureName(QModelIndex)));
     ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
@@ -423,19 +423,23 @@ void ManageNamesPage::onConfigureName(const QModelIndex &index)
 
     ConfigureNameDialog dlg(name, value, address, fFirstUpdate, this);
     dlg.setModel(walletModel);
-    if (dlg.exec() == QDialog::Accepted && fFirstUpdate)
+    int dlgRes = dlg.exec();
+    if (fFirstUpdate)
     {
-        LOCK(cs_main);
-        // name_firstupdate could have been sent, while the user was editing the value
-        if (mapMyNameFirstUpdate.count(vchName) != 0)
-            model->updateEntry(name, dlg.getReturnData(), address, NameTableEntry::NAME_NEW, CT_UPDATED);
-    }
-    else if (fFirstUpdate)
-    {
-        LOCK(cs_main);
-        // If cancel was pressed, restore the old fPostponed value
-        if (mapMyNameFirstUpdate.count(vchName) != 0)
-            mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
+        if (dlgRes == QDialog::Accepted)
+        {
+            LOCK(cs_main);
+            // name_firstupdate could have been sent, while the user was editing the value
+            if (mapMyNameFirstUpdate.count(vchName) != 0)
+                model->updateEntry(name, dlg.getReturnData(), address, NameTableEntry::NAME_NEW, CT_UPDATED);
+        }
+        else if (fFirstUpdate)
+        {
+            LOCK(cs_main);
+            // If cancel was pressed, restore the old fPostponed value
+            if (mapMyNameFirstUpdate.count(vchName) != 0)
+                mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
+        }
     }
 }
 

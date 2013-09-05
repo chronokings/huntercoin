@@ -1033,6 +1033,9 @@ public:
             printf("  ");
             vtx[i].print();
         }
+        printf("  vMerkleTree: ");
+        for (int i = 0; i < vMerkleTree.size(); i++)
+            printf("%s ", vMerkleTree[i].ToString().substr(0,10).c_str());
         if (!vgametx.empty())
         {
             printf("  vgametx: ");
@@ -1041,13 +1044,10 @@ public:
                 printf("  ");
                 vgametx[i].print();
             }
+            printf("\n  vGameMerkleTree (hashGameMerkleRoot=%s): ", hashGameMerkleRoot.ToString().substr(0,10).c_str());
+            for (int i = 0; i < vGameMerkleTree.size(); i++)
+                printf("%s ", vGameMerkleTree[i].ToString().substr(0,10).c_str());
         }
-        printf("  vMerkleTree: ");
-        for (int i = 0; i < vMerkleTree.size(); i++)
-            printf("%s ", vMerkleTree[i].ToString().substr(0,10).c_str());
-        printf("\n  vGameMerkleTree (hashGameMerkleRoot=%s): ", hashGameMerkleRoot.ToString().substr(0,10).c_str());
-        for (int i = 0; i < vGameMerkleTree.size(); i++)
-            printf("%s ", vGameMerkleTree[i].ToString().substr(0,10).c_str());
 
         printf("\n");
     }

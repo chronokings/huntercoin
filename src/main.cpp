@@ -999,6 +999,8 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
     for (unsigned int i = 0; i < vin.size(); i++)
     {
         COutPoint prevout = vin[i].prevout;
+        if (IsGameTx() && prevout.IsNull())
+            continue;
         if (inputsRet.count(prevout.hash))
             continue; // Got it already
 
@@ -1044,6 +1046,8 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
     for (unsigned int i = 0; i < vin.size(); i++)
     {
         const COutPoint prevout = vin[i].prevout;
+        if (IsGameTx() && prevout.IsNull())
+            continue;
         assert(inputsRet.count(prevout.hash) != 0);
         const CTxIndex& txindex = inputsRet[prevout.hash].first;
         const CTransaction& txPrev = inputsRet[prevout.hash].second;
@@ -1072,9 +1076,17 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
         for (int i = 0; i < vin.size(); i++)
         {
             COutPoint prevout = vin[i].prevout;
+            CTransaction txPrev;
+            CTxIndex txindex;
+            
+            if (prevout.IsNull() && IsGameTx())
+            {
+                vTxPrev.push_back(txPrev);
+                vTxindex.push_back(txindex);
+                continue;
+            }
 
             // Read txindex
-            CTxIndex txindex;
             bool fFound = true;
             if (fMiner && mapTestPool.count(prevout.hash))
             {
@@ -1090,7 +1102,6 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
                 return fMiner ? false : error("ConnectInputs() : %s prev tx %s index entry not found", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
 
             // Read txPrev
-            CTransaction txPrev;
             if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
             {
                 // Get prev tx from single transactions in memory
@@ -1276,7 +1287,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         return false;
 
     //// issue here: it doesn't know the version
-    unsigned int nTxPos = pindex->nBlockPos + ::GetSerializeSize(*this, SER_DISK|SER_BLOCKHEADERONLY) + GetSizeOfCompactSize(vtx.size() + vgametx.size());
+    unsigned int nTxPos = pindex->nBlockPos + ::GetSerializeSize(*this, SER_DISK|SER_BLOCKHEADERONLY) + GetSizeOfCompactSize(vtx.size());
 
     map<uint256, CTxIndex> mapUnused;
     int64 nFees = 0;
@@ -1292,8 +1303,12 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
         return false;
 
+    // This call updates the game state and creates vgametx
     if (!hooks->ConnectBlock(*this, txdb, pindex))
         return error("ConnectBlock() : hook failed");
+
+    nTxPos += GetSizeOfCompactSize(vgametx.size());
+    pindex->hashGameMerkleRoot = hashGameMerkleRoot = BuildMerkleTree(false);
 
     BOOST_FOREACH(CTransaction& tx, vgametx)
     {

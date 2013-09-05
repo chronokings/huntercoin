@@ -22,6 +22,14 @@ public slots:
 
     void updateGameMap(const Game::GameState &gameState);
 
+protected:
+
+    // On right-click just center the scene
+    virtual void contextMenuEvent(QContextMenuEvent *event)
+    {
+        centerOn(0, 0);
+    }
+
 private:
 
     QHash<QString, QPoint> playerLocations;
