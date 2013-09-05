@@ -13,7 +13,7 @@
 #include "gamestate.h"
 #include "gamedb.h"
 
-#include "rpc.h"
+#include "bitcoinrpc.h"
 
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_writer_template.h"
@@ -98,9 +98,9 @@ public:
 
     virtual int GetFullRetargetStartBlock()
     {
-        return 0;
+            return 0;
     }
-    
+
     virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
         unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
         unsigned int nBytes, unsigned int nNewBlockSize)
@@ -161,7 +161,7 @@ string stringFromVch(const vector<unsigned char> &vch) {
 
 int64 GetNetworkFee(int nHeight)
 {
-    return 0;
+        return 0;
 }
 
 int GetTxPosHeight(const CNameIndex& txPos)
@@ -215,7 +215,7 @@ CScript RemoveNameScriptPrefix(const CScript& scriptIn)
     vector<vector<unsigned char> > vvch;
     CScript::const_iterator pc = scriptIn.begin();
 
-    if (!DecodeNameScript(scriptIn, op, vvch, pc))
+    if (!DecodeNameScript(scriptIn, op, vvch,  pc))
         throw runtime_error("RemoveNameScriptPrefix() : could not decode name script");
     return CScript(pc, scriptIn.end());
 }
@@ -744,7 +744,7 @@ Value name_show(const Array& params, bool fHelp)
         CNameDB dbName("r");
         if (!dbName.ReadName(vchName, vtxPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
-
+       
         if (vtxPos.size() < 1)
             throw JSONRPCError(RPC_WALLET_ERROR, "no result returned");
 
@@ -1542,7 +1542,7 @@ bool CNameDB::ReconstructNameIndex()
 
                 nHeight = GetTxPosHeight(txindex.pos);
 
-                vector<CNameIndex> vtxPos;
+               vector<CNameIndex> vtxPos;
                 if (ExistsName(vchName))
                 {   
                     if (!ReadName(vchName, vtxPos))
@@ -1554,7 +1554,7 @@ bool CNameDB::ReconstructNameIndex()
                 txPos2.txPos = txindex.pos;
                 vtxPos.push_back(txPos2);
                 if (!WriteName(vchName, vtxPos))
-                {
+                {   
                     return error("Rescanfornames() : failed to write to name DB");
                 }
 
@@ -2259,7 +2259,7 @@ bool CChronoKingsHooks::GenesisBlock(CBlock& block)
 
 int CChronoKingsHooks::LockinHeight()
 {
-    return 0;
+        return 0;
 }
 
 bool CChronoKingsHooks::Lockin(int nHeight, uint256 hash)

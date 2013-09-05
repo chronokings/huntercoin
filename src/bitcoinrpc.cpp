@@ -37,7 +37,7 @@ typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSLStream;
 // a certain size around 145MB.  If we need access to json_spirit outside this
 // file, we could use the compiled json_spirit option.
 
-#include "rpc.h"
+#include "bitcoinrpc.h"
 
 using namespace std;
 using namespace boost;
@@ -1370,14 +1370,17 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
     // Sent
     if ((!listSent.empty() || nFee != 0 || fNameTx) && (fAllAccounts || strAccount == strSentAccount))
     {
-        if (listSent.empty())
+        if (listSent.empty() || fNameTx)
         {
             // Name transaction, or some non-standard transaction with non-zero fee
             Object entry;
             entry.push_back(Pair("account", strSentAccount));
-            string strAddress = "";
+            string strAddress;
             if (fNameTx)
-                GetNameAddress(wtx, strAddress);
+            {
+                int nTxOut = IndexOfNameOutput(wtx);
+                hooks->ExtractAddress(wtx.vout[nTxOut].scriptPubKey, strAddress);
+            }
             entry.push_back(Pair("address", strAddress));
             entry.push_back(Pair("category", "send"));
             entry.push_back(Pair("amount", ValueFromAmount(0)));
