@@ -22,6 +22,9 @@ set<CWallet*> setpwalletRegistered;
 
 CCriticalSection cs_main;
 
+// Game can append transactions to the block file
+CCriticalSection cs_AppendBlockFile;
+
 map<uint256, CTransaction> mapTransactions;
 CCriticalSection cs_mapTransactions;
 unsigned int nTransactionsUpdated = 0;
@@ -252,7 +255,7 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
             CTxIndex txindex;
             if (!CTxDB("r").ReadTxIndex(GetHash(), txindex))
                 return 0;
-            if (!blockTmp.ReadFromDisk(txindex.pos.nFile, txindex.pos.nBlockPos))
+            if (!blockTmp.ReadFromDisk(txindex.pos.nBlockFile, txindex.pos.nBlockPos))
                 return 0;
             pblock = &blockTmp;
         }
@@ -656,7 +659,7 @@ int CTxIndex::GetDepthInMainChain() const
 {
     // Read block header
     CBlock block;
-    if (!block.ReadFromDisk(pos.nFile, pos.nBlockPos, false))
+    if (!block.ReadFromDisk(pos.nBlockFile, pos.nBlockPos, false))
         return 0;
     // Find the block in the index
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(block.GetHash());
@@ -670,9 +673,8 @@ int CTxIndex::GetDepthInMainChain() const
 
 
 // Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock
-bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock /*, bool fAllowSlow*/)
+bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock)
 {
-    //CBlockIndex *pindexSlow = NULL;
     CRITICAL_BLOCK(cs_main)
     {
         CRITICAL_BLOCK(cs_mapTransactions)
@@ -685,25 +687,6 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
             }
         }
 
-        /*if (fTxIndex) {
-            CDiskTxPos postx;
-            if (pblocktree->ReadTxIndex(hash, postx)) {
-                CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
-                CBlockHeader header;
-                try {
-                    file >> header;
-                    fseek(file, postx.nTxOffset, SEEK_CUR);
-                    file >> txOut;
-                } catch (std::exception &e) {
-                    return error("%s() : deserialize or I/O error", __PRETTY_FUNCTION__);
-                }
-                hashBlock = header.GetHash();
-                if (txOut.GetHash() != hash)
-                    return error("%s() : txid mismatch", __PRETTY_FUNCTION__);
-                return true;
-            }
-        }*/
-
         CTxDB txdb("r");
         CTxIndex txindex;
         if (txOut.ReadFromDisk(txdb, COutPoint(hash, 0), txindex))
@@ -712,36 +695,11 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
                 return error("%s() : txid mismatch", __PRETTY_FUNCTION__);
 
             CBlock block;
-            if (block.ReadFromDisk(txindex.pos.nFile, txindex.pos.nBlockPos, false))
+            if (block.ReadFromDisk(txindex.pos.nBlockFile, txindex.pos.nBlockPos, false))
                 hashBlock = block.GetHash();
             return true;
         }
-
-        /*if (fAllowSlow) { // use coin database to locate block that contains transaction, and scan it
-            int nHeight = -1;
-            {
-                CCoinsViewCache &view = *pcoinsTip;
-                CCoins coins;
-                if (view.GetCoins(hash, coins))
-                    nHeight = coins.nHeight;
-            }
-            if (nHeight > 0)
-                pindexSlow = FindBlockByHeight(nHeight);
-        }*/
     }
-
-    /*if (pindexSlow) {
-        CBlock block;
-        if (block.ReadFromDisk(pindexSlow)) {
-            BOOST_FOREACH(const CTransaction &tx, block.vtx) {
-                if (tx.GetHash() == hash) {
-                    txOut = tx;
-                    hashBlock = pindexSlow->GetBlockHash();
-                    return true;
-                }
-            }
-        }
-    }*/
 
     return false;
 }
@@ -773,6 +731,46 @@ CBlockIndex* FindBlockByHeight(int nHeight)
         pblockindex = pblockindex->pnext;
     pblockindexFBBHLast = pblockindex;
     return pblockindex;
+}
+
+bool CBlock::ReadFromDisk(unsigned int nFile, unsigned int nBlockPos, bool fReadTransactions /* = true*/)
+{
+    SetNull();
+
+    // Open history file to read
+    CAutoFile filein = OpenBlockFile(nFile, nBlockPos, "rb");
+    if (!filein)
+        return error("CBlock::ReadFromDisk() : OpenBlockFile failed");
+    if (!fReadTransactions)
+        filein.nType |= SER_BLOCKHEADERONLY;
+
+    // Read block
+    filein >> *this;
+
+    // Check the header
+    if (!CheckProofOfWork(INT_MAX))
+        return error("CBlock::ReadFromDisk() : errors in block header");
+
+    if (fReadTransactions && nGameTxFile != -1)
+    {
+        // If same file, do not reopen
+        if (nFile == nGameTxFile)
+        {
+            if (fseek(filein, nGameTxPos, SEEK_SET) != 0)
+                return error("CBlock::ReadFromDisk() : fseek failed when trying to read game transactions (nFile=%d, nBlockPos=%d, nGameTxFile=%d, nGameTxPos=%d)", nFile, nBlockPos, nGameTxFile, nGameTxPos);
+            filein >> vgametx;
+        }
+        else
+        {
+            CAutoFile filein2 = OpenBlockFile(nGameTxFile, nGameTxPos, "rb");
+            if (!filein2)
+                return error("CBlock::ReadFromDisk() : OpenBlockFile failed when trying to read game transactions (nFile=%d, nBlockPos=%d, nGameTxFile=%d, nGameTxPos=%d)", nFile, nBlockPos, nGameTxFile, nGameTxPos);
+            filein2 >> vgametx;
+        }
+    }
+    else
+        vgametx.clear();
+    return true;
 }
 
 bool CBlock::ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions)
@@ -1128,13 +1126,13 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
             if (txPrev.IsCoinBase())
             {
                 for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
-                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nFile)
+                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
                         return error("ConnectInputs() : tried to spend coinbase at depth %d", pindexBlock->nHeight - pindex->nHeight);
             }
             else if (txPrev.IsGameTx())
             {
                 for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < GAME_REWARD_MATURITY; pindex = pindex->pprev)
-                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nFile)
+                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
                         return error("ConnectInputs() : tried to spend game reward at depth %d", pindexBlock->nHeight - pindex->nHeight);
             }
 
@@ -1300,24 +1298,14 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
             return false;
     }
 
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
-        return false;
-
     // This call updates the game state and creates vgametx
-    if (!hooks->ConnectBlock(*this, txdb, pindex))
+    if (!hooks->ConnectBlock(*this, txdb, pindex, nFees, nTxPos))
         return error("ConnectBlock() : hook failed");
 
-    nTxPos += GetSizeOfCompactSize(vgametx.size());
-    pindex->hashGameMerkleRoot = hashGameMerkleRoot = BuildMerkleTree(false);
+    // nFees may include taxes from the game, so we check it after creating game transactions
 
-    BOOST_FOREACH(CTransaction& tx, vgametx)
-    {
-        CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, nTxPos);
-        nTxPos += ::GetSerializeSize(tx, SER_DISK);
-
-        if (!tx.ConnectInputs(txdb, mapUnused, posThisTx, pindex, nFees, true, false))
-            return false;
-    }
+    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
+        return false;
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -1554,6 +1542,32 @@ int GetAuxPowStartBlock()
 int GetOurChainID()
 {
     return hooks->GetOurChainID();
+}
+
+bool CBlock::WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet)
+{
+    CRITICAL_BLOCK(cs_AppendBlockFile)
+    {
+        // Open history file to append
+        CAutoFile fileout = AppendBlockFile(nFileRet);
+        if (!fileout)
+            return error("CBlock::WriteToDisk() : AppendBlockFile failed");
+
+        // Write index header
+        unsigned int nSize = fileout.GetSerializeSize(*this);
+        fileout << FLATDATA(pchMessageStart) << nSize;
+
+        // Write block
+        nBlockPosRet = ftell(fileout);
+        if (nBlockPosRet == -1)
+            return error("CBlock::WriteToDisk() : ftell failed");
+        fileout << *this;
+
+        // Flush stdio buffers and commit to disk before returning
+        FlushBlockFile(fileout);
+
+        return true;
+    }
 }
 
 bool CBlock::CheckProofOfWork(int nHeight) const
@@ -1855,6 +1869,19 @@ FILE* AppendBlockFile(unsigned int& nFileRet)
     }
 }
 
+void FlushBlockFile(FILE *f)
+{
+    fflush(f);
+    if (!IsInitialBlockDownload() || (nBestHeight + 1) % 500 == 0)
+    {
+#ifdef __WXMSW__
+        _commit(_fileno(f));
+#else
+        fsync(fileno(f));
+#endif
+    }
+}
+
 bool LoadBlockIndex(bool fAllowNew)
 {
     if (fTestNet)
@@ -1887,38 +1914,6 @@ bool LoadBlockIndex(bool fAllowNew)
             return false;
 
         CBlock block;
-
-        /* (Bitcoin genesis block)
-        // Genesis Block:
-        // CBlock(hash=000000000019d6, ver=1, hashPrevBlock=00000000000000, hashMerkleRoot=4a5e1e, nTime=1231006505, nBits=1d00ffff, nNonce=2083236893, vtx=1)
-        //   CTransaction(hash=4a5e1e, ver=1, vin.size=1, vout.size=1, nLockTime=0)
-        //     CTxIn(COutPoint(000000, -1), coinbase 04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73)
-        //     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
-        //   vMerkleTree: 4a5e1e
-
-        // Genesis block
-        const char* pszTimestamp = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
-        CTransaction txNew;
-        txNew.vin.resize(1);
-        txNew.vout.resize(1);
-        txNew.vin[0].scriptSig = CScript() << 486604799 << CBigNum(4) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
-        txNew.vout[0].nValue = 50 * COIN;
-        txNew.vout[0].scriptPubKey = CScript() << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
-        block.vtx.push_back(txNew);
-        block.hashPrevBlock = 0;
-        block.hashMerkleRoot = block.BuildMerkleTree();
-        block.nVersion = 1;
-        block.nTime    = 1231006505;
-        block.nBits    = 0x1d00ffff;
-        block.nNonce   = 2083236893;
-
-        if (fTestNet)
-        {
-            block.nTime    = 1296688602;
-            block.nBits    = 0x1d07fff8;
-            block.nNonce   = 384568319;
-        }
-        */
 
         if (!hooks->GenesisBlock(block))
             return error("Hook has not created genesis block");
@@ -3110,6 +3105,8 @@ void CBlock::SetNull()
     vMerkleTree.clear();
     vGameMerkleTree.clear();
     auxpow.reset();
+
+    nGameTxFile = nGameTxPos = -1;
 }
 
 CBlock* CreateNewBlock(CReserveKey& reservekey)

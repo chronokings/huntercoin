@@ -31,7 +31,7 @@
         </sizepolicy>
        </property>
        <property name="text">
-        <string>&amp;New player:</string>
+        <string>&amp;New player (cost: 0.015 CHR + ~0.005 CHR fee):</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>

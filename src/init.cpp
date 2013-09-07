@@ -265,12 +265,6 @@ bool AppInit2(int argc, char* argv[])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     printf("chronokings version %s\n", FormatFullVersion().c_str());
-//#ifdef GUI
-#if 0
-    printf("OS version %s\n", ((string)wxGetOsDescription()).c_str());
-    printf("System default language is %d %s\n", g_locale.GetSystemLanguage(), ((string)g_locale.GetSysName()).c_str());
-    printf("Language file %s (%s)\n", (string("locale/") + (string)g_locale.GetCanonicalName() + "/LC_MESSAGES/bitcoin.mo").c_str(), ((string)g_locale.GetLocale()).c_str());
-#endif
     printf("Default data directory %s\n", GetDefaultDataDir().c_str());
 
     if (GetBoolArg("-loadblockindextest"))

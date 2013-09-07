@@ -296,12 +296,12 @@ QString TransactionTableModel::formatTxStatus(const TransactionRecord *wtx) cons
         status = tr("Confirmed (%1 confirmations)").arg(wtx->status.depth);
         break;
     }
-    if(wtx->type == TransactionRecord::Generated)
+    if (wtx->type == TransactionRecord::Generated || wtx->type == TransactionRecord::GameReward)
     {
         switch(wtx->status.maturity)
         {
         case TransactionStatus::Immature:
-            status += "\n" + tr("Block/game reward will be available when it matures in %n more block(s)", "", wtx->status.matures_in);
+            status += "\n" + tr("Block or game reward will be available when it matures in %n more block(s)", "", wtx->status.matures_in);
             break;
         case TransactionStatus::Mature:
             break;
@@ -454,7 +454,7 @@ QString TransactionTableModel::formatTxAmount(const TransactionRecord *wtx, bool
 
 QVariant TransactionTableModel::txStatusDecoration(const TransactionRecord *wtx) const
 {
-    if(wtx->type == TransactionRecord::Generated)
+    if(wtx->type == TransactionRecord::Generated || wtx->type == TransactionRecord::GameReward)
     {
         switch(wtx->status.maturity)
         {

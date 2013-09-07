@@ -328,7 +328,7 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
 
         if (wtx.IsCoinBase())
             strHTML += "<br>" + tr("Generated coins must mature %1 blocks before they can be spent. When you generated this block, it was broadcast to the network to be added to the block chain. If it fails to get into the chain, its state will change to \"not accepted\" and it won't be spendable. This may occasionally happen if another node generates a block within a few seconds of yours.").arg(COINBASE_MATURITY_DISPLAY) + "<br>";
-        else if (wtx.IsGameTx())
+        else if (wtx.IsGameTx() && (wtx.GetCredit() != 0 || wtx.GetImmatureCredit() != 0))
             strHTML += "<br>" + tr("Game rewards must mature %1 blocks before they can be spent.").arg(GAME_REWARD_MATURITY_DISPLAY) + "<br>";
 
         //
@@ -349,7 +349,7 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
 
             strHTML += "<br><b>" + tr("Inputs") + ":</b>";
             
-            strHTML += "<i>Not implemented...</i>";
+            strHTML += "<i>Debug view not implemented.</i>";
             /*strHTML += "<ul>";
 
             {

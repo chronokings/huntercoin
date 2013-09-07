@@ -487,6 +487,8 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
                 }
                 else
                 {
+                    // FIXME: for automatic name_firstupdate this is normal (when created but not broadcasted).
+                    // Need to avoid calling AddSupportingTransactions for such transactions.
                     printf("ERROR: AddSupportingTransactions() : unsupported transaction\n");
                     continue;
                 }

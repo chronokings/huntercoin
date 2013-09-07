@@ -305,7 +305,7 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx)
     }
 
     // For generated transactions, determine maturity
-    if(type == TransactionRecord::Generated)
+    if (type == TransactionRecord::Generated || type == TransactionRecord::GameReward)
     {
         int64 nCredit = wtx.GetCredit(true);
         if (nCredit == 0)

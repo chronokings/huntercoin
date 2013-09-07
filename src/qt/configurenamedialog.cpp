@@ -65,7 +65,8 @@ ConfigureNameDialog::ConfigureNameDialog(const QString &name_, const QString &da
         ui->leftButton->setEnabled(false);
         ui->rightButton->setEnabled(false);
         ui->labelReachablePlayers->setEnabled(false);
-        ui->comboBoxAttack->setEnabled(false);        
+        ui->comboBoxAttack->setEnabled(false);
+        ui->attackButton->setEnabled(false);
     }
     else
     {
@@ -73,6 +74,7 @@ ConfigureNameDialog::ConfigureNameDialog(const QString &name_, const QString &da
         ui->labelColor->setEnabled(false);
         ui->redButton->setEnabled(false);
         ui->blueButton->setEnabled(false);
+        ui->attackButton->setEnabled(false);
 
         ui->labelSubmitHint->setText(tr("Name_update transaction will be issued immediately"));
 
@@ -237,8 +239,14 @@ void ConfigureNameDialog::on_rightButton_clicked()
 
 void ConfigureNameDialog::on_comboBoxAttack_currentIndexChanged(int index)
 {
+    attack = ui->comboBoxAttack->itemData(index).toString();
+    ui->attackButton->setEnabled(true);
+}
+
+void ConfigureNameDialog::on_attackButton_clicked(int index)
+{
     json_spirit::Object obj;
-    obj.push_back(json_spirit::Pair("attack", ui->comboBoxAttack->itemData(index).toString().toStdString()));
+    obj.push_back(json_spirit::Pair("attack", attack.toStdString()));
     SetJson(obj);
 }
 

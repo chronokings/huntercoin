@@ -42,6 +42,7 @@ public slots:
     void on_rightButton_clicked();
 
     void on_comboBoxAttack_currentIndexChanged(int index);
+    void on_attackButton_clicked();
 
     void on_messageEdit_textChanged();
 
@@ -53,6 +54,8 @@ private:
     bool firstUpdate;
 
     void SetJson(json_spirit::Object &obj);
+    
+    QString attack;
 };
 
 #endif // CONFIGURENAMEDIALOG_H

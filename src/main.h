@@ -62,6 +62,7 @@ static const int GAME_TX_VERSION = 0x87100;
 
 
 extern CCriticalSection cs_main;
+extern CCriticalSection cs_AppendBlockFile;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
 extern uint256 hashGenesisBlock;
 extern CBigNum bnProofOfWorkLimit;
@@ -105,6 +106,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock);
 bool CheckDiskSpace(uint64 nAdditionalBytes=0);
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
 FILE* AppendBlockFile(unsigned int& nFileRet);
+void FlushBlockFile(FILE *f);
 bool LoadBlockIndex(bool fAllowNew=true);
 void PrintBlockTree();
 CBlockIndex* FindBlockByHeight(int nHeight);
@@ -153,8 +155,9 @@ bool WriteSetting(const std::string& strKey, const T& value)
 class CDiskTxPos
 {
 public:
-    unsigned int nFile;
+    unsigned int nBlockFile;
     unsigned int nBlockPos;
+    unsigned int nTxFile;    // Game transactions are stored outside of blocks, so the file may be different
     unsigned int nTxPos;
 
     CDiskTxPos()
@@ -164,20 +167,29 @@ public:
 
     CDiskTxPos(unsigned int nFileIn, unsigned int nBlockPosIn, unsigned int nTxPosIn)
     {
-        nFile = nFileIn;
+        nBlockFile = nTxFile = nFileIn;
         nBlockPos = nBlockPosIn;
         nTxPos = nTxPosIn;
     }
 
+    CDiskTxPos(unsigned int nBlockFileIn, unsigned int nBlockPosIn, unsigned int nTxFileIn, unsigned int nTxPosIn)
+    {
+        nBlockFile = nBlockFile;
+        nBlockPos = nBlockPosIn;
+        nTxFile = nTxFileIn;
+        nTxPos = nTxPosIn;
+    }
+
     IMPLEMENT_SERIALIZE( READWRITE(FLATDATA(*this)); )
-    void SetNull() { nFile = -1; nBlockPos = 0; nTxPos = 0; }
-    bool IsNull() const { return (nFile == -1); }
+    void SetNull() { nBlockFile = nTxFile = -1; nBlockPos = 0; nTxPos = 0; }
+    bool IsNull() const { return (nBlockFile == -1); }
 
     friend bool operator==(const CDiskTxPos& a, const CDiskTxPos& b)
     {
-        return (a.nFile     == b.nFile &&
-                a.nBlockPos == b.nBlockPos &&
-                a.nTxPos    == b.nTxPos);
+        return (a.nBlockFile == b.nBlockFile &&
+                a.nBlockPos  == b.nBlockPos &&
+                a.nTxFile    == b.nTxFile &&
+                a.nTxPos     == b.nTxPos);
     }
 
     friend bool operator!=(const CDiskTxPos& a, const CDiskTxPos& b)
@@ -190,7 +202,7 @@ public:
         if (IsNull())
             return "null";
         else
-            return strprintf("(nFile=%d, nBlockPos=%d, nTxPos=%d)", nFile, nBlockPos, nTxPos);
+            return strprintf("(nBlockFile=%d, nBlockPos=%d, nTxFile=%d, nTxPos=%d)", nBlockFile, nBlockPos, nTxFile, nTxPos);
     }
 
     void print() const
@@ -581,9 +593,9 @@ public:
 
     int64 GetMinFee(unsigned int nBlockSize=1, bool fAllowFree=true, bool fForRelay=false) const;
 
-    bool ReadFromDisk(CDiskTxPos pos, FILE** pfileRet=NULL)
+    bool ReadFromDisk(CDiskTxPos pos)
     {
-        CAutoFile filein = OpenBlockFile(pos.nFile, 0, pfileRet ? "rb+" : "rb");
+        CAutoFile filein = OpenBlockFile(pos.nTxFile, 0, "rb");
         if (!filein)
             return error("CTransaction::ReadFromDisk() : OpenBlockFile failed");
 
@@ -591,14 +603,6 @@ public:
         if (fseek(filein, pos.nTxPos, SEEK_SET) != 0)
             return error("CTransaction::ReadFromDisk() : fseek failed");
         filein >> *this;
-
-        // Return file pointer
-        if (pfileRet)
-        {
-            if (fseek(filein, pos.nTxPos, SEEK_SET) != 0)
-                return error("CTransaction::ReadFromDisk() : second fseek failed");
-            *pfileRet = filein.release();
-        }
         return true;
     }
 
@@ -827,15 +831,18 @@ public:
     unsigned int nNonce;
 
     // network and disk
-    std::vector<CTransaction> vtx, vgametx;
-    uint256 hashGameMerkleRoot;
+    std::vector<CTransaction> vtx;
 
     // header
     boost::shared_ptr<CAuxPow> auxpow;
 
     // memory only
     mutable std::vector<uint256> vMerkleTree, vGameMerkleTree;
-
+    
+    // Game data
+    uint256 hashGameMerkleRoot;            // disk, disk+header
+    std::vector<CTransaction> vgametx;     // disk only
+    unsigned int nGameTxFile, nGameTxPos;  // disk only
 
     CBlock()
     {
@@ -854,6 +861,14 @@ public:
 
         nSerSize += ReadWriteAuxPow(s, auxpow, nType, nVersion, ser_action);
 
+        if ((nType & SER_DISK) && (nType & SER_GETHASH))
+            printf("CBlock serialization error: nType contains both SER_DISK and SER_GETHASH\n");
+
+        if (nType & SER_DISK)
+            READWRITE(hashGameMerkleRoot);
+        else if (fRead)
+            const_cast<CBlock*>(this)->hashGameMerkleRoot = 0;
+
         // ConnectBlock depends on vtx being last so it can calculate offset
         if (!(nType & SER_BLOCKHEADERONLY))
         {
@@ -862,15 +877,21 @@ public:
             {
                 // vgametx must not participate in hashing, because the game state may depend on the hash (it is used as random seed)
                 // This is not a problem, because vgametx is re-created deterministically from the game state in ConnectBlock
-                READWRITE(vgametx);
-                if (nType & SER_GETHASH)
-                    printf("Error: nType contains both SER_DISK & SER_GETHASH\n");
-                READWRITE(hashGameMerkleRoot);
+                READWRITE(nGameTxFile);
+                READWRITE(nGameTxPos);
+            }
+            else if (fRead)
+            {
+                const_cast<CBlock*>(this)->nGameTxFile = -1;
+                const_cast<CBlock*>(this)->nGameTxPos = -1;
+                const_cast<CBlock*>(this)->vgametx.clear();
             }
         }
         else if (fRead)
         {
             const_cast<CBlock*>(this)->vtx.clear();
+            const_cast<CBlock*>(this)->nGameTxFile = -1;
+            const_cast<CBlock*>(this)->nGameTxPos = -1;
             const_cast<CBlock*>(this)->vgametx.clear();
         }
     )
@@ -962,62 +983,11 @@ public:
         return hash;
     }
 
-
-    bool WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet)
-    {
-        // Open history file to append
-        CAutoFile fileout = AppendBlockFile(nFileRet);
-        if (!fileout)
-            return error("CBlock::WriteToDisk() : AppendBlockFile failed");
-
-        // Write index header
-        unsigned int nSize = fileout.GetSerializeSize(*this);
-        fileout << FLATDATA(pchMessageStart) << nSize;
-
-        // Write block
-        nBlockPosRet = ftell(fileout);
-        if (nBlockPosRet == -1)
-            return error("CBlock::WriteToDisk() : ftell failed");
-        fileout << *this;
-
-        // Flush stdio buffers and commit to disk before returning
-        fflush(fileout);
-        if (!IsInitialBlockDownload() || (nBestHeight+1) % 500 == 0)
-        {
-#ifdef __WXMSW__
-            _commit(_fileno(fileout));
-#else
-            fsync(fileno(fileout));
-#endif
-        }
-
-        return true;
-    }
+    bool WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet);
 
     bool CheckProofOfWork(int nHeight) const;
 
-    bool ReadFromDisk(unsigned int nFile, unsigned int nBlockPos, bool fReadTransactions=true)
-    {
-        SetNull();
-
-        // Open history file to read
-        CAutoFile filein = OpenBlockFile(nFile, nBlockPos, "rb");
-        if (!filein)
-            return error("CBlock::ReadFromDisk() : OpenBlockFile failed");
-        if (!fReadTransactions)
-            filein.nType |= SER_BLOCKHEADERONLY;
-
-        // Read block
-        filein >> *this;
-
-        // Check the header
-        if (!CheckProofOfWork(INT_MAX))
-            return error("CBlock::ReadFromDisk() : errors in block header");
-
-        return true;
-    }
-
-
+    bool ReadFromDisk(unsigned int nFile, unsigned int nBlockPos, bool fReadTransactions = true);
 
     void print() const
     {
@@ -1175,21 +1145,6 @@ public:
     }
 
     bool CheckIndex() const;
-
-    bool EraseBlockFromDisk()
-    {
-        // Open history file
-        CAutoFile fileout = OpenBlockFile(nFile, nBlockPos, "rb+");
-        if (!fileout)
-            return false;
-
-        // Overwrite with empty null block
-        CBlock block;
-        block.SetNull();
-        fileout << block;
-
-        return true;
-    }
 
     enum { nMedianTimeSpan=11 };
 
@@ -1629,7 +1584,6 @@ public:
 
     bool ProcessAlert();
 };
-
 
 
 

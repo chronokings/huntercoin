@@ -70,7 +70,7 @@ public:
     virtual bool DisconnectInputs(CTxDB& txdb,
             const CTransaction& tx,
             CBlockIndex* pindexBlock);
-    virtual bool ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex);
+    virtual bool ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex, int64 &nFees, unsigned int nPosAfterTx);
     virtual bool DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex);
     virtual bool ExtractAddress(const CScript& script, string& address);
     virtual bool GenesisBlock(CBlock& block);
@@ -173,7 +173,7 @@ int GetTxPosHeight(const CDiskTxPos& txPos)
 {
     // Read block header
     CBlock block;
-    if (!block.ReadFromDisk(txPos.nFile, txPos.nBlockPos, false))
+    if (!block.ReadFromDisk(txPos.nBlockFile, txPos.nBlockPos, false))
         return 0;
     // Find the block in the index
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(block.GetHash());
@@ -480,6 +480,25 @@ bool GetTxOfName(CNameDB& dbName, const vector<unsigned char> &vchName, CTransac
     CNameIndex& txPos = vtxPos.back();
     if (!tx.ReadFromDisk(txPos.txPos))
         return error("GetTxOfName() : could not read tx from disk");
+    return true;
+}
+
+bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx)
+{
+    vector<CNameIndex> vtxPos;
+    if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
+        return false;
+    // Find maximum height less or equal to nHeight
+    // TODO: binary search (preferably with bias towards the last element, e.g. split at 3/4)
+    int i = vtxPos.size();
+    do
+    {
+        if (i == 0)
+            return false;
+        i--;
+    } while (vtxPos[i].nHeight > nHeight);
+    if (!tx.ReadFromDisk(vtxPos[i].txPos))
+        return error("GetTxOfNameAtHeight() : could not read tx from disk");
     return true;
 }
 
@@ -1733,10 +1752,7 @@ bool CChronoKingsHooks::IsMine(const CTransaction& tx)
 
     const CTxOut& txout = tx.vout[nOut];
     if (IsMyName(tx, txout))
-    {
-        printf("IsMine() hook : found my transaction %s nout %d\n", tx.GetHash().GetHex().c_str(), nOut);
         return true;
-    }
     return false;
 }
 
@@ -1757,10 +1773,7 @@ bool CChronoKingsHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool
         return false;
 
     if (IsMyName(tx, txout))
-    {
-        printf("IsMine() hook : found my transaction %s value %ld\n", tx.GetHash().GetHex().c_str(), txout.nValue);
         return true;
-    }
     return false;
 }
 
@@ -1800,7 +1813,7 @@ void CChronoKingsHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
 int CheckTransactionAtRelativeDepth(CBlockIndex* pindexBlock, CTxIndex& txindex, int maxDepth)
 {
     for (CBlockIndex* pindex = pindexBlock; pindex && pindexBlock->nHeight - pindex->nHeight < maxDepth; pindex = pindex->pprev)
-        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nFile)
+        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
             return pindexBlock->nHeight - pindex->nHeight;
     return -1;
 }
@@ -2045,9 +2058,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
             vtxPos.push_back(txPos2); // fin add
             //vtxPos.push_back(txPos);
             if (!dbName.WriteName(vvchArgs[0], vtxPos))
-            {
                 return error("ConnectInputsHook() : failed to write to name DB");
-            }
         }
 
         dbName.TxnCommit();
@@ -2057,11 +2068,9 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     {
         if (fBlock && op != OP_NAME_NEW)
         {
-            //if (mapNamePending[vvchArgs[0]].count(tx.GetHash()))
-                mapNamePending[vvchArgs[0]].erase(tx.GetHash());
-            //else
-            //    printf("ConnectInputsHook() : connecting inputs on %s which was not in pending - must be someone elses\n",
-            //            tx.GetHash().GetHex().c_str());
+            std::map<std::vector<unsigned char>, std::set<uint256> >::iterator mi = mapNamePending.find(vvchArgs[0]);
+            if (mi != mapNamePending.end())
+                mi->second.erase(tx.GetHash());
         }
     }
 
@@ -2204,16 +2213,80 @@ bool CChronoKingsHooks::ExtractAddress(const CScript& script, string& address)
     return true;
 }
 
-bool CChronoKingsHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
+bool CChronoKingsHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex, int64 &nFees, unsigned int nPosAfterTx)
 {
     if (!block.vgametx.empty())
     {
         block.vgametx.clear();
         block.vGameMerkleTree.clear();
-        printf("ConnectBlock() : non-empty vgametx, clearing and re-creating");
+        printf("ConnectBlock hook : non-empty vgametx, clearing and re-creating");
     }
 
-    return AdvanceGameState(txdb, pindex, &block);
+    if (!AdvanceGameState(txdb, pindex, &block))
+        return error("Connect block hook : AdvanceGameState failed");
+
+    // No game transactions or already written (e.g. if block was disconnected then reconnected)
+    // The last check (hashGameMerkleRoot) can probably be omitted
+    if ((block.vgametx.empty() || block.nGameTxFile != -1) && pindex->hashGameMerkleRoot == block.hashGameMerkleRoot)
+        return true;
+
+    block.hashGameMerkleRoot = block.BuildMerkleTree(true);
+    if (pindex->hashGameMerkleRoot != block.hashGameMerkleRoot)
+    {
+        pindex->hashGameMerkleRoot = block.hashGameMerkleRoot;
+        CDiskBlockIndex blockindex(pindex);
+        if (!txdb.WriteBlockIndex(blockindex))
+            return error("ConnectBlock hook : WriteBlockIndex failed");
+    }
+
+    // Write game transactions to disk. They are written outside of the block - just appended to the block file.
+    CRITICAL_BLOCK(cs_AppendBlockFile)
+    {
+        CAutoFile fileout = AppendBlockFile(block.nGameTxFile);
+        if (!fileout)
+            return error("ConnectBlock hook : AppendBlockFile failed");
+
+        char pchMessageVGameTx[8] = { 'v', 'g', 'a', 'm', 'e', 't', 'x', ':' };
+        unsigned int nSize = fileout.GetSerializeSize(block.vgametx) + sizeof(pchMessageVGameTx);
+        fileout << FLATDATA(pchMessageStart) << nSize << FLATDATA(pchMessageVGameTx);
+
+        block.nGameTxPos = ftell(fileout);
+        if (block.nGameTxPos == -1)
+            return error("ConnectBlock hook : ftell failed");
+        fileout << block.vgametx;
+        FlushBlockFile(fileout);
+    }
+
+    // Update block fields that were changed (because they depend on the game transactions, which were just computed)
+    {
+        unsigned int nGameMerkleRootPos = pindex->nBlockPos + ::GetSerializeSize(block, SER_NETWORK | SER_BLOCKHEADERONLY);
+        CAutoFile fileout = OpenBlockFile(pindex->nFile, nGameMerkleRootPos, "rb+");
+        if (!fileout)
+            return error("ConnectBlock hook : OpenBlockFile failed");
+
+        fileout << block.hashGameMerkleRoot;
+
+        if (fseek(fileout, nPosAfterTx, SEEK_SET) != 0)
+            return error("ConnectBlock hook : fseek failed");
+
+        fileout << block.nGameTxFile << block.nGameTxPos;
+
+        FlushBlockFile(fileout);
+    }
+
+    map<uint256, CTxIndex> mapUnused;
+    unsigned int nTxPos = block.nGameTxPos + GetSizeOfCompactSize(block.vgametx.size());
+
+    BOOST_FOREACH(CTransaction& tx, block.vgametx)
+    {
+        CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, block.nGameTxFile, nTxPos);
+        nTxPos += ::GetSerializeSize(tx, SER_DISK);
+
+        if (!tx.ConnectInputs(txdb, mapUnused, posThisTx, pindex, nFees, true, false))
+            return error("ConnectBlock hook : ConnectInputs failed for game tx");
+    }
+    
+    return true;
 }
 
 bool CChronoKingsHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)

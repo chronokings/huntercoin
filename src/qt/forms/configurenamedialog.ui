@@ -425,6 +425,13 @@ Leave empty, if not needed.</string>
           </widget>
          </item>
          <item>
+          <widget class="QPushButton" name="attackButton">
+           <property name="text">
+            <string>Attack</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <spacer name="horizontalSpacer_4">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>

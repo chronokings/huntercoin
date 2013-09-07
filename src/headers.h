@@ -29,15 +29,6 @@
 #define BSD 1
 #endif
 #endif
-//#ifdef GUI
-#if 0
-#include <wx/wx.h>
-#include <wx/stdpaths.h>
-#include <wx/snglinst.h>
-#include <wx/utils.h>
-#include <wx/clipbrd.h>
-#include <wx/taskbar.h>
-#endif
 #include <openssl/buffer.h>
 #include <openssl/ecdsa.h>
 #include <openssl/evp.h>

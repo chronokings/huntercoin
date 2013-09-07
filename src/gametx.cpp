@@ -42,7 +42,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
     {
         std::vector<unsigned char> vchName = vchFromString(victim);
         CTransaction tx;
-        if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
+        if (!pnameDb || !GetTxOfNameAtHeight(*pnameDb, vchName, gameState.nHeight, tx))
             return error("Game engine killed a non-existing player");
 
         CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
@@ -69,7 +69,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
     {
         std::vector<unsigned char> vchName = vchFromString(bounty.first);
         CTransaction tx;
-        if (!pnameDb || !GetTxOfName(*pnameDb, vchName, tx))
+        if (!pnameDb || !GetTxOfNameAtHeight(*pnameDb, vchName, gameState.nHeight, tx))
             return error("Game engine created bounty for non-existing player");
 
         CTxOut txout;
@@ -91,6 +91,8 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
         }
         else
         {
+            // TODO: Maybe pay to the script of the name-tx without extracting the address first
+            // (see source of GetNameAddress - it obtains the script by calling RemoveNameScriptPrefix)
             uint160 addr;
             if (!GetNameAddress(tx, addr))
                 return error("Cannot get name address for bounty");
