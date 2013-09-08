@@ -85,7 +85,7 @@ public:
                 hash = item.second.GetHash();
                 bool fConfirmed;
                 bool fTransferred = false;
-                // TODO: Maybe CMerkleTx::GetDepthInMainChain() would be faster?
+
                 if (!txdb.ReadDiskTx(hash, tx, txindex))
                 {
                     tx = item.second;
@@ -105,7 +105,12 @@ public:
                 if (!GetValueOfNameTx(tx, vchValue))
                     continue;
 
+                const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
                 if (!hooks->IsMine(wallet->mapWallet[tx.GetHash()]))
+                    fTransferred = true;
+
+                // Dead player can be considered transferred ("transferred to the game")
+                if (fConfirmed && IsPlayerDead(nameTx, txindex))
                     fTransferred = true;
 
                 // height
@@ -187,7 +192,12 @@ public:
                 if (!GetValueOfNameTx(tx, vchValue))
                     continue;
 
-                if (!hooks->IsMine(wallet->mapWallet[tx.GetHash()]))
+                const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
+                if (!hooks->IsMine(nameTx))
+                    fTransferred = true;
+
+                // Dead player can be considered transferred ("transferred to the game")
+                if (fConfirmed && IsPlayerDead(nameTx, txindex))
                     fTransferred = true;
 
                 // height

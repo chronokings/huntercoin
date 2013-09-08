@@ -24,6 +24,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const Game::GameState &gameState, 
 // Format human-readable description of a single input of game tx.
 // Note: the caller must know the structure of game transactions, to correctly match txin and txout
 // By providing nameStart/EndTag you can make player names bold in HTML.
+// In brief mode details are omitted and fUseColon is ignored
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief, const char *nameStartTag = "", const char *nameEndTag = "", bool fUseColon = true);
 
 #endif // GAMETX_H

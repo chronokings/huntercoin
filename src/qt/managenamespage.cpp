@@ -26,6 +26,39 @@ extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFi
 const QString STR_NAME_FIRSTUPDATE_DEFAULT = "{\"color\":0}";
 const QString NON_REWARD_ADDRESS_PREFIX = "-";    // Prefix that indicates for the user that the player's reward address isn't the one shown
 
+AddressFilterValidator::AddressFilterValidator(QObject *parent /* = 0*/)
+    : BitcoinAddressValidator(parent, true)
+{
+}
+
+QValidator::State AddressFilterValidator::validate(QString &input, int &pos) const
+{
+    if (input.startsWith(NON_REWARD_ADDRESS_PREFIX))
+    {
+        // TODO: for single-character NON_REWARD_ADDRESS_PREFIX this works,
+        // otherwise need also to detect intermediate state, when NON_REWARD_ADDRESS_PREFIX
+        // is not fully typed by the user yet
+
+        int k = NON_REWARD_ADDRESS_PREFIX.size();
+        input = input.mid(k);
+        pos -= k;
+        State ret = BitcoinAddressValidator::validate(input, pos);
+        input = NON_REWARD_ADDRESS_PREFIX + input;
+        pos += k;
+        return ret;
+    }
+    else
+        return BitcoinAddressValidator::validate(input, pos);
+}
+
+/*static*/ void AddressFilterValidator::setupAddressWidget(QLineEdit *widget, QWidget *parent)
+{
+    widget->setMaxLength(BitcoinAddressValidator::MaxAddressLength + NON_REWARD_ADDRESS_PREFIX.size());
+    widget->setValidator(new AddressFilterValidator(parent));
+    widget->setFont(GUIUtil::bitcoinAddressFont());
+}
+
+
 //
 // NameFilterProxyModel
 //
@@ -137,7 +170,8 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
 
     ui->nameFilter->setMaxLength(MAX_NAME_LENGTH);
     ui->valueFilter->setMaxLength(MAX_VALUE_LENGTH);
-    GUIUtil::setupAddressWidget(ui->addressFilter, this, true);
+
+    AddressFilterValidator::setupAddressWidget(ui->addressFilter, this);
 
 #if QT_VERSION >= 0x040700
     /* Do not move this to the XML file, Qt before 4.7 will choke on it */

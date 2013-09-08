@@ -47,6 +47,8 @@ extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
+const static std::string VALUE_DEAD("{\"dead\":1}");
+
 uint256 hashChronoKingsGenesisBlock[2] = {
         uint256("00000000693aa9b1230fe223094a8ca01cc5f896d14dd63726a561d4c46fc83f"),    // Main net
         uint256("0000000f1d2e0b0870b3cf62e00658f90bf41d7542b6050ed799dc025d8f76c9")     // Test net
@@ -399,6 +401,8 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
 // requires cs_main lock
 string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee)
 {
+    if (wtxIn.IsGameTx())
+        return _("Error: SendMoneyWithInputTx trying to spend a game-created transaction");
     int nTxOut = IndexOfNameOutput(wtxIn);
     CReserveKey reservekey(pwalletMain);
     int64 nFeeRequired;
@@ -419,7 +423,7 @@ string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, C
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds "), FormatMoney(nFeeRequired).c_str());
         else
             strError = _("Error: Transaction creation failed  ");
-        printf("SendMoney() : %s", strError.c_str());
+        printf("SendMoneyWithInputTx() : %s", strError.c_str());
         return strError;
     }
 
@@ -483,23 +487,32 @@ bool GetTxOfName(CNameDB& dbName, const vector<unsigned char> &vchName, CTransac
     return true;
 }
 
+// Returns only player move transactions, i.e. ignores game-created transaction (player death)
 bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx)
 {
     vector<CNameIndex> vtxPos;
     if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
         return false;
-    // Find maximum height less or equal to nHeight
-    // TODO: binary search (preferably with bias towards the last element, e.g. split at 3/4)
     int i = vtxPos.size();
-    do
+    
+    loop
     {
-        if (i == 0)
-            return false;
-        i--;
-    } while (vtxPos[i].nHeight > nHeight);
-    if (!tx.ReadFromDisk(vtxPos[i].txPos))
-        return error("GetTxOfNameAtHeight() : could not read tx from disk");
-    return true;
+        // Find maximum height less or equal to nHeight
+        // TODO: binary search (preferably with bias towards the last element, e.g. split at 3/4)
+        do
+        {
+            if (i == 0)
+                return false;
+            i--;
+        } while (vtxPos[i].nHeight > nHeight);
+        if (!tx.ReadFromDisk(vtxPos[i].txPos))
+            return error("GetTxOfNameAtHeight() : could not read tx from disk");
+
+        if (!tx.IsGameTx())
+            return true;
+
+        // If game transaction found (player death) proceed to the previous transaction
+    }
 }
 
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress)
@@ -652,20 +665,8 @@ Value name_list(const Array& params, bool fHelp)
             if(vNamesI.find(vchName) != vNamesI.end() && vNamesI[vchName] > nHeight)
                 continue;
 
-            // Detect if player is dead (its name is spent by a game transaction)
-            int nOut = IndexOfNameOutput(nameTx);
-            if (nOut < txindex.vSpent.size())
-            {
-                CDiskTxPos spentPos = txindex.vSpent[nOut];
-                if (!spentPos.IsNull())
-                {
-                    CTransaction tx2;
-                    if (!tx2.ReadFromDisk(spentPos))
-                        throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
-                    if (tx2.nVersion == GAME_TX_VERSION)
-                        oName.push_back(Pair("dead", 1));
-                }
-            }
+            if (IsPlayerDead(nameTx, txindex))
+                oName.push_back(Pair("dead", 1));
 
             vNamesI[vchName] = nHeight;
             vNamesO[vchName] = oName;
@@ -764,7 +765,7 @@ Value name_show(const Array& params, bool fHelp)
         if (vtxPos.size() < 1)
             throw JSONRPCError(RPC_WALLET_ERROR, "no result returned");
 
-        CDiskTxPos txPos = vtxPos[vtxPos.size() - 1].txPos;
+        CDiskTxPos txPos = vtxPos.back().txPos;
         CTransaction tx;
         if (!tx.ReadFromDisk(txPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
@@ -773,6 +774,7 @@ Value name_show(const Array& params, bool fHelp)
         vector<unsigned char> vchValue;
         int nHeight;
         uint256 hash;
+
         if (!txPos.IsNull() && GetValueOfTxPos(txPos, vchValue, hash, nHeight))
         {
             oName.push_back(Pair("name", name));
@@ -782,8 +784,14 @@ Value name_show(const Array& params, bool fHelp)
             string strAddress = "";
             GetNameAddress(txPos, strAddress);
             oName.push_back(Pair("address", strAddress));
-            if (tx.nVersion == GAME_TX_VERSION)
-                oName.push_back(Pair("dead", 1));     // Note: this flag is also duplicated in the "value" field
+            oLastName = oName;
+        }
+        else if (tx.nVersion == GAME_TX_VERSION)
+        {
+            oName.push_back(Pair("name", name));
+            oName.push_back(Pair("value", VALUE_DEAD));
+            oName.push_back(Pair("txid", tx.GetHash().GetHex()));
+            oName.push_back(Pair("dead", 1));
             oLastName = oName;
         }
     }
@@ -824,6 +832,7 @@ Value name_history(const Array& params, bool fHelp)
             vector<unsigned char> vchValue;
             int nHeight;
             uint256 hash;
+            
             if (!txPos.IsNull() && GetValueOfTxPos(txPos, vchValue, hash, nHeight))
             {
                 oName.push_back(Pair("name", name));
@@ -833,6 +842,14 @@ Value name_history(const Array& params, bool fHelp)
                 string strAddress = "";
                 GetNameAddress(txPos, strAddress);
                 oName.push_back(Pair("address", strAddress));
+                oRes.push_back(oName);
+            }
+            else if (tx.nVersion == GAME_TX_VERSION)
+            {
+                oName.push_back(Pair("name", name));
+                oName.push_back(Pair("value", VALUE_DEAD));
+                oName.push_back(Pair("txid", tx.GetHash().GetHex()));
+                oName.push_back(Pair("dead", 1));
                 oRes.push_back(oName);
             }
         }
@@ -1073,9 +1090,9 @@ Value name_firstupdate(const Array& params, bool fHelp)
             throw runtime_error("previous transaction is not in the wallet");
         }
 
-        vector<unsigned char> strPubKey = pwalletMain->GetKeyFromKeyPool();
+        vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool();
         CScript scriptPubKeyOrig;
-        scriptPubKeyOrig.SetBitcoinAddress(strPubKey);
+        scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
         CScript scriptPubKey;
         scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchRand << vchValue << OP_2DROP << OP_2DROP;
         scriptPubKey += scriptPubKeyOrig;
@@ -1131,7 +1148,6 @@ Value name_update(const Array& params, bool fHelp)
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
-    vector<unsigned char> strPubKey = pwalletMain->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
 
     if (params.size() == 3)
@@ -1145,7 +1161,8 @@ Value name_update(const Array& params, bool fHelp)
     }
     else
     {
-        scriptPubKeyOrig.SetBitcoinAddress(strPubKey);
+        vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool();
+        scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     }
 
     CScript scriptPubKey;
@@ -1207,9 +1224,9 @@ Value name_new(const Array& params, bool fHelp)
     vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
     uint160 hash =  Hash160(vchToHash);
 
-    vector<unsigned char> strPubKey = pwalletMain->GetKeyFromKeyPool();
+    vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
-    scriptPubKeyOrig.SetBitcoinAddress(strPubKey);
+    scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_NEW << hash << OP_2DROP;
     scriptPubKey += scriptPubKeyOrig;
@@ -1556,16 +1573,12 @@ bool CNameDB::ReconstructNameIndex()
                 if(!txdb.ReadDiskTx(tx.GetHash(), tx, txindex))
                     continue;
 
-                nHeight = GetTxPosHeight(txindex.pos);
-
-               vector<CNameIndex> vtxPos;
+                vector<CNameIndex> vtxPos;
                 if (ExistsName(vchName))
-                {   
                     if (!ReadName(vchName, vtxPos))
                         return error("Rescanfornames() : failed to read from name DB");
-                }
                 CNameIndex txPos2;
-                txPos2.nHeight = nHeight;
+                txPos2.nHeight = pindex->nHeight;
                 txPos2.vValue = vchValue;
                 txPos2.txPos = txindex.pos;
                 vtxPos.push_back(txPos2);
@@ -1573,9 +1586,48 @@ bool CNameDB::ReconstructNameIndex()
                 {   
                     return error("Rescanfornames() : failed to write to name DB");
                 }
+            }
+            BOOST_FOREACH(CTransaction& tx, block.vgametx)
+            {
+                for (int i = 0; i < tx.vin.size(); i++)
+                {
+                    if (tx.vin[i].prevout.IsNull())
+                        continue;
 
-                //if (AddToWalletIfInvolvingMe(tx, &block, fUpdate))
-                //    ret++;
+                    int nout = tx.vin[i].prevout.n;
+
+                    if (!txdb.ReadDiskTx(tx.GetHash(), tx, txindex))
+                        continue;
+
+                    CTransaction txPrev;
+                    uint256 hashBlock = 0;
+                    if (!GetTransaction(tx.vin[i].prevout.hash, txPrev, hashBlock))
+                        return error("Rescanfornames() : GetTransaction failed");
+
+                    if (nout >= txPrev.vout.size())
+                        continue;
+                    CTxOut prevout = txPrev.vout[nout];
+
+                    int prevOp;
+                    vector<vector<unsigned char> > vvchPrevArgs;
+
+                    if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
+                        continue;
+
+                    vector<CNameIndex> vtxPos;
+                    if (ExistsName(vvchPrevArgs[0]))
+                    {
+                        if (!ReadName(vvchPrevArgs[0], vtxPos))
+                            return error("Rescanfornames() : failed to read from name DB");
+                    }
+                    CNameIndex txPos2;
+                    txPos2.nHeight = pindex->nHeight;
+                    txPos2.vValue = vchFromString(VALUE_DEAD);
+                    txPos2.txPos = txindex.pos;
+                    vtxPos.push_back(txPos2);
+                    if (!WriteName(vvchPrevArgs[0], vtxPos))
+                        return error("Rescanfornames() : failed to write to name DB");
+                }
             }
             pindex = pindex->pnext;
         }
@@ -1724,7 +1776,11 @@ int IndexOfNameOutput(const CTransaction& tx)
     bool good = DecodeNameTx(tx, op, nOut, vvch);
 
     if (!good)
+    {
+        if (tx.IsGameTx())
+            throw runtime_error("IndexOfNameOutput() : name output not found (game transaction was supplied)");
         throw runtime_error("IndexOfNameOutput() : name output not found");
+    }
     return nOut;
 }
 
@@ -1866,6 +1922,27 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
     return false;
 }
 
+// Detect if player is dead by checking wheter his name is spent by a game transaction
+bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex)
+{
+    if (nameTx.IsGameTx())
+        return true;
+    int nOut = IndexOfNameOutput(nameTx);
+    if (nOut < txindex.vSpent.size())
+    {
+        CDiskTxPos spentPos = txindex.vSpent[nOut];
+        if (!spentPos.IsNull())
+        {
+            CTransaction tx;
+            if (!tx.ReadFromDisk(spentPos))
+                throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
+            if (tx.nVersion == GAME_TX_VERSION)
+                return true;
+        }
+    }
+    return false;
+}
+
 bool ConnectInputsGameTx(CTxDB& txdb,
         map<uint256, CTxIndex>& mapTestPool,
         const CTransaction& tx,
@@ -1879,7 +1956,7 @@ bool ConnectInputsGameTx(CTxDB& txdb,
     // Update name records for killed players
     CNameDB dbName("r+", txdb);
 
-    for (int i = 0; i < tx.vin.size() ; i++)
+    for (int i = 0; i < tx.vin.size(); i++)
     {
         if (tx.vin[i].prevout.IsNull())
             continue;
@@ -1904,7 +1981,7 @@ bool ConnectInputsGameTx(CTxDB& txdb,
         }
         CNameIndex txPos2;
         txPos2.nHeight = pindexBlock->nHeight;
-        txPos2.vValue = vchFromString("{\"dead\":1}");
+        txPos2.vValue = vchFromString(VALUE_DEAD);
         txPos2.txPos = txPos;
         vtxPos.push_back(txPos2); // fin add
         if (!dbName.WriteName(vvchPrevArgs[0], vtxPos))
@@ -1939,7 +2016,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
     int prevOp;
     vector<vector<unsigned char> > vvchPrevArgs;
 
-    for (int i = 0 ; i < tx.vin.size() ; i++) {
+    for (int i = 0 ; i < tx.vin.size(); i++) {
         CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
         if (DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgs))
         {

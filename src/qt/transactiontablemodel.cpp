@@ -367,7 +367,7 @@ QString TransactionTableModel::formatTxType(const TransactionRecord *wtx) const
     case TransactionRecord::GameDeath:
         return tr("Game: player death");
     case TransactionRecord::GameReward:
-        return tr("Game: reward");
+        return tr("Game reward");
     default:
         return QString();
     }

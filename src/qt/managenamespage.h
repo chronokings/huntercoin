@@ -1,8 +1,11 @@
 #ifndef MANAGENAMESPAGE_H
 #define MANAGENAMESPAGE_H
 
+#include "bitcoinaddressvalidator.h"
+
 #include <QDialog>
 #include <QSortFilterProxyModel>
+#include <QLineEdit>
 
 namespace Ui {
     class ManageNamesPage;
@@ -36,6 +39,18 @@ protected:
 
 private:
     QString nameSearch, valueSearch, addressSearch, stateSearch;
+};
+
+class AddressFilterValidator : public BitcoinAddressValidator
+{
+    Q_OBJECT
+
+public:
+    explicit AddressFilterValidator(QObject *parent = 0);
+
+    virtual State validate(QString &input, int &pos) const;
+
+    static void setupAddressWidget(QLineEdit *widget, QWidget *parent);
 };
 
 /** Page for managing names */

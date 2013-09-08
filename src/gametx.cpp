@@ -43,7 +43,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
         std::vector<unsigned char> vchName = vchFromString(victim);
         CTransaction tx;
         if (!pnameDb || !GetTxOfNameAtHeight(*pnameDb, vchName, gameState.nHeight, tx))
-            return error("Game engine killed a non-existing player");
+            return error("Game engine killed a non-existing player %s", victim.c_str());
 
         CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
 
@@ -117,9 +117,12 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
 }
 
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
-                                 const char *nameStartTag /*= ""*/, const char *nameEndTag /*= ""*/,
-                                 bool fUseColon /*= true*/)
+                                 const char *nameStartTag /* = ""*/, const char *nameEndTag /* = ""*/,
+                                 bool fUseColon /* = true*/)
 {
+    if (fBrief)
+        fUseColon = false;
+
     std::string strRet;
     CScript::const_iterator pc = scriptSig.begin();
 

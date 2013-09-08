@@ -97,5 +97,6 @@ bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >&
 int64 GetNetworkFee(int nHeight);
 bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, std::vector<unsigned char>& name);
 void UnspendInputs(CWalletTx& wtx);
+bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
 
 #endif // CHRONOKINGS_H

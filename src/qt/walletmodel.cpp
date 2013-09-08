@@ -240,9 +240,9 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
 
     std::vector<unsigned char> vchRand = CBigNum(rand).getvch();
 
-    std::vector<unsigned char> strPubKey = wallet->GetKeyFromKeyPool();
+    std::vector<unsigned char> vchPubKey = wallet->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
-    scriptPubKeyOrig.SetBitcoinAddress(strPubKey);
+    scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchRand << vchValue << OP_2DROP << OP_2DROP;
     scriptPubKey += scriptPubKeyOrig;
@@ -279,6 +279,8 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
 
     int64 nValue = NAME_COIN_AMOUNT;
 
+    if (wtxIn.IsGameTx())
+        return _("Error: nameFirstUpdateCreateTx trying to spend a game-created transaction");
     int nTxOut = IndexOfNameOutput(wtxIn);
 
     // TODO: since firstupdate can be called multiple times from GUI and only the last one is used, we should reuse reservekey
@@ -501,9 +503,9 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
     vchToHash.insert(vchToHash.end(), ret.vchName.begin(), ret.vchName.end());
     uint160 hash = Hash160(vchToHash);
 
-    std::vector<unsigned char> strPubKey = wallet->GetKeyFromKeyPool();
+    std::vector<unsigned char> vchPubKey = wallet->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
-    scriptPubKeyOrig.SetBitcoinAddress(strPubKey);
+    scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     ret.address = QString::fromStdString(scriptPubKeyOrig.GetBitcoinAddress());
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_NEW << hash << OP_2DROP;
@@ -653,8 +655,8 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
     }
     else
     {
-        std::vector<unsigned char> strPubKey = wallet->GetKeyFromKeyPool();
-        scriptPubKeyOrig.SetBitcoinAddress(strPubKey);
+        std::vector<unsigned char> vchPubKey = wallet->GetKeyFromKeyPool();
+        scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     }
 
     CScript scriptPubKey;

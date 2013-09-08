@@ -337,7 +337,7 @@ to the network and creates a pending name_firstupdate transaction.</string>
             </sizepolicy>
            </property>
            <property name="text">
-            <string>C&amp;hat messages:</string>
+            <string>C&amp;hat messages (in the last block):</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>

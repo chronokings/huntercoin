@@ -240,10 +240,10 @@ void ConfigureNameDialog::on_rightButton_clicked()
 void ConfigureNameDialog::on_comboBoxAttack_currentIndexChanged(int index)
 {
     attack = ui->comboBoxAttack->itemData(index).toString();
-    ui->attackButton->setEnabled(true);
+    ui->attackButton->setEnabled(!attack.isEmpty());
 }
 
-void ConfigureNameDialog::on_attackButton_clicked(int index)
+void ConfigureNameDialog::on_attackButton_clicked()
 {
     json_spirit::Object obj;
     obj.push_back(json_spirit::Pair("attack", attack.toStdString()));

@@ -1376,13 +1376,21 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
             Object entry;
             entry.push_back(Pair("account", strSentAccount));
             string strAddress;
-            if (fNameTx)
+            if (fNameTx && !wtx.IsGameTx())
             {
                 int nTxOut = IndexOfNameOutput(wtx);
                 hooks->ExtractAddress(wtx.vout[nTxOut].scriptPubKey, strAddress);
             }
+            else
+            {
+                // TODO: player name(s) can be extracted by scanning through tx-ins, getting prev-tx for them
+                // and checking if they are ours
+            }
             entry.push_back(Pair("address", strAddress));
-            entry.push_back(Pair("category", "send"));
+            if (wtx.IsGameTx())
+                entry.push_back(Pair("category", "game_player_death"));
+            else
+                entry.push_back(Pair("category", "send"));
             entry.push_back(Pair("amount", ValueFromAmount(0)));
             entry.push_back(Pair("fee", ValueFromAmount(-nFee)));
             if (fLong)
