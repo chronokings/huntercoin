@@ -43,6 +43,8 @@ struct NameTableEntryLessThan
     // unconfirmed names (e.g. grayed out)
     if (nNewHeight == NAME_UNCONFIRMED)
         return true;
+    else if (nOldHeight == NAME_UNCONFIRMED)
+        return false;
 
     // Here we rely on the fact that dummy height values are always negative
     return nNewHeight > nOldHeight;
@@ -106,7 +108,7 @@ public:
                     continue;
 
                 const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
-                if (!hooks->IsMine(wallet->mapWallet[tx.GetHash()]))
+                if (!hooks->IsMine(nameTx))
                     fTransferred = true;
 
                 // Dead player can be considered transferred ("transferred to the game")
