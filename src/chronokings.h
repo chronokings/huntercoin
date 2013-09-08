@@ -81,6 +81,7 @@ std::vector<unsigned char> vchFromString(const std::string &str);
 int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
 int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight);
+bool NameAvailable(CTxDB& txdb, const std::vector<unsigned char> &vchName);
 bool GetTxOfName(CNameDB& dbName, const std::vector<unsigned char> &vchName, CTransaction& tx);
 bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx);
 int IndexOfNameOutput(const CTransaction& tx);

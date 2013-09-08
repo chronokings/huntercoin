@@ -47,6 +47,9 @@ extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
+// The following value is assigned to the name when the player is dead.
+// It must not be a valid move JSON string, because it is checked in NameAvailable
+// as a shortcut to reading tx and checking IsGameTx.
 const static std::string VALUE_DEAD("{\"dead\":1}");
 
 uint256 hashChronoKingsGenesisBlock[2] = {
@@ -194,21 +197,25 @@ int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight)
 }
 
 
-int GetNameHeight(CTxDB& txdb, vector<unsigned char> vchName) {
+bool NameAvailable(CTxDB& txdb, const vector<unsigned char> &vchName)
+{
     CNameDB dbName("cr", txdb);
-    //vector<CDiskTxPos> vtxPos;
     vector<CNameIndex> vtxPos;
-    if (dbName.ExistsName(vchName))
-    {
-        if (!dbName.ReadName(vchName, vtxPos))
-            return error("GetNameHeight() : failed to read from name DB");
-        if (vtxPos.empty())
-            return -1;
-        //CDiskTxPos& txPos = vtxPos.back();
-        CNameIndex& txPos = vtxPos.back();
-        return GetTxPosHeight(txPos);
-    }
-    return -1;
+    if (!dbName.ExistsName(vchName))
+        return true;
+
+    if (!dbName.ReadName(vchName, vtxPos))
+        return error("NameAvailable() : failed to read from name DB");
+    if (vtxPos.empty())
+        return true;
+
+    CNameIndex& txPos = vtxPos.back();
+
+    // If player is dead, a new player with the same name can be created
+    if (txPos.vValue == vchFromString(VALUE_DEAD))
+        return true;
+
+    return false;
 }
 
 CScript RemoveNameScriptPrefix(const CScript& scriptIn)
@@ -1057,7 +1064,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
     {
         CNameDB dbName("r");
         CTransaction tx;
-        if (GetTxOfName(dbName, vchName, tx))
+        if (GetTxOfName(dbName, vchName, tx) && !tx.IsGameTx())
         {
             error("name_firstupdate() : this name is already active with tx %s",
                     tx.GetHash().GetHex().c_str());
@@ -1914,9 +1921,8 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
     switch (op)
     {
         case OP_NAME_FIRSTUPDATE:
-            nPrevHeight = GetNameHeight(txdb, vvchArgs[0]);
             name = vvchArgs[0];
-            if (nPrevHeight >= 0)
+            if (!NameAvailable(txdb, name))
                 return true;
     }
     return false;
@@ -2065,8 +2071,7 @@ bool CChronoKingsHooks::ConnectInputs(CTxDB& txdb,
             // this coin is destroyed and NAME_COIN_AMOUNT is given to the killer as a bounty
             if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
                 return error("ConnectInputsHook() : name_firstupdate tx: incorrect amount of the locked coin");
-            nPrevHeight = GetNameHeight(txdb, vvchArgs[0]);
-            if (nPrevHeight >= 0)
+            if (!NameAvailable(txdb, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], MIN_FIRSTUPDATE_DEPTH);
             // Do not accept if in chain and not mature

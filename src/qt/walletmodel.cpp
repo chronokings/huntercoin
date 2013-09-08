@@ -230,7 +230,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     {
         CNameDB dbName("r");
         CTransaction tx;
-        if (GetTxOfName(dbName, vchName, tx))
+        if (GetTxOfName(dbName, vchName, tx) && !tx.IsGameTx())
         {
             error("name_firstupdate() : this name is already active with tx %s",
                     tx.GetHash().GetHex().c_str());
@@ -462,29 +462,8 @@ bool WalletModel::nameAvailable(const QString &name)
     std::string strName = name.toStdString();
     std::vector<unsigned char> vchName(strName.begin(), strName.end());
 
-    std::vector<CNameIndex> vtxPos;
-    CNameDB dbName("r");
-    if (!dbName.ReadName(vchName, vtxPos))
-        return true;
-   
-    if (vtxPos.size() < 1)
-        return true;
-
-    CDiskTxPos txPos = vtxPos[vtxPos.size() - 1].txPos;
-    CTransaction tx;
-    if (!tx.ReadFromDisk(txPos))
-        return true;     // This may indicate error, rather than name availability
-
-    if (tx.nVersion == GAME_TX_VERSION)
-        return true;
-
-    std::vector<unsigned char> vchValue;
-    int nHeight;
-    uint256 hash;
-    if (txPos.IsNull() || !GetValueOfTxPos(txPos, vchValue, hash, nHeight))
-        return true;
-
-    return false;
+    CTxDB txdb("r");
+    return NameAvailable(txdb, vchName);
 }
 
 WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
