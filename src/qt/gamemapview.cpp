@@ -3,8 +3,6 @@
 #include "../gamestate.h"
 #include "../util.h"
 
-#include <QGraphicsScene>
-#include <QGraphicsView>
 #include <QImage>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSimpleTextItem>
@@ -18,6 +16,9 @@ static const int TILE_SIZE = 48;
 GameMapView::GameMapView(QWidget *parent)
     : QGraphicsView(parent)
 {
+    scene = new QGraphicsScene(this);
+    setScene(scene);
+
     QPixmap bg_tile(TILE_SIZE, TILE_SIZE);
     bg_tile.fill(QColor(0, 180, 0));
 
@@ -32,8 +33,8 @@ GameMapView::GameMapView(QWidget *parent)
 
 void GameMapView::updateGameMap(const GameState &gameState)
 {
-    QGraphicsScene *scene = new QGraphicsScene(this);
-    
+    scene->clear();
+
     QGraphicsTextItem *text = new QGraphicsTextItem;
     text->setHtml("<span style='color:white'>&nbsp;&nbsp; &rarr; x<br />&darr;<br />y</span>");
     text->setPos(-6, -12);
@@ -94,8 +95,6 @@ void GameMapView::updateGameMap(const GameState &gameState)
         if (color == 1)
             simpleText->setBrush(QBrush(Qt::white));
     }
-
-    setScene(scene);
 }
 
 const static QPoint NO_POINT(INT_MAX, INT_MAX);

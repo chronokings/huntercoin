@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = chronokings-qt
 macx:TARGET = "Chronokings-Qt"
-VERSION = 0.1.0
+VERSION = 0.1.01
 INCLUDEPATH += src src/json src/qt
 QT += network
 DEFINES += GUI QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE

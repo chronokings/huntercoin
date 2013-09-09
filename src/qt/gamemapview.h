@@ -2,6 +2,7 @@
 #define GAMEMAPVIEW_H
 
 #include <QGraphicsView>
+#include <QGraphicsScene>
 #include <QHash>
 
 namespace Game
@@ -23,6 +24,8 @@ public slots:
     void updateGameMap(const Game::GameState &gameState);
 
 protected:
+
+    QGraphicsScene *scene;
 
     // On right-click just center the scene
     virtual void contextMenuEvent(QContextMenuEvent *event)
