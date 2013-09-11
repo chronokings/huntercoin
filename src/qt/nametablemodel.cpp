@@ -74,7 +74,6 @@ public:
         CRITICAL_BLOCK(wallet->cs_mapWallet)
         {
             CTxIndex txindex;
-            uint256 hash;
             CTxDB txdb("r");
             CTransaction tx;
 
@@ -84,11 +83,10 @@ public:
 
             BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
             {
-                hash = item.second.GetHash();
                 bool fConfirmed;
                 bool fTransferred = false;
 
-                if (!txdb.ReadDiskTx(hash, tx, txindex))
+                if (!txdb.ReadDiskTx(item.first, tx, txindex))
                 {
                     tx = item.second;
                     fConfirmed = false;
@@ -106,6 +104,23 @@ public:
                 // value
                 if (!GetValueOfNameTx(tx, vchValue))
                     continue;
+
+                // If tx is unconfirmed, but invalid (won't get into a block), ignore it
+                if (!fConfirmed)
+                {
+                    std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
+                    Game::Move *m = Game::Move::Parse(sName, sValue);
+                    if (!m)
+                        continue;
+
+                    if (!m->IsValid(GetCurrentGameState()))
+                    {
+                        delete m;
+                        continue;
+                    }
+                    else
+                        delete m;
+                }
 
                 const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
                 if (!hooks->IsMine(nameTx))
@@ -131,7 +146,7 @@ public:
 
                 vNamesO[vchName] = NameTableEntry(stringFromVch(vchName), stringFromVch(vchValue), strAddress, nHeight, fTransferred);
             }
-        }        
+        }
 
         // Add existing names
         BOOST_FOREACH(const PAIRTYPE(std::vector<unsigned char>, NameTableEntry)& item, vNamesO)
@@ -161,7 +176,6 @@ public:
         CRITICAL_BLOCK(wallet->cs_mapWallet)
         {
             CTxIndex txindex;
-            uint256 hash;
             CTxDB txdb("r");
             CTransaction tx;
 
@@ -171,11 +185,10 @@ public:
 
             BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
             {
-                hash = item.second.GetHash();
                 bool fConfirmed;
                 bool fTransferred = false;
 
-                if (!txdb.ReadDiskTx(hash, tx, txindex))
+                if (!txdb.ReadDiskTx(item.first, tx, txindex))
                 {
                     tx = item.second;
                     fConfirmed = false;
@@ -193,6 +206,23 @@ public:
                 // value
                 if (!GetValueOfNameTx(tx, vchValue))
                     continue;
+
+                // If tx is unconfirmed, but invalid (won't get into a block), ignore it
+                if (!fConfirmed)
+                {
+                    std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
+                    Game::Move *m = Game::Move::Parse(sName, sValue);
+                    if (!m)
+                        continue;
+
+                    if (!m->IsValid(GetCurrentGameState()))
+                    {
+                        delete m;
+                        continue;
+                    }
+                    else
+                        delete m;
+                }
 
                 const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
                 if (!hooks->IsMine(nameTx))
@@ -381,7 +411,7 @@ NameTableModel::NameTableModel(CWallet *wallet, WalletModel *parent) :
     columns << tr("Name") << tr("Last Move") << tr("Address") << tr("State") << tr("Status");
     priv = new NameTablePriv(wallet, this);
     priv->refreshNameTable();
-    
+
     QTimer *timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(updateGameState()));
     timer->start(MODEL_UPDATE_DELAY);
@@ -397,13 +427,12 @@ void NameTableModel::updateGameState()
     bool fRewardAddrChanged = false;
 
     // If any item changed (State or Address), we refresh the entire column
-
     if (priv->updateGameState(fRewardAddrChanged))
         emit dataChanged(index(0, State), index(priv->size() - 1, State));
     if (fRewardAddrChanged)
         emit dataChanged(index(0, Address), index(priv->size() - 1, Address));
 }
- 
+
 void NameTableModel::updateTransaction(const QString &hash, int status)
 {
     uint256 hash256;
@@ -421,18 +450,19 @@ void NameTableModel::updateTransaction(const QString &hash, int status)
             return;    // Not our transaction
         tx = mi->second;
 
-        if (tx.nVersion == GAME_TX_VERSION)
+        if (tx.IsGameTx())
         {
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
-                if (wallet->IsMine(txin))
+            {
+                CTransaction txPrev;
+                uint256 hashBlock = 0;
+                if (GetTransaction(txin.prevout.hash, txPrev, hashBlock) &&
+                        hooks->IsMine(txPrev) &&
+                        GetNameOfTx(txPrev, vchName))
                 {
-                    CTransaction txPrev;
-                    uint256 hashPrev = 0;
-                    if (GetTransaction(txin.prevout.hash, txPrev, hashPrev) &&
-                            txin.prevout.n < txPrev.vout.size() &&
-                            GetNameOfTx(tx, vchName))
-                        priv->refreshName(vchName);
-               }
+                    priv->refreshName(vchName);
+                }
+            }
 
             return;
         }
@@ -528,7 +558,7 @@ QVariant NameTableModel::headerData(int section, Qt::Orientation orientation, in
             case Status:
                 return tr("Status of the latest move transaction for this player");
             }
-        } 
+        }
     }
     return QVariant();
 }

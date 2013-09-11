@@ -406,6 +406,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             return false;
 
     outState = inState;
+
     outState.nHeight = inState.nHeight + 1;
     outState.hashBlock = stepData.newHash;
 
@@ -413,7 +414,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     BOOST_FOREACH(const Move *m, stepData.vpMoves)
         m->ApplySpawn(outState);
-        
+
     BOOST_FOREACH(const Move *m, stepData.vpMoves)
         m->ApplyCommon(outState);
 

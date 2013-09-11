@@ -149,7 +149,7 @@ void CDB::Close()
         nMinutes = 1;
     if (strFile == "wallet.dat")
         nMinutes = 0;
-    if (strFile == "blkindex.dat" && IsInitialBlockDownload() && nBestHeight % 5000 != 0)
+    if ((strFile == "blkindex.dat" || strFile == "game.dat" || strFile == "nameindexfull.dat") && IsInitialBlockDownload() && nBestHeight % 5000 != 0)
             nMinutes = 5;
     dbenv.txn_checkpoint(0, nMinutes, 0);
 

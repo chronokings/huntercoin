@@ -68,7 +68,10 @@ public:
     {
         GameState *newState = new GameState;
         if (!GetGameState(txdb, pindex, *newState))
+        {
+            delete newState;
             throw std::runtime_error("GameStepValidator : cannot get previous game state");
+        }
         pstate = newState;
     }
 
@@ -79,8 +82,8 @@ public:
     }
 
     // Returns:
-    //   false - invalid move tx (m becomes undefined)
-    //   true  - non-move tx (m set to NULL) or valid tx (move stored to m, caller must delete it)
+    //   false - invalid move tx (m set to NULL)
+    //   true  - non-move tx (m set to NULL) or valid tx (move stored in m, caller must delete it)
     bool IsValid(const CTransaction& tx, const Move *&m)
     {
         if (!GetNameOfTx(tx, vchName) || !GetValueOfNameTx(tx, vchValue))
@@ -99,6 +102,7 @@ public:
         if (!m->IsValid(*pstate))
         {
             delete m;
+            m = NULL;
             return error("Invalid move for the game state: move %s for player %s", sValue.c_str(), sName.c_str());
         }
         return true;
@@ -114,7 +118,7 @@ public:
     }
 };
 
-// A simple wrapper (pImpl patter) to remove dependency on the game-related headers when miner just wants to check transactions
+// A simple wrapper (pImpl pattern) to remove dependency on the game-related headers when miner just wants to check transactions
 // (declared in hooks.h)
 GameStepValidatorMiner::GameStepValidatorMiner(CTxDB &txdb, CBlockIndex *pindex)
     : pImpl(new GameStepValidator(txdb, pindex))
@@ -167,14 +171,13 @@ const GameState &GetCurrentGameState()
     if (currentState.nHeight != nBestHeight)
     {
         CTxDB txdb("r");
-        GameState gameState;
-        if (GetGameState(txdb, pindexBest, gameState))
-            currentState = gameState;
+        GetGameState(txdb, pindexBest, currentState);
     }
     return currentState;
 }
 
 // pindex must belong to the main branch, i.e. corresponding blocks must be connected
+// Returns a copy of the game state
 bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 {
     if (!pindex)
@@ -203,7 +206,7 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 
     if (!pindex->IsInMainChain())
         return error("GetGameState called for non-main chain");
-
+        
     CBlockIndex *plast = pindex;
     GameState lastState;
     for (; plast->pprev; plast = plast->pprev)
@@ -266,20 +269,24 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 // Called from ConnectBlock
 bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
 {
-    GameState inState, outState;
-    if (!GetGameState(txdb, pindex->pprev, inState))
-        return false;
+    GameState outState;
 
-    if (inState.nHeight != pindex->nHeight - 1)
+    if (currentState.hashBlock != block->hashPrevBlock)
+    {
+        if (!GetGameState(txdb, pindex->pprev, currentState))
+            return error("AdvanceGameState: cannot get current game state");
+    }
+
+    if (currentState.nHeight != pindex->nHeight - 1)
         return error("AdvanceGameState: incorrect height encountered");
-    if (inState.hashBlock != block->hashPrevBlock)
+    if (currentState.hashBlock != block->hashPrevBlock)
         return error("AdvanceGameState: incorrect hash encountered");
 
     {
         // When connecting genesis block, there is no nameindexfull.dat file yet
         std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
 
-        if (!PerformStep(nameDb.get(), inState, block, outState, block->vgametx))
+        if (!PerformStep(nameDb.get(), currentState, block, outState, block->vgametx))
             return false;
     }
 
@@ -288,6 +295,8 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
     if (outState.hashBlock != *pindex->phashBlock)
         return error("AdvanceGameState: incorrect hash stored");
 
+    // Here we optimistically assume that the block being connected
+    // will be connected successfully and pindexBest will equal pindex
     currentState = outState;
 
     CGameDB gameDb("cr+", txdb);

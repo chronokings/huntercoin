@@ -10,6 +10,8 @@ namespace Game
     class GameState;
 }
 
+class GameMapCache;
+
 class GameMapView : public QGraphicsView
 {
     Q_OBJECT
@@ -17,6 +19,7 @@ class GameMapView : public QGraphicsView
 public:
 
     explicit GameMapView(QWidget *parent = 0);
+    ~GameMapView();
     void CenterMapOnPlayer(const QString &name);
 
 public slots:
@@ -35,7 +38,10 @@ protected:
 
 private:
 
+    // Player locations for centering when player name is clicked
     QHash<QString, QPoint> playerLocations;
+
+    GameMapCache *gameMapCache;
 };
 
 #endif // GAMEMAPVIEW_H

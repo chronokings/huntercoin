@@ -80,10 +80,11 @@ void WalletModel::updateStatus()
 
 void WalletModel::pollBalanceChanged()
 {
-    if(nBestHeight != cachedNumBlocks)
+    if (nBestHeight != cachedNumBlocks)
     {
         // Balance and number of transactions might have changed
         cachedNumBlocks = nBestHeight;
+
         checkBalanceChanged();
 
         if (!IsInitialBlockDownload())
@@ -164,7 +165,7 @@ void WalletModel::sendPendingNameFirstUpdates()
             }
             if (fSkip)
                 continue;
-                
+
             printf("Sending automatic name_firstupdate for name %s\n", stringFromVch(vchName).c_str());
 
             CWalletTx wtx = mi->second.wtx;
@@ -172,7 +173,7 @@ void WalletModel::sendPendingNameFirstUpdates()
             // Currently we reserve the key when preparing firstupdate transaction. If the user changes
             // name configuration before broadcasting the transaction, the key is forever left unused.
             CReserveKey dummyKey(NULL);
-            
+
             if (!wallet->CommitTransaction(wtx, dummyKey))
             {
                 printf("Automatic name_firstupdate failed. Name: %s, rand: %s, prevTx: %s, value: %s\n",
@@ -218,7 +219,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
         *pnFeeRet = 0;
 
     wtx.nVersion = NAMECOIN_TX_VERSION;
-    
+
     if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
     {
         error("name_firstupdate() : there are %d pending operations on that name, including %s",
@@ -319,7 +320,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
 
     // Take key pair from key pool so it won't be used again
     reservekey.KeepKey();
-    
+
     if (!wtx.CheckTransaction())
         return _("Error: CheckTransaction failed for transaction created by nameFirstUpdateCreateTx");
 
@@ -543,7 +544,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
         }
         if (nPrevFirstUpdateFee != nFirstUpdateFee)
             printf("name_new GUI warning: cannot prepare fee for automatic name_firstupdate - fee changed from %s to %s\n", FormatMoney(nPrevFirstUpdateFee).c_str(), FormatMoney(nFirstUpdateFee).c_str());
-            
+
         printf("Automatic name_firstupdate created for name %s (initial, with default value%s), created tx: %s:\n%s", qPrintable(name), prep.fPostponed ? ", postponed" : "", prep.wtx.GetHash().GetHex().c_str(), prep.wtx.ToString().c_str());
 
         // name_firstupdate prepared, let's commit name_new
@@ -562,7 +563,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
         mapMyNameFirstUpdate[ret.vchName] = prep;
 
         {
-            CTxDB txdb("r"); 
+            CTxDB txdb("r");
             CRITICAL_BLOCK(wallet->cs_wallet)
             {
                 // Fill vtxPrev by copying from previous transactions vtxPrev
@@ -615,14 +616,14 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
 {
     std::string strName = name.toStdString();
     std::vector<unsigned char> vchName(strName.begin(), strName.end());
-    
+
     std::string strData = data.toStdString();
     std::vector<unsigned char> vchValue(strData.begin(), strData.end());
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
     CScript scriptPubKeyOrig;
-    
+
     if (transferToAddress != "")
     {
         std::string strAddress = transferToAddress.toStdString();
