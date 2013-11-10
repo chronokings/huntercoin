@@ -17,18 +17,19 @@ public:
     explicit OptionsModel(QObject *parent = 0);
 
     enum OptionID {
-        StartAtStartup,    // bool
-        MinimizeToTray,    // bool
-        MapPortUPnP,       // bool
-        MinimizeOnClose,   // bool
-        ProxyUse,          // bool
-        ProxyIP,           // QString
-        ProxyPort,         // int
-        ProxySocksVersion, // int
-        Fee,               // qint64
-        DisplayUnit,       // BitcoinUnits::Unit
-        DisplayAddresses,  // bool
-        Language,          // QString
+        StartAtStartup,       // bool
+        MinimizeToTray,       // bool
+        MapPortUPnP,          // bool
+        MinimizeOnClose,      // bool
+        ProxyUse,             // bool
+        ProxyIP,              // QString
+        ProxyPort,            // int
+        ProxySocksVersion,    // int
+        Fee,                  // qint64
+        DisplayUnit,          // BitcoinUnits::Unit
+        DisplayAddresses,     // bool
+        Language,             // QString
+        DefaultRewardAddress, // QString
         OptionIDRowCount,
     };
 
@@ -49,6 +50,8 @@ public:
     int getDisplayUnit() { return nDisplayUnit; }
     bool getDisplayAddresses() { return bDisplayAddresses; }
     QString getLanguage() { return language; }
+    QString getDefaultRewardAddress() { return defaultRewardAddress; }
+    void setDefaultRewardAddress(const QString &addr) { setData(index(DefaultRewardAddress), QVariant(addr)); }
 
 private:
     int nDisplayUnit;
@@ -56,6 +59,7 @@ private:
     bool fMinimizeToTray;
     bool fMinimizeOnClose;
     QString language;
+    QString defaultRewardAddress;
 
 signals:
     void displayUnitChanged(int unit);

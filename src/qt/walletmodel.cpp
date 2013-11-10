@@ -8,7 +8,7 @@
 #include "../headers.h"
 #include "../wallet.h"
 #include "../base58.h"
-#include "../chronokings.h"
+#include "../huntercoin.h"
 #include "ui_interface.h"
 
 #include <QSet>
@@ -242,14 +242,12 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     std::vector<unsigned char> vchRand = CBigNum(rand).getvch();
 
     std::vector<unsigned char> vchPubKey = wallet->GetKeyFromKeyPool();
-    CScript scriptPubKeyOrig;
-    scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchRand << vchValue << OP_2DROP << OP_2DROP;
-    scriptPubKey += scriptPubKeyOrig;
 
     std::vector<unsigned char> vchHash;
     bool found = false;
+    CScript scriptPubKeyOrig;
     BOOST_FOREACH(CTxOut& out, wtxIn.vout)
     {
         std::vector<std::vector<unsigned char> > vvch;
@@ -258,12 +256,16 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
             if (op != OP_NAME_NEW)
                 return _("previous transaction wasn't a name_new");
             vchHash = vvch[0];
+
+            scriptPubKeyOrig = RemoveNameScriptPrefix(out.scriptPubKey);
             found = true;
         }
     }
 
     if (!found)
         return _("previous tx on this name is not a name tx");
+
+    scriptPubKey += scriptPubKeyOrig;
 
     std::vector<unsigned char> vchToHash(vchRand);
     vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
@@ -503,7 +505,7 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
         PreparedNameFirstUpdate prep;
         prep.rand = rand;
         prep.fPostponed = true;
-        prep.vchData = vchFromString(STR_NAME_FIRSTUPDATE_DEFAULT.toStdString());
+        prep.vchData = vchFromString("{\"color\":0}");
 
         // 1st pass: compute fee for name_firstupdate
         // 2nd pass: try using that fee in name_new
@@ -622,26 +624,9 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
-    CScript scriptPubKeyOrig;
-
-    if (transferToAddress != "")
-    {
-        std::string strAddress = transferToAddress.toStdString();
-        uint160 hash160;
-        bool isValid = AddressToHash160(strAddress, hash160);
-        if (!isValid)
-            return tr("Invalid Chrono Kings address");
-        scriptPubKeyOrig.SetBitcoinAddress(strAddress);
-    }
-    else
-    {
-        std::vector<unsigned char> vchPubKey = wallet->GetKeyFromKeyPool();
-        scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
-    }
 
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_UPDATE << vchName << vchValue << OP_2DROP << OP_DROP;
-    scriptPubKey += scriptPubKeyOrig;
 
     CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(wallet->cs_mapWallet)
@@ -669,6 +654,26 @@ QString WalletModel::nameUpdate(const QString &name, const QString &data, const 
         }
 
         CWalletTx& wtxIn = wallet->mapWallet[wtxInHash];
+
+        CScript scriptPubKeyOrig;
+
+        if (transferToAddress != "")
+        {
+            std::string strAddress = transferToAddress.toStdString();
+            uint160 hash160;
+            bool isValid = AddressToHash160(strAddress, hash160);
+            if (!isValid)
+                return tr("Invalid Huntercoin address");
+            scriptPubKeyOrig.SetBitcoinAddress(strAddress);
+        }
+        else
+        {
+            uint160 hash160;
+            GetNameAddress(tx, hash160);
+            scriptPubKeyOrig.SetBitcoinAddress(hash160);
+        }
+        scriptPubKey += scriptPubKeyOrig;
+
         return QString::fromStdString(SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, true));
     }
 }

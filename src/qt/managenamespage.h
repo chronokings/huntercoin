@@ -1,15 +1,19 @@
 #ifndef MANAGENAMESPAGE_H
 #define MANAGENAMESPAGE_H
 
-#include "bitcoinaddressvalidator.h"
+#include "../gamestate.h"
+#include "gamepathfinder.h"
 
 #include <QDialog>
 #include <QSortFilterProxyModel>
 #include <QLineEdit>
 
+#include "../json/json_spirit.h"
+
 namespace Ui {
     class ManageNamesPage;
 }
+
 class WalletModel;
 class NameTableModel;
 class GameMapView;
@@ -30,27 +34,12 @@ public:
     explicit NameFilterProxyModel(QObject *parent = 0);
 
     void setNameSearch(const QString &search);
-    void setValueSearch(const QString &search);
-    void setAddressSearch(const QString &search);
-    void setStateSearch(const QString &search);
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
 
 private:
-    QString nameSearch, valueSearch, addressSearch, stateSearch;
-};
-
-class AddressFilterValidator : public BitcoinAddressValidator
-{
-    Q_OBJECT
-
-public:
-    explicit AddressFilterValidator(QObject *parent = 0);
-
-    virtual State validate(QString &input, int &pos) const;
-
-    static void setupAddressWidget(QLineEdit *widget, QWidget *parent);
+    QString nameSearch;
 };
 
 /** Page for managing names */
@@ -73,31 +62,47 @@ private:
     
     GameMapView *gameMapView;
     GameChatView *gameChatView;
-    
+
+    Game::GameState gameState;
+    QString attack;
+    QStringList selectedPlayers;
+
+    void ClearSelectedPlayers();
+    void RefreshSelectedPlayers();
+    bool MakeMove(json_spirit::Object &json);
+
+    // Client-side path-finding
+    GamePathfinders pathfinders;
+
 public slots:
     void exportClicked();
 
     void changedNameFilter(const QString &filter);
-    void changedValueFilter(const QString &filter);
-    void changedAddressFilter(const QString &filter);
-    void changedStateFilter(const QString &filter);
 
 private slots:
     void on_submitNameButton_clicked();
+    void on_updateButton_clicked();
+    void on_attackButton_clicked();
+    void onTileClicked(int x, int y);
 
     bool eventFilter(QObject *object, QEvent *event);
-    void selectionChanged();
 
     /** Spawn contextual menu (right mouse menu) for name table entry */
     void contextualMenu(const QPoint &point);
+    void onConfigureName(const QModelIndex &index);
+    void onClickedPlayer(const QModelIndex &index);
+    void onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
 
     void onCopyNameAction();
-    void onCopyValueAction();
     void onCopyAddressAction();
-    void onCopyStateAction();
-    void on_configureNameButton_clicked();
-    void onConfigureName(const QModelIndex &index);
-    void onCenterMapOnPlayer(const QModelIndex &index);
+    
+    void on_addressBookButton_clicked();
+    void on_pasteButton_clicked();
+    void on_addressBookButton_2_clicked();
+    void on_pasteButton_2_clicked();
+
+    void on_comboBoxAttack_currentIndexChanged(int index);
+    void updateGameState(const Game::GameState &gameState);
 };
 
 #endif // MANAGENAMESPAGE_H

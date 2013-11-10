@@ -1094,10 +1094,12 @@ void ThreadMapPort2(void* parg)
         char intClient[16];
         char intPort[6];
 
-#if !defined(__WXMSW__) && !defined(MAC_OSX)
+#ifndef UPNPDISCOVER_SUCCESS
+        /* miniupnpc 1.5 */ 
         r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
                                 port, port, lanaddr, 0, "TCP", 0);
 #else
+        /* miniupnpc 1.6 */ 
         r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
                                 port, port, lanaddr, 0, "TCP", 0, "0");
 #endif
@@ -1568,7 +1570,7 @@ bool BindListenPort(string& strError)
     {
         int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE)
-            strError = strprintf(_("Unable to bind to port %d on this computer.  Chrono Kings client is probably already running."), ntohs(sockaddr.sin_port));
+            strError = strprintf(_("Unable to bind to port %d on this computer.  Huntercoin client is probably already running."), ntohs(sockaddr.sin_port));
         else
             strError = strprintf("Error: Unable to bind to port %d on this computer (bind returned error %d)", ntohs(sockaddr.sin_port), nErr);
         printf("%s\n", strError.c_str());

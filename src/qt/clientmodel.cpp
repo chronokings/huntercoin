@@ -164,7 +164,7 @@ bool ClientModel::isReleaseVersion() const
 
 QString ClientModel::clientName() const
 {
-    const std::string CLIENT_NAME = "ChronoKings-Qt";
+    const std::string CLIENT_NAME = "Huntercoin-Qt";
     return QString::fromStdString(CLIENT_NAME);
 }
 

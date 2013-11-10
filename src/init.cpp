@@ -65,7 +65,7 @@ void Shutdown(void* parg)
         delete pwalletMain;
         CreateThread(ExitTimeout, NULL);
         Sleep(50);
-        printf("chronokings exiting\n\n");
+        printf("huntercoin exiting\n\n");
         fExit = true;
 #ifndef GUI
         // ensure non-UI client gets exited here, but let Bitcoin-Qt reach 'return 0;' in bitcoin.cpp
@@ -171,6 +171,8 @@ bool AppInit2(int argc, char* argv[])
             }
         }
     }
+    else if (VERSION_IS_BETA)  // Force testnet for beta version
+        mapArgs["-testnet"] = "";
 
     // Set testnet flag first to determine the default datadir correctly
     fTestNet = GetBoolArg("-testnet");
@@ -184,18 +186,18 @@ bool AppInit2(int argc, char* argv[])
     if (mapArgs.count("-?") || mapArgs.count("--help"))
     {
         string strUsage = string() +
-          _("chronokings version") + " " + FormatFullVersion() + "\n\n" +
+          _("huntercoin version") + " " + FormatFullVersion() + "\n\n" +
           _("Usage:") + "\t\t\t\t\t\t\t\t\t\t\n" +
-            "  chronokings [options]                   \t  " + "\n" +
-            "  chronokings [options] <command> [params]\t  " + _("Send command to -server or chronokingsd") + "\n" +
-            "  chronokings [options] help              \t\t  " + _("List commands") + "\n" +
-            "  chronokings [options] help <command>    \t\t  " + _("Get help for a command") + "\n";
+            "  huntercoin [options]                   \t  " + "\n" +
+            "  huntercoin [options] <command> [params]\t  " + _("Send command to -server or huntercoind") + "\n" +
+            "  huntercoin [options] help              \t\t  " + _("List commands") + "\n" +
+            "  huntercoin [options] help <command>    \t\t  " + _("Get help for a command") + "\n";
             
         strUsage += "\n" + HelpMessage();
 
 #if defined(__WXMSW__) && defined(GUI)
         // Tabs make the columns line up in the message box
-        wxMessageBox(strUsage, "Chrono Kings", wxOK);
+        wxMessageBox(strUsage, "Huntercoin", wxOK);
 #else
         // Remove tabs
         strUsage.erase(std::remove(strUsage.begin(), strUsage.end(), '\t'), strUsage.end());
@@ -264,7 +266,7 @@ bool AppInit2(int argc, char* argv[])
     if (!fDebug && !pszSetDataDir[0])
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    printf("chronokings version %s\n", FormatFullVersion().c_str());
+    printf("huntercoin version %s\n", FormatFullVersion().c_str());
     printf("Default data directory %s\n", GetDefaultDataDir().c_str());
 
     if (GetBoolArg("-loadblockindextest"))
@@ -294,7 +296,7 @@ bool AppInit2(int argc, char* argv[])
         loop
         {
             // Show the previous instance and exit
-            HWND hwndPrev = FindWindowA("wxWindowClassNR", "ChronoKings");
+            HWND hwndPrev = FindWindowA("wxWindowClassNR", "Huntercoin");
             if (hwndPrev)
             {
                 if (IsIconic(hwndPrev))
@@ -323,7 +325,7 @@ bool AppInit2(int argc, char* argv[])
     static boost::interprocess::file_lock lock(strLockFile.c_str());
     if (!lock.try_lock())
     {
-        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  Chrono Kings client is probably already running."), GetDataDir().c_str()), "Chrono Kings");
+        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  Huntercoin client is probably already running."), GetDataDir().c_str()), "Huntercoin");
         return false;
     }
 
@@ -333,7 +335,7 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!BindListenPort(strErrors))
         {
-            wxMessageBox(strErrors, "Chrono Kings");
+            wxMessageBox(strErrors, "Huntercoin");
             return false;
         }
     }
@@ -344,7 +346,7 @@ bool AppInit2(int argc, char* argv[])
     // Load data files
     //
     if (fDaemon)
-        fprintf(stdout, "chronokings server starting\n");
+        fprintf(stdout, "huntercoin server starting\n");
     strErrors = "";
     int64 nStart;
 
@@ -376,7 +378,7 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!ParseMoney(mapArgs["-mininput"], nMinimumInputValue))
         {
-            wxMessageBox(_("Invalid amount for -mininput=<amount>"), "Chrono Kings");
+            wxMessageBox(_("Invalid amount for -mininput=<amount>"), "Huntercoin");
             return false;
         }
     }
@@ -413,7 +415,7 @@ bool AppInit2(int argc, char* argv[])
 
     if (!strErrors.empty())
     {
-        wxMessageBox(strErrors, "Chrono Kings", wxOK | wxICON_ERROR);
+        wxMessageBox(strErrors, "Huntercoin", wxOK | wxICON_ERROR);
         return false;
     }
 
@@ -468,7 +470,7 @@ bool AppInit2(int argc, char* argv[])
         addrProxy = CAddress(mapArgs["-proxy"]);
         if (!addrProxy.IsValid())
         {
-            wxMessageBox(_("Invalid -proxy address"), "Chrono Kings");
+            wxMessageBox(_("Invalid -proxy address"), "Huntercoin");
             return false;
         }
     }
@@ -493,11 +495,11 @@ bool AppInit2(int argc, char* argv[])
     {
         if (!ParseMoney(mapArgs["-paytxfee"], nTransactionFee))
         {
-            wxMessageBox(_("Invalid amount for -paytxfee=<amount>"), "Chrono Kings");
+            wxMessageBox(_("Invalid amount for -paytxfee=<amount>"), "Huntercoin");
             return false;
         }
         if (nTransactionFee > 0.25 * COIN)
-            wxMessageBox(_("Warning: -paytxfee is set very high.  This is the transaction fee you will pay if you send a transaction."), "Chrono Kings", wxOK | wxICON_EXCLAMATION);
+            wxMessageBox(_("Warning: -paytxfee is set very high.  This is the transaction fee you will pay if you send a transaction."), "Huntercoin", wxOK | wxICON_EXCLAMATION);
     }
 
     if (fHaveUPnP)
@@ -533,7 +535,7 @@ bool AppInit2(int argc, char* argv[])
     }
 
     if (!CreateThread(StartNode, NULL))
-        wxMessageBox("Error: CreateThread(StartNode) failed", "Chrono Kings");
+        wxMessageBox("Error: CreateThread(StartNode) failed", "Huntercoin");
 
     if (fServer)
         CreateThread(ThreadRPCServer, NULL);
@@ -555,8 +557,8 @@ bool AppInit2(int argc, char* argv[])
 std::string HelpMessage()
 {
     std::string strUsage = std::string(_("Options:\n")) +
-        "  -conf=<file>     \t\t  " + _("Specify configuration file (default: chronokings.conf)\n") +
-        "  -pid=<file>      \t\t  " + _("Specify pid file (default: chronokingsd.pid)\n") +
+        "  -conf=<file>     \t\t  " + _("Specify configuration file (default: huntercoin.conf)\n") +
+        "  -pid=<file>      \t\t  " + _("Specify pid file (default: huntercoind.pid)\n") +
         "  -gen             \t\t  " + _("Generate coins\n") +
         "  -gen=0           \t\t  " + _("Don't generate coins\n") +
         "  -min             \t\t  " + _("Start minimized\n") +
@@ -586,7 +588,7 @@ std::string HelpMessage()
         "  -testnet         \t\t  " + _("Use the test network\n") +
         "  -rpcuser=<user>  \t  "   + _("Username for JSON-RPC connections\n") +
         "  -rpcpassword=<pw>\t  "   + _("Password for JSON-RPC connections\n") +
-        "  -rpcport=<port>  \t\t  " + _("Listen for JSON-RPC connections on <port> (default: 8392)\n") +
+        "  -rpcport=<port>  \t\t  " + _("Listen for JSON-RPC connections on <port> (default: 8399)\n") +
         "  -rpcallowip=<ip> \t\t  " + _("Allow JSON-RPC connections from specified IP address\n") +
         "  -rpcconnect=<ip> \t  "   + _("Send commands to node running on <ip> (default: 127.0.0.1)\n") +
         "  -keypool=<n>     \t  "   + _("Set key pool size to <n> (default: 100)\n") +
@@ -594,7 +596,7 @@ std::string HelpMessage()
 
 #ifdef USE_SSL
     strUsage += std::string() +
-        _("\nSSL options: (see the chronokings Wiki for SSL setup instructions)\n") +
+        _("\nSSL options: (see the huntercoin Wiki for SSL setup instructions)\n") +
         "  -rpcssl                                \t  " + _("Use OpenSSL (https) for JSON-RPC connections\n") +
         "  -rpcsslcertificatechainfile=<file.cert>\t  " + _("Server certificate file (default: server.cert)\n") +
         "  -rpcsslprivatekeyfile=<file.pem>       \t  " + _("Server private key (default: server.pem)\n") +

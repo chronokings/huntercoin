@@ -747,7 +747,7 @@ inline void ExitThread(unsigned int nExitCode)
 
 
 
-inline bool AffinityBugWorkaround(void(*pfn)(void*))
+inline bool AffinityBugWorkaround(void(*pfn)(void*), void *parg)
 {
 #ifdef __WXMSW__
     // Sometimes after a few hours affinity gets stuck on one processor
@@ -759,7 +759,7 @@ inline bool AffinityBugWorkaround(void(*pfn)(void*))
     if (dwPrev2 != dwProcessAffinityMask)
     {
         printf("AffinityBugWorkaround() : SetThreadAffinityMask=%d, ProcessAffinityMask=%d, restarting thread\n", dwPrev2, dwProcessAffinityMask);
-        if (!CreateThread(pfn, NULL))
+        if (!CreateThread(pfn, parg))
             printf("Error: CreateThread() failed\n");
         return true;
     }

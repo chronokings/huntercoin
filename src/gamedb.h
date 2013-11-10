@@ -1,9 +1,11 @@
 #ifndef GAMEDB_H
 #define GAMEDB_H
 
+#include "uint256.h"
+
 #include <vector>
 
-// This module acts as a connection between the game engine (gamestate.cpp) and the block chain hook (chronokings.cpp)
+// This module acts as a connection between the game engine (gamestate.cpp) and the block chain hook (huntercoin.cpp)
 
 namespace Game
 {
@@ -17,11 +19,11 @@ class CTxDB;
 class CNameDB;
 class CScript;
 
-bool PerformStep(CNameDB *pnameDb, const Game::GameState &inState, const CBlock *block, Game::GameState &outState, std::vector<CTransaction> &outvgametx);
+bool PerformStep(CNameDB *pnameDb, const Game::GameState &inState, const CBlock *block, int64 &nTax, Game::GameState &outState, std::vector<CTransaction> &outvgametx);
 
 // Caller of these functions must hold cs_main lock
 bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, Game::GameState &outState);
-bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block);
+bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nFees);
 void RollbackGameState(CTxDB& txdb, CBlockIndex* pindex);
 const Game::GameState &GetCurrentGameState();
 

@@ -5,11 +5,12 @@
 #include "nametablemodel.h"
 #include "csvmodelwriter.h"
 #include "guiutil.h"
+#include "addressbookpage.h"
 #include "../base58.h"
 #include "../main.h"
 #include "../hook.h"
 #include "../wallet.h"
-#include "../chronokings.h"
+#include "../huntercoin.h"
 #include "guiconstants.h"
 #include "ui_interface.h"
 #include "configurenamedialog.h"
@@ -20,44 +21,17 @@
 #include <QMessageBox>
 #include <QMenu>
 #include <QScrollBar>
+#include <QClipboard>
+
+#include "../json/json_spirit.h"
+#include "../json/json_spirit_utils.h"
+#include "../json/json_spirit_writer_template.h"
 
 extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
 
-const QString STR_NAME_FIRSTUPDATE_DEFAULT = "{\"color\":0}";
-const QString NON_REWARD_ADDRESS_PREFIX = "-";    // Prefix that indicates for the user that the player's reward address isn't the one shown
-
-AddressFilterValidator::AddressFilterValidator(QObject *parent /* = 0*/)
-    : BitcoinAddressValidator(parent, true)
-{
-}
-
-QValidator::State AddressFilterValidator::validate(QString &input, int &pos) const
-{
-    if (input.startsWith(NON_REWARD_ADDRESS_PREFIX))
-    {
-        // TODO: for single-character NON_REWARD_ADDRESS_PREFIX this works,
-        // otherwise need also to detect intermediate state, when NON_REWARD_ADDRESS_PREFIX
-        // is not fully typed by the user yet
-
-        int k = NON_REWARD_ADDRESS_PREFIX.size();
-        input = input.mid(k);
-        pos -= k;
-        State ret = BitcoinAddressValidator::validate(input, pos);
-        input = NON_REWARD_ADDRESS_PREFIX + input;
-        pos += k;
-        return ret;
-    }
-    else
-        return BitcoinAddressValidator::validate(input, pos);
-}
-
-/*static*/ void AddressFilterValidator::setupAddressWidget(QLineEdit *widget, QWidget *parent)
-{
-    widget->setMaxLength(BitcoinAddressValidator::MaxAddressLength + NON_REWARD_ADDRESS_PREFIX.size());
-    widget->setValidator(new AddressFilterValidator(parent));
-    widget->setFont(GUIUtil::bitcoinAddressFont());
-}
-
+// Prefix that indicates for the user that the player's reward address isn't the one shown
+// (currently this column is hidden though)
+const QString NON_REWARD_ADDRESS_PREFIX = "-";
 
 //
 // NameFilterProxyModel
@@ -74,51 +48,21 @@ void NameFilterProxyModel::setNameSearch(const QString &search)
     invalidateFilter();
 }
 
-void NameFilterProxyModel::setValueSearch(const QString &search)
-{
-    valueSearch = search;
-    invalidateFilter();
-}
-
-void NameFilterProxyModel::setAddressSearch(const QString &search)
-{
-    addressSearch = search;
-    invalidateFilter();
-}
-
-void NameFilterProxyModel::setStateSearch(const QString &search)
-{
-    stateSearch = search;
-    invalidateFilter();
-}
-
 bool NameFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
 {
     QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
 
     QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
-    QString value = index.sibling(index.row(), NameTableModel::Value).data(Qt::EditRole).toString();
-    QString address = index.sibling(index.row(), NameTableModel::Address).data(Qt::EditRole).toString();
-    QString state = index.sibling(index.row(), NameTableModel::State).data(Qt::EditRole).toString();
 
     Qt::CaseSensitivity case_sens = filterCaseSensitivity();
-    return name.contains(nameSearch, case_sens)
-        && value.contains(valueSearch, case_sens)
-        && (address.startsWith(addressSearch, Qt::CaseSensitive)
-               || (address.startsWith(NON_REWARD_ADDRESS_PREFIX)
-                      && address.mid(NON_REWARD_ADDRESS_PREFIX.size()).startsWith(addressSearch, Qt::CaseSensitive)
-                  )
-           )
-        && state.contains(stateSearch, case_sens);
+    return name.contains(nameSearch, case_sens);
 }
 
 //
 // ManageNamesPage
 //
 
-const static int COLUMN_WIDTH_NAME = 300,
-                 COLUMN_WIDTH_ADDRESS = 256,
-                 COLUMN_WIDTH_STATUS = 100;
+const static int COLUMN_WIDTH_NAME = 140;
 
 ManageNamesPage::ManageNamesPage(QWidget *parent) :
     QDialog(parent),
@@ -131,77 +75,50 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
 
     // Context menu actions
     QAction *copyNameAction = new QAction(tr("Copy &Name"), this);
-    QAction *copyValueAction = new QAction(tr("Copy &Value"), this);
     QAction *copyAddressAction = new QAction(tr("Copy &Address"), this);
-    QAction *copyStateAction = new QAction(tr("Copy &State"), this);
-    QAction *configureNameAction = new QAction(tr("&Configure Name..."), this);
 
     // Build context menu
     contextMenu = new QMenu();
     contextMenu->addAction(copyNameAction);
-    contextMenu->addAction(copyValueAction);
-    contextMenu->addAction(copyAddressAction);
-    contextMenu->addAction(copyStateAction);
-    contextMenu->addAction(configureNameAction);
 
     // Connect signals for context menu actions
     connect(copyNameAction, SIGNAL(triggered()), this, SLOT(onCopyNameAction()));
-    connect(copyValueAction, SIGNAL(triggered()), this, SLOT(onCopyValueAction()));
     connect(copyAddressAction, SIGNAL(triggered()), this, SLOT(onCopyAddressAction()));
-    connect(copyStateAction, SIGNAL(triggered()), this, SLOT(onCopyStateAction()));
-    connect(configureNameAction, SIGNAL(triggered()), this, SLOT(on_configureNameButton_clicked()));
 
-    connect(ui->tableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(contextualMenu(QPoint)));
-    connect(ui->tableView, SIGNAL(clicked(QModelIndex)), this, SLOT(onCenterMapOnPlayer(QModelIndex)));
+    connect(ui->tableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(contextualMenu(QPoint))); 
+    connect(ui->tableView, SIGNAL(clicked(QModelIndex)), this, SLOT(onClickedPlayer(QModelIndex)));
     connect(ui->tableView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(onConfigureName(QModelIndex)));
+    connect(ui->nameFilter, SIGNAL(textChanged(QString)), this, SLOT(changedNameFilter(QString)));
+
     ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
-    // Catch focus changes to make the appropriate button the default one (Submit or Configure)
     ui->registerName->installEventFilter(this);
     ui->submitNameButton->installEventFilter(this);
     ui->tableView->installEventFilter(this);
     ui->nameFilter->installEventFilter(this);
-    ui->valueFilter->installEventFilter(this);
-    ui->addressFilter->installEventFilter(this);
-    ui->stateFilter->installEventFilter(this);
-    ui->configureNameButton->installEventFilter(this);
+    ui->textChat->installEventFilter(this);
 
     ui->registerName->setMaxLength(MAX_NAME_LENGTH);
+    ui->nameFilter->setFixedWidth(COLUMN_WIDTH_NAME);
 
     ui->nameFilter->setMaxLength(MAX_NAME_LENGTH);
-    ui->valueFilter->setMaxLength(MAX_VALUE_LENGTH);
-
-    AddressFilterValidator::setupAddressWidget(ui->addressFilter, this);
 
 #if QT_VERSION >= 0x040700
     /* Do not move this to the XML file, Qt before 4.7 will choke on it */
     ui->nameFilter->setPlaceholderText(tr("Name filter"));
-    ui->valueFilter->setPlaceholderText(tr("Value filter"));
-    ui->addressFilter->setPlaceholderText(tr("Address filter"));
-    ui->stateFilter->setPlaceholderText(tr("State filter"));
 #endif
 
     ui->nameFilter->setFixedWidth(COLUMN_WIDTH_NAME);
-    ui->addressFilter->setFixedWidth(COLUMN_WIDTH_ADDRESS);
-    ui->horizontalSpacer_Status->changeSize(
-        COLUMN_WIDTH_STATUS + ui->tableView->verticalScrollBar()->sizeHint().width()
-            
-#ifdef Q_OS_MAC
-        // Not sure if this is needed, but other Mac code adds 2 pixels to scroll bar width;
-        // see transactionview.cpp, search for verticalScrollBar()->sizeHint()
-        + 2
-#endif
-
-        ,
-        ui->horizontalSpacer_Status->sizeHint().height(),
-        QSizePolicy::Fixed);
 
     gameMapView = new GameMapView(this);
     ui->verticalLayoutGameMap->addWidget(gameMapView);
-    ui->labelGameMap->setBuddy(gameMapView);
+
+    connect(gameMapView, SIGNAL(tileClicked(int, int)), this, SLOT(onTileClicked(int, int)));
 
     gameChatView = new GameChatView(this);
     connect(gameChatView, SIGNAL(chatUpdated(const QString &)), ui->textChat, SLOT(setHtml(const QString &)));
+    
+    ClearSelectedPlayers();
 }
 
 ManageNamesPage::~ManageNamesPage()
@@ -222,6 +139,7 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
 
     ui->tableView->setModel(proxyModel);
     ui->tableView->sortByColumn(0, Qt::AscendingOrder);
+    connect(ui->tableView->selectionModel(), SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this, SLOT(onSelectionChanged(QItemSelection, QItemSelection)));
 
     ui->tableView->horizontalHeader()->setHighlightSections(false);
 
@@ -229,26 +147,17 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
     ui->tableView->horizontalHeader()->resizeSection(
             NameTableModel::Name, COLUMN_WIDTH_NAME);
     ui->tableView->horizontalHeader()->setResizeMode(
-            NameTableModel::Value, QHeaderView::Stretch);
-    ui->tableView->horizontalHeader()->resizeSection(
-            NameTableModel::Address, COLUMN_WIDTH_ADDRESS);
-    ui->tableView->horizontalHeader()->setResizeMode(
-            NameTableModel::State, QHeaderView::Stretch);
-    ui->tableView->horizontalHeader()->resizeSection(
-            NameTableModel::Status, COLUMN_WIDTH_STATUS);
+            NameTableModel::Status, QHeaderView::Stretch);
 
-    connect(ui->tableView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)),
-            this, SLOT(selectionChanged()));
+    ui->tableView->setColumnHidden(NameTableModel::Value, true);
+    ui->tableView->setColumnHidden(NameTableModel::Address, true);
+    ui->tableView->setColumnHidden(NameTableModel::State, true);
 
-    connect(ui->nameFilter, SIGNAL(textChanged(QString)), this, SLOT(changedNameFilter(QString)));
-    connect(ui->valueFilter, SIGNAL(textChanged(QString)), this, SLOT(changedValueFilter(QString)));
-    connect(ui->addressFilter, SIGNAL(textChanged(QString)), this, SLOT(changedAddressFilter(QString)));
-    connect(ui->stateFilter, SIGNAL(textChanged(QString)), this, SLOT(changedStateFilter(QString)));
-
-    selectionChanged();
-
-    connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), gameMapView, SLOT(updateGameMap(const Game::GameState &)));
     connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), gameChatView, SLOT(updateChat(const Game::GameState &)));
+    connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), this, SLOT(updateGameState(const Game::GameState &)));
+
+    ClearSelectedPlayers();
+
     model->emitGameStateChanged();
 }
 
@@ -257,27 +166,6 @@ void ManageNamesPage::changedNameFilter(const QString &filter)
     if (!proxyModel)
         return;
     proxyModel->setNameSearch(filter);
-}
-
-void ManageNamesPage::changedValueFilter(const QString &filter)
-{
-    if (!proxyModel)
-        return;
-    proxyModel->setValueSearch(filter);
-}
-
-void ManageNamesPage::changedAddressFilter(const QString &filter)
-{
-    if (!proxyModel)
-        return;
-    proxyModel->setAddressSearch(filter);
-}
-
-void ManageNamesPage::changedStateFilter(const QString &filter)
-{
-    if (!proxyModel)
-        return;
-    proxyModel->setStateSearch(filter);
 }
 
 extern bool IsValidPlayerName(const std::string &);
@@ -289,13 +177,6 @@ void ManageNamesPage::on_submitNameButton_clicked()
 
     QString name = ui->registerName->text();
 
-    if (!walletModel->nameAvailable(name))
-    {
-        QMessageBox::warning(this, tr("Name registration"), tr("Name not available"));
-        ui->registerName->setFocus();
-        return;
-    }
-
     if (!IsValidPlayerName(name.toStdString()))
     {
         QMessageBox::warning(this, tr("Name registration error"),
@@ -304,13 +185,20 @@ void ManageNamesPage::on_submitNameButton_clicked()
         return;
     }
 
-    if (QMessageBox::Yes != QMessageBox::question(this, tr("Confirm name registration"),
+    if (!walletModel->nameAvailable(name))
+    {
+        QMessageBox::warning(this, tr("Name registration"), tr("Name not available"));
+        ui->registerName->setFocus();
+        return;
+    }
+
+    /*if (QMessageBox::Yes != QMessageBox::question(this, tr("Confirm name registration"),
           tr("Are you sure you want to create player %1?").arg(name),
           QMessageBox::Yes | QMessageBox::Cancel,
           QMessageBox::Cancel))
     {
         return;
-    }
+    }*/
 
     WalletModel::UnlockContext ctx(walletModel->requestUnlock());
     if (!ctx.isValid())
@@ -330,11 +218,11 @@ void ManageNamesPage::on_submitNameButton_clicked()
             int newRowIndex;
             // FIXME: CT_NEW may have been sent from nameNew (via transaction).
             // Currently updateEntry is modified so it does not complain
-            model->updateEntry(name, STR_NAME_FIRSTUPDATE_DEFAULT, res.address, NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
+            model->updateEntry(name, "", res.address, NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
             ui->tableView->selectRow(newRowIndex);
             ui->tableView->setFocus();
 
-            ConfigureNameDialog dlg(name, STR_NAME_FIRSTUPDATE_DEFAULT, res.address, true, this);
+            ConfigureNameDialog dlg(name, "", res.address, this);
             dlg.setModel(walletModel);
             if (dlg.exec() == QDialog::Accepted)
             {
@@ -364,32 +252,402 @@ void ManageNamesPage::on_submitNameButton_clicked()
     QMessageBox::warning(this, tr("Name registration failed"), err_msg);
 }
 
+void ManageNamesPage::on_updateButton_clicked()
+{
+    json_spirit::Object json;
+    MakeMove(json);
+}
+
+void ManageNamesPage::on_attackButton_clicked()
+{
+    int index = ui->comboBoxAttack->currentIndex();
+    attack = ui->comboBoxAttack->itemData(index).toString();
+
+    if (attack.isEmpty())
+        return;
+
+    json_spirit::Object json;
+    json.push_back(json_spirit::Pair("attack", attack.toStdString()));
+    MakeMove(json);
+}
+
+void ManageNamesPage::onTileClicked(int x, int y)
+{
+    if (selectedPlayers.isEmpty())
+        return;
+
+    if (!walletModel)
+        return;
+
+    json_spirit::Object json;
+
+    if (selectedPlayers.size() <= 1) // Message is ignored when many players are selected
+    {
+        QString msg = ui->messageEdit->toPlainText();
+        if (!msg.isEmpty())
+            json.push_back(json_spirit::Pair("message", msg.toStdString()));
+    }
+    QString reward = ui->rewardAddr->text();
+    if (!reward.isEmpty() && !walletModel->validateAddress(reward))
+    {
+        ui->rewardAddr->setValid(false);
+        return;
+    }
+
+    QString addr = ui->transferTo->text();
+    if (!addr.isEmpty() && !walletModel->validateAddress(addr))
+    {
+        ui->transferTo->setValid(false);
+        return;
+    }
+
+    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+    if (!ctx.isValid())
+        return;
+
+    foreach (QString selectedPlayer, selectedPlayers)
+    {
+        std::string pl = selectedPlayer.toStdString();
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(pl);
+        if (it == gameState.players.end())
+            continue;
+
+        bool addr_field_added = false;
+        if (reward.toStdString() != it->second.address)
+        {
+            json.push_back(json_spirit::Pair("address", reward.toStdString()));
+            addr_field_added = true;
+        }
+
+        GamePathfinder &pf = pathfinders[pl];
+        if (!pf.FindPath(it->second.coord, Game::Coord(x, y)))
+        {
+            pathfinders.erase(pl);
+            continue;
+        }
+        Game::Coord c;
+        if (!pf.GetNextWaypoint(c))
+            pathfinders.erase(pl);
+        printf("Sending first waypoint for player %s: (%d, %d)\n", pl.c_str(), c.x, c.y);
+
+        json.push_back(json_spirit::Pair("x", c.x));
+        json.push_back(json_spirit::Pair("y", c.y));
+
+        json_spirit::Value val(json);
+        std::string jsonStr = json_spirit::write_string(val, false);
+        QString data = QString::fromStdString(jsonStr);
+
+        QString err_msg;
+        try
+        {
+            err_msg = walletModel->nameUpdate(selectedPlayer, data, addr);
+        }
+        catch (std::exception& e) 
+        {
+            err_msg = e.what();
+        }
+
+        if (!err_msg.isEmpty())
+        {
+            if (err_msg == "ABORTED")
+                return;
+
+            QMessageBox::critical(this, tr("Name update error"), err_msg);
+            return;
+        }
+
+        json.pop_back(); // y
+        json.pop_back(); // x
+        if (addr_field_added)
+            json.pop_back();
+    }
+
+    ui->messageEdit->setPlainText(QString());
+    ui->transferTo->setText(QString());
+}
+
+bool ManageNamesPage::MakeMove(json_spirit::Object &json)
+{
+    if (selectedPlayers.isEmpty())
+        return false;
+
+    if (!walletModel)
+        return false;
+
+    if (selectedPlayers.size() <= 1) // Message is ignored when many players are selected
+    {
+        QString msg = ui->messageEdit->toPlainText();
+        if (!msg.isEmpty())
+            json.push_back(json_spirit::Pair("message", msg.toStdString()));
+    }
+    QString reward = ui->rewardAddr->text();
+    if (!reward.isEmpty() && !walletModel->validateAddress(reward))
+    {
+        ui->rewardAddr->setValid(false);
+        return false;
+    }
+
+    QString addr = ui->transferTo->text();
+    if (!addr.isEmpty() && !walletModel->validateAddress(addr))
+    {
+        ui->transferTo->setValid(false);
+        return false;
+    }
+
+    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+    if (!ctx.isValid())
+        return false;
+
+    foreach (QString selectedPlayer, selectedPlayers)
+    {
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
+
+        bool addr_field_added = false;
+        if (it == gameState.players.end() || reward.toStdString() != it->second.address)
+        {
+            json.push_back(json_spirit::Pair("address", reward.toStdString()));
+            addr_field_added = true;
+        }
+
+        // TODO: if move is attack and player isn't within range, do not send attack move
+
+        json_spirit::Value val(json);
+        std::string jsonStr = json_spirit::write_string(val, false);
+        QString data = QString::fromStdString(jsonStr);
+
+        QString err_msg;
+        try
+        {
+            err_msg = walletModel->nameUpdate(selectedPlayer, data, addr);
+        }
+        catch (std::exception& e) 
+        {
+            err_msg = e.what();
+        }
+
+        if (!err_msg.isEmpty())
+        {
+            if (err_msg == "ABORTED")
+                return false;
+
+            QMessageBox::critical(this, tr("Name update error"), err_msg);
+            return false;
+        }
+        
+        if (addr_field_added)
+            json.pop_back();
+    }
+
+    ui->messageEdit->setPlainText(QString());
+    ui->transferTo->setText(QString());
+
+    return true;
+}
+
 bool ManageNamesPage::eventFilter(QObject *object, QEvent *event)
 {
     if (event->type() == QEvent::FocusIn)
-    {
-        if (object == ui->registerName || object == ui->submitNameButton)
-        {
-            ui->submitNameButton->setDefault(true);
-            ui->configureNameButton->setDefault(false);
-        }
-        else if (object == ui->tableView)
-        {
-            ui->submitNameButton->setDefault(false);
-            ui->configureNameButton->setDefault(true);
-        }
-    }
+        ui->submitNameButton->setDefault(object == ui->registerName || object == ui->submitNameButton);
     return QDialog::eventFilter(object, event);
 }
 
-void ManageNamesPage::selectionChanged()
+void ManageNamesPage::onClickedPlayer(const QModelIndex &index)
 {
-    // Set button states based on selected tab and selection
-    QTableView *table = ui->tableView;
-    if(!table->selectionModel())
+    QString selectedPlayer = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
+
+    std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
+    if (it != gameState.players.end())
+        gameMapView->CenterMapOnPlayer(it->second);
+}
+
+void ManageNamesPage::onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
+{
+    if (!deselected.isEmpty())
+    {
+        attack = QString();
+        ui->groupBoxMove->setEnabled(true);
+        ui->transferTo->setText(QString());
+        ui->messageEdit->setPlainText(QString());
+    }
+
+    foreach (QModelIndex index, deselected.indexes())
+    {
+        QString deselectedPlayer = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
+        selectedPlayers.removeAll(deselectedPlayer);
+    }
+
+    foreach (QModelIndex index, selected.indexes())
+    {
+        QString selectedPlayer = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
+        if (selectedPlayers.contains(selectedPlayer))
+            continue;
+
+        selectedPlayers.append(selectedPlayer);
+
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
+        if (it == gameState.players.end())
+            continue;
+
+        if (ui->rewardAddr->text().isEmpty())
+            ui->rewardAddr->setText(QString::fromStdString(it->second.address));
+    }
+
+    RefreshSelectedPlayers();
+}
+
+void ManageNamesPage::ClearSelectedPlayers()
+{
+    gameMapView->DeselectPlayers();
+    attack = QString();
+    ui->groupBoxMove->setEnabled(false);
+    ui->transferTo->setText(QString());
+    ui->rewardAddr->setText(QString());
+    ui->messageEdit->setPlainText(QString());
+    ui->comboBoxAttack->clear();
+    ui->attackButton->setEnabled(false);
+}
+
+void ManageNamesPage::RefreshSelectedPlayers()
+{
+    if (selectedPlayers.isEmpty())
+    {
+        ClearSelectedPlayers();
+        return;
+    }
+
+    ui->groupBoxMove->setEnabled(true);
+    ui->messageEdit->setEnabled(selectedPlayers.size() == 1);
+
+    std::set<std::string> victims;
+
+    foreach (QString selectedPlayer, selectedPlayers)
+    {
+        std::vector<std::string> vec = gameState.ListPossibleAttacks(selectedPlayer.toStdString());
+        victims.insert(vec.begin(), vec.end());
+    }
+
+    ui->comboBoxAttack->clear();
+    BOOST_FOREACH(std::string victim, victims)
+    {
+        QString s = QString::fromStdString(victim);
+        ui->comboBoxAttack->addItem(GUIUtil::HtmlEscape(s), s);
+        int idx = ui->comboBoxAttack->findData(s);
+        QString colorCSS = GameChatView::ColorCSS[gameState.players[victim].color];
+        ui->comboBoxAttack->setItemData(idx, QColor(colorCSS), Qt::ForegroundRole);
+    }
+
+    ui->comboBoxAttack->setCurrentIndex(ui->comboBoxAttack->findData(attack));
+
+    gameMapView->SelectPlayers(selectedPlayers, gameState, pathfinders);
+}
+
+void ManageNamesPage::on_comboBoxAttack_currentIndexChanged(int index)
+{
+    attack = ui->comboBoxAttack->itemData(index).toString();
+    ui->attackButton->setEnabled(!attack.isEmpty());
+}
+
+void ManageNamesPage::updateGameState(const Game::GameState &gameState)
+{
+    this->gameState = gameState;
+
+    gameMapView->updateGameMap(gameState);
+
+    if (!selectedPlayers.isEmpty())
+    {
+        /*
+        // Remove dead players from selection
+        QStringList newSelectedPlayers;
+        foreach (QString selectedPlayer, selectedPlayers)
+            if (gameState.players.count(selectedPlayer.toStdString()))
+                newSelectedPlayers.append(selectedPlayer);
+
+        selectedPlayers = newSelectedPlayers;
+        */
+
+        RefreshSelectedPlayers();
+    }
+
+    // Send new waypoint for players that reached the current one
+
+    // TODO: instead of waiting for player stopping at the current waypoint,
+    // sent immediately when the next waypoint becomes linearly reachable
+    // from every position between current position and current waypoint
+
+    std::vector<Game::PlayerID> vUpdate, vDelete;
+    BOOST_FOREACH(PAIRTYPE(const Game::PlayerID, GamePathfinder)& item, pathfinders)
+    {
+        const std::string &pl = item.first;
+        GamePathfinder &pf = item.second;
+
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(pl);
+        if (it == gameState.players.end())
+            continue;
+
+        if (it->second.coord == it->second.target)
+        {
+            // Player stopped
+            // Queue an update, unless already pending
+            std::vector<unsigned char> vchName = vchFromString(pl);
+            if (!(mapNamePending.count(vchName) && mapNamePending[vchName].size()))
+                vUpdate.push_back(pl);
+        }
+        else if (it->second.target != pf.GetCurWaypoint())
+        {
+            // Waypoint changed externally, reject pathfinding
+            printf("Waypoint changed for player %s: expected target (%d, %d), actual target (%d, %d). Discarding pathfinding.\n", pl.c_str(), pf.GetCurWaypoint().x, pf.GetCurWaypoint().y, it->second.target.x, it->second.target.y);
+            vDelete.push_back(pl);
+        }
+    }
+
+    BOOST_FOREACH(const Game::PlayerID &pl, vDelete)
+        pathfinders.erase(pl);
+
+    if (vUpdate.empty())
         return;
 
-    ui->configureNameButton->setEnabled(table->selectionModel()->hasSelection());
+    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+    if (!ctx.isValid())
+        return;
+
+    BOOST_FOREACH(const Game::PlayerID &pl, vUpdate)
+    {
+        GamePathfinder &pf = pathfinders[pl];
+
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(pl);
+
+        Game::Coord c;
+        if (!pf.GetNextWaypoint(c))
+            pathfinders.erase(pl);
+        printf("Sending next waypoint for player %s: (%d, %d)\n", pl.c_str(), c.x, c.y);
+
+        json_spirit::Object json;
+        json.push_back(json_spirit::Pair("x", c.x));
+        json.push_back(json_spirit::Pair("y", c.y));
+
+        json_spirit::Value val(json);
+        std::string jsonStr = json_spirit::write_string(val, false);
+        QString data = QString::fromStdString(jsonStr);
+
+        QString err_msg;
+        try
+        {
+            err_msg = walletModel->nameUpdate(QString::fromStdString(pl), data, "");
+        }
+        catch (std::exception& e) 
+        {
+            err_msg = e.what();
+        }
+
+        if (!err_msg.isEmpty())
+        {
+            if (err_msg == "ABORTED")
+                return;
+
+            QMessageBox::critical(this, tr("Name update error when sending next waypoint"), err_msg);
+            return;
+        }
+    }
 }
 
 void ManageNamesPage::contextualMenu(const QPoint &point)
@@ -399,36 +657,6 @@ void ManageNamesPage::contextualMenu(const QPoint &point)
         contextMenu->exec(QCursor::pos());
 }
 
-void ManageNamesPage::onCopyNameAction()
-{
-    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Name);
-}
-
-void ManageNamesPage::onCopyValueAction()
-{
-    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Value);
-}
-
-void ManageNamesPage::onCopyAddressAction()
-{
-    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Address);
-}
-
-void ManageNamesPage::onCopyStateAction()
-{
-    GUIUtil::copyEntryData(ui->tableView, NameTableModel::State);
-}
-
-void ManageNamesPage::on_configureNameButton_clicked()
-{
-    if(!ui->tableView->selectionModel())
-        return;
-    QModelIndexList indexes = ui->tableView->selectionModel()->selectedRows();
-    if(indexes.isEmpty())
-        return;
-    onConfigureName(indexes.at(0));
-}
-        
 void ManageNamesPage::onConfigureName(const QModelIndex &index)
 {
     QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
@@ -440,12 +668,11 @@ void ManageNamesPage::onConfigureName(const QModelIndex &index)
 
     std::vector<unsigned char> vchName = vchFromString(name.toStdString());
 
-    bool fFirstUpdate, fOldPostponed;
+    bool fOldPostponed;
 
     {
         LOCK(cs_main);
-        fFirstUpdate = mapMyNameFirstUpdate.count(vchName) != 0;
-        if (fFirstUpdate)
+        if (mapMyNameFirstUpdate.count(vchName) != 0)
         {
             // Postpone the firstupdate, while the dialog is open
             // If OK is pressed, fPostponed is always set to false
@@ -453,34 +680,70 @@ void ManageNamesPage::onConfigureName(const QModelIndex &index)
             fOldPostponed = mapMyNameFirstUpdate[vchName].fPostponed;
             mapMyNameFirstUpdate[vchName].fPostponed = true;
         }
+        else
+            return;   // We only allow ConfigureNameDialog for name_new. Name_update should be done via the game GUI.
     }
 
-    ConfigureNameDialog dlg(name, value, address, fFirstUpdate, this);
+    ConfigureNameDialog dlg(name, value, address, this);
     dlg.setModel(walletModel);
     int dlgRes = dlg.exec();
-    if (fFirstUpdate)
+
+    if (dlgRes == QDialog::Accepted)
     {
-        if (dlgRes == QDialog::Accepted)
-        {
-            LOCK(cs_main);
-            // name_firstupdate could have been sent, while the user was editing the value
-            if (mapMyNameFirstUpdate.count(vchName) != 0)
-                model->updateEntry(name, dlg.getReturnData(), address, NameTableEntry::NAME_NEW, CT_UPDATED);
-        }
-        else if (fFirstUpdate)
-        {
-            LOCK(cs_main);
-            // If cancel was pressed, restore the old fPostponed value
-            if (mapMyNameFirstUpdate.count(vchName) != 0)
-                mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
-        }
+        LOCK(cs_main);
+        // name_firstupdate could have been sent, while the user was editing the value
+        if (mapMyNameFirstUpdate.count(vchName) != 0)
+            model->updateEntry(name, dlg.getReturnData(), address, NameTableEntry::NAME_NEW, CT_UPDATED);
+    }
+    else
+    {
+        LOCK(cs_main);
+        // If cancel was pressed, restore the old fPostponed value
+        if (mapMyNameFirstUpdate.count(vchName) != 0)
+            mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
     }
 }
 
-void ManageNamesPage::onCenterMapOnPlayer(const QModelIndex &index)
+void ManageNamesPage::onCopyNameAction()
 {
-    QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
-    gameMapView->CenterMapOnPlayer(name);
+    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Name);
+}
+
+void ManageNamesPage::onCopyAddressAction()
+{
+    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Address);
+}
+
+void ManageNamesPage::on_pasteButton_clicked()
+{
+    // Paste text from clipboard into reward address field
+    ui->rewardAddr->setText(QApplication::clipboard()->text());
+}
+
+void ManageNamesPage::on_addressBookButton_clicked()
+{
+    if (!walletModel)
+        return;
+    AddressBookPage dlg(AddressBookPage::ForSending, AddressBookPage::SendingTab, this);
+    dlg.setModel(walletModel->getAddressTableModel());
+    if (dlg.exec())
+        ui->rewardAddr->setText(dlg.getReturnValue());
+}
+
+void ManageNamesPage::on_pasteButton_2_clicked()
+{
+    // Paste text from clipboard into "transfer to" field
+    ui->transferTo->setText(QApplication::clipboard()->text());
+}
+
+void ManageNamesPage::on_addressBookButton_2_clicked()
+{
+    if (!walletModel)
+        return;
+    AddressBookPage dlg(AddressBookPage::ForSending, AddressBookPage::SendingTab, this);
+    dlg.setModel(walletModel->getAddressTableModel());
+    if (dlg.exec())
+        ui->transferTo->setText(dlg.getReturnValue());
 }
 
 void ManageNamesPage::exportClicked()

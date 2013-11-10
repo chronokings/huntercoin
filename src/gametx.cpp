@@ -2,7 +2,7 @@
 #include "gamestate.h"
 
 #include "headers.h"
-#include "chronokings.h"
+#include "huntercoin.h"
 #include "script.h"
 
 using namespace Game;
@@ -15,11 +15,12 @@ enum
 {
     // Syntax (scriptSig):
     //     victim GAMEOP_KILLED_BY killer1 killer2 ... killerN
-    // (player can be killed simultaneously by multiple other players)
+    // Player can be killed simultaneously by multiple other players.
+    // If N = 0, player was killed by the game (for staying for too long in the spawn area)
     GAMEOP_KILLED_BY = 1,
 
     // Syntax (scriptSig):
-    //     player GAMEOP_COLLECTED_BOUNTY x y firstBlock lastBlock
+    //     player GAMEOP_COLLECTED_BOUNTY firstBlock lastBlock collectedFirstBlock collectedLastBlock
     // vin.size() == vout.size(), they correspond to each other, i.e. a null input is used
     // to hold info about the output in its scriptSig
     // (alternatively we could add vout index to the scriptSig, to allow more complex transactions
@@ -65,7 +66,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
     txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
     txNew.vout.reserve(stepResult.bounties.size());
 
-    BOOST_FOREACH(const PAIRTYPE(PlayerID, BountyInfo) &bounty, stepResult.bounties)
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, CollectedLootInfo) &bounty, stepResult.bounties)
     {
         std::vector<unsigned char> vchName = vchFromString(bounty.first);
         CTransaction tx;
@@ -103,10 +104,10 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
 
         CTxIn txin;
         txin.scriptSig << vchName << GAMEOP_COLLECTED_BOUNTY
-                << bounty.second.coord.x
-                << bounty.second.coord.y
                 << bounty.second.firstBlock
                 << bounty.second.lastBlock
+                << bounty.second.collectedFirstBlock
+                << bounty.second.collectedLastBlock
             ;
         txNew.vin.push_back(txin);
     }
@@ -156,17 +157,21 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             if (fBrief)
                 return strRet + " " + _("is killed");
             strRet += " ";
-            strRet += _("killed by");
-            strRet += " ";
             while (scriptSig.GetOp(pc, opcode, vch))
             {
                 if (!fFirst)
                     strRet += ", ";
                 else
+                {
                     fFirst = false;
+                    strRet += _("killed by");
+                    strRet += " ";
+                }
                 strRet += nameStartTag;
                 strRet += stringFromVch(vch) + nameEndTag;
             }
+            if (fFirst)
+                strRet += _("killed for staying too long in the spawn area");
             break;
         case GAMEOP_COLLECTED_BOUNTY:
             strRet += " ";

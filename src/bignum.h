@@ -453,6 +453,19 @@ public:
         --(*this);
         return ret;
     }
+    
+    const CBigNum DivideGetRemainder(const CBigNum &d)
+    {
+        // r = *this % d
+        // *this = *this / d
+
+        CAutoBN_CTX pctx;
+        CBigNum q, r;
+        if (!BN_div(&q, &r, this, &d, pctx))
+            throw bignum_error("CBigNum::DivideGetRemainder : BN_div failed");
+        *this = q;
+        return r;
+    }
 
 
     friend inline const CBigNum operator-(const CBigNum& a, const CBigNum& b);

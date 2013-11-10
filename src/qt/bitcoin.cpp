@@ -107,7 +107,7 @@ static void QueueShutdown()
  */
 static std::string Translate(const char* psz)
 {
-    return QCoreApplication::translate("chronokings-core", psz).toStdString();
+    return QCoreApplication::translate("huntercoin-core", psz).toStdString();
 }
 
 /* Handle runaway exceptions. Shows a message box with the problem and quits the program.
@@ -115,7 +115,7 @@ static std::string Translate(const char* psz)
 static void handleRunawayException(std::exception *e)
 {
     PrintExceptionContinue(e, "Runaway exception");
-    QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. Chrono Kings can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
+    QMessageBox::critical(0, "Runaway exception", BitcoinGUI::tr("A fatal error occurred. Huntercoin can no longer continue safely and will quit.") + QString("\n\n") + QString::fromStdString(strMiscWarning));
     exit(1);
 }
 
@@ -143,8 +143,8 @@ int main(int argc, char *argv[])
         else
         {
             // This message can not be translated, as translation is not initialized yet
-            // (which not yet possible because lang=XX can be overridden in chronokings.conf in the data directory)
-            QMessageBox::critical(0, "Chrono Kings",
+            // (which not yet possible because lang=XX can be overridden in huntercoin.conf in the data directory)
+            QMessageBox::critical(0, "Huntercoin",
                                   QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
             return 0;
         }
@@ -161,12 +161,12 @@ int main(int argc, char *argv[])
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
 
-    // ... then chronokings.conf:
+    // ... then huntercoin.conf:
     if (!boost::filesystem::is_directory(GetDataDir()))
     {
         // This message can not be translated, as translation is not initialized yet
-        // (which not yet possible because lang=XX can be overridden in chronokings.conf in the data directory)
-        QMessageBox::critical(0, "Chrono Kings",
+        // (which not yet possible because lang=XX can be overridden in huntercoin.conf in the data directory)
+        QMessageBox::critical(0, "Huntercoin",
                               QString("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
         return 0;
     }
@@ -174,12 +174,12 @@ int main(int argc, char *argv[])
 
     // Application identification (must be set before OptionsModel is initialized,
     // as it is used to locate QSettings)
-    app.setOrganizationName("Chrono Kings");
-    app.setOrganizationDomain("chronocoin.bit");
+    app.setOrganizationName("Huntercoin");
+    app.setOrganizationDomain("huntercoin.bit");
     if(GetBoolArg("-testnet")) // Separate UI settings for testnet
-        app.setApplicationName("ChronoKings-Qt-testnet");
+        app.setApplicationName("Huntercoin-Qt-testnet");
     else
-        app.setApplicationName("ChronoKings-Qt");
+        app.setApplicationName("Huntercoin-Qt");
 
     // ... then GUI settings:
     OptionsModel optionsModel;

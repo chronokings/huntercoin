@@ -53,6 +53,7 @@ void OptionsModel::Init()
     fMinimizeOnClose = settings.value("fMinimizeOnClose", false).toBool();
     nTransactionFee = settings.value("nTransactionFee").toLongLong();
     language = settings.value("language", "").toString();
+    defaultRewardAddress = settings.value("defaultRewardAddress", "").toString();
 
     // These are shared with core Bitcoin; we want
     // command-line options to override the GUI settings:
@@ -208,6 +209,8 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             return QVariant(bDisplayAddresses);
         case Language:
             return settings.value("language", "");
+        case DefaultRewardAddress:
+            return settings.value("defaultRewardAddress", "");
         default:
             return QVariant();
         }
@@ -293,6 +296,10 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
             break;
         case Language:
             settings.setValue("language", value);
+            break;
+        case DefaultRewardAddress:
+            defaultRewardAddress = value.toString();
+            settings.setValue("defaultRewardAddress", value);
             break;
         default:
             break;

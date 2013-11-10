@@ -2,7 +2,7 @@
 #define GUICONSTANTS_H
 
 #include "../headers.h"
-#include "../chronokings.h"  // For MAX_VALUE_LENGTH
+#include "../huntercoin.h"  // For MAX_VALUE_LENGTH
 
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 250;

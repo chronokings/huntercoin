@@ -31,7 +31,7 @@ LIBS= \
    -l ssl \
    -l crypto
 
-chronokingsd: USE_UPNP:=0
+huntercoind: USE_UPNP:=0
 	ifdef USE_UPNP
 		LIBS += -l miniupnpc
 		DEFS += -DUSE_UPNP=$(USE_UPNP)
@@ -54,6 +54,7 @@ chronokingsd: USE_UPNP:=0
 	endif
 
 CXXFLAGS=-O2 -Wno-invalid-offsetof -Wformat $(DEFS) $(INCLUDEPATHS)
+
 HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h bitcoinrpc.h uibase.h ui.h noui.h init.h auxpow.h
 
@@ -72,14 +73,15 @@ OBJS= \
     obj/wallet.o \
     obj/bitcoinrpc.o \
     obj/init.o \
-    obj/chronokings.o \
+    obj/huntercoin.o \
     obj/gamestate.o \
+    obj/gamemap.o \
     obj/gamedb.o \
     obj/gametx.o \
     cryptopp/obj/sha.o \
     cryptopp/obj/cpu.o
 
-all: chronokingsd
+all: huntercoind
 
 obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -DGUI -o $@ $<
@@ -90,19 +92,21 @@ cryptopp/obj/%.o: cryptopp/%.cpp
 obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
-obj/chronokings.o: chronokings.h gamestate.h gamedb.h
+obj/huntercoin.o: huntercoin.h gamestate.h gamedb.h
 
-obj/gamestate.o: gamestate.h
+obj/gamestate.o: gamestate.h gamemap.h
+
+obj/gamemap.o: gamemap.h
 
 obj/gamedb.o: gamestate.h gamedb.h gametx.h
 
 obj/gametx.o: gametx.h gamestate.h
 
-chronokingsd: $(OBJS)
+huntercoind: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 clean:
-	-rm -f chronokings chronokingsd
+	-rm -f huntercoin huntercoind
 	-rm -f obj/*.o
 	-rm -f cryptopp/obj/*.o
 	-rm -f headers.h.gch

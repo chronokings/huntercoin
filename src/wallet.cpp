@@ -7,7 +7,7 @@
 #include "cryptopp/sha.h"
 #include "crypter.h"
 
-#include "chronokings.h"    // For DecodeNameScript in GetAmounts to correctly compute credit/debit
+#include "huntercoin.h"    // For DecodeNameScript in GetAmounts to correctly compute credit/debit
 
 using namespace std;
 
@@ -70,7 +70,7 @@ void CWallet::WalletUpdateSpent(const CTransaction &tx)
                 CWalletTx& wtx = (*mi).second;
                 if (!wtx.IsSpent(txin.prevout.n) && IsMine(wtx.vout[txin.prevout.n]))
                 {
-                    printf("WalletUpdateSpent found spent coin %s CHR %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
+                    printf("WalletUpdateSpent found spent coin %s HUC %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
                     wtx.MarkSpent(txin.prevout.n);
                     wtx.WriteToDisk();
                     //vWalletUpdated.push_back(txin.prevout.hash);
@@ -575,7 +575,7 @@ void CWallet::ReacceptWalletTransactions()
                 }
                 if (fUpdated)
                 {
-                    printf("ReacceptWalletTransactions found spent coin %s CHR %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
+                    printf("ReacceptWalletTransactions found spent coin %s HUC %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
                     wtx.MarkDirty();
                     wtx.WriteToDisk();
                 }
@@ -1125,7 +1125,7 @@ string CWallet::SendMoneyPrepare(CScript scriptPubKey, int64 nValue, CWalletTx& 
     if (fAskFee && !uiInterface.ThreadSafeAskFee(nFeeRequired))
         return "ABORTED";
 #else
-    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "Chrono Kings", NULL))
+    if (fAskFee && !ThreadSafeAskFee(nFeeRequired, "Huntercoin", NULL))
         return "ABORTED";
 #endif
 
@@ -1147,7 +1147,7 @@ string CWallet::SendMoneyToBitcoinAddress(string strAddress, int64 nValue, CWall
     // Parse bitcoin address
     CScript scriptPubKey;
     if (!scriptPubKey.SetBitcoinAddress(strAddress))
-        return _("Invalid chronokings address");
+        return _("Invalid huntercoin address");
 
     return SendMoney(scriptPubKey, nValue, wtxNew, fAskFee);
 }

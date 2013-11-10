@@ -3,7 +3,7 @@
 #include "gametx.h"
 
 #include "headers.h"
-#include "chronokings.h"
+#include "huntercoin.h"
 
 using namespace Game;
 
@@ -47,24 +47,29 @@ public:
 
 class GameStepValidator
 {
-    const GameState *pstate;
     bool fOwnState;
+    bool fOwnTxDB;
+    
+    CTxDB *pTxDB;
 
     // Detect duplicates (multiple moves per block). Probably already handled by NameDB and not needed.
     std::set<PlayerID> dup;
-    
+
     // Temporary variables
     std::vector<unsigned char> vchName;
     std::vector<unsigned char> vchValue;
 
+protected:
+    const GameState *pstate;
+
 public:
     GameStepValidator(const GameState *pstate_)
-        : pstate(pstate_), fOwnState(false)
+        : pstate(pstate_), fOwnState(false), pTxDB(NULL)
     {
     }
 
     GameStepValidator(CTxDB &txdb, CBlockIndex *pindex)
-        : fOwnState(true)
+        : fOwnState(true), pTxDB(&txdb), fOwnTxDB(false)
     {
         GameState *newState = new GameState;
         if (!GetGameState(txdb, pindex, *newState))
@@ -79,6 +84,8 @@ public:
     {
         if (fOwnState)
             delete pstate;
+        if (pTxDB && fOwnTxDB)
+            delete pTxDB;
     }
 
     // Returns:
@@ -103,7 +110,44 @@ public:
         {
             delete m;
             m = NULL;
-            return error("Invalid move for the game state: move %s for player %s", sValue.c_str(), sName.c_str());
+            return error("GameStepValidator: invalid move for the game state: move %s for player %s", sValue.c_str(), sName.c_str());
+        }
+        std::string addressLock = m->AddressOperationPermission(*pstate);
+        if (!addressLock.empty())
+        {
+            // If one of inputs has address equal to addressLock, then that input has been signed by the address owner
+            // and thus authorizes the address change operation
+            bool found = false;
+            if (!pTxDB)
+            {
+                pTxDB = new CTxDB("r");
+                fOwnTxDB = true;
+            }
+            for (int i = 0; i < tx.vin.size(); i++)
+            {
+                COutPoint prevout = tx.vin[i].prevout;
+                CTransaction txPrev;
+                CTxIndex txindex;
+                if (!pTxDB->ReadTxIndex(prevout.hash, txindex) || txindex.pos == CDiskTxPos(1,1,1))
+                    continue;
+                else if (!txPrev.ReadFromDisk(txindex.pos))
+                    continue;
+                if (prevout.n >= txPrev.vout.size())
+                    continue;
+                const CTxOut &vout = txPrev.vout[prevout.n];
+                std::string address;
+                if (ExtractDestination(vout.scriptPubKey, address) && address == addressLock)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                delete m;
+                m = NULL;
+                return error("GameStepValidator: address operation permission denied: move %s for player %s", sValue.c_str(), sName.c_str());
+            }
         }
         return true;
     }
@@ -118,31 +162,78 @@ public:
     }
 };
 
+static void InitStepData(StepData &stepData, const GameState &state)
+{
+    stepData.nNameCoinAmount = NAME_COIN_AMOUNT;
+    int64 nSubsidy = GetBlockValue(state.nHeight + 1, 0);
+    // Miner subsidy is 10%, thus game treasure is 9 times the subsidy
+    stepData.nTreasureAmount = nSubsidy * 9;
+}
+
+class GameStepMinerImpl : public GameStepValidator
+{
+    StepData stepData;
+public:
+    GameStepMinerImpl(CTxDB &txdb, CBlockIndex *pindex)
+        : GameStepValidator(txdb, pindex)
+    {
+        InitStepData(stepData, *pstate);
+    }
+
+    bool AddTx(const CTransaction& tx)
+    {
+        const Move *m;
+        if (!IsValid(tx, m))
+            return false;
+        if (m)
+            stepData.vpMoves.push_back(m);
+
+        return true;
+    }
+
+    int64 ComputeTax()
+    {
+        StepResult stepResult;
+        Game::GameState outState;
+        if (!Game::PerformStep(*pstate, stepData, outState, stepResult))
+        {
+            error("GameStepMinerImpl::ComputeTax failed");
+            return 0;
+        }
+
+        return stepResult.nTaxAmount;
+    }
+};
+
 // A simple wrapper (pImpl pattern) to remove dependency on the game-related headers when miner just wants to check transactions
 // (declared in hooks.h)
-GameStepValidatorMiner::GameStepValidatorMiner(CTxDB &txdb, CBlockIndex *pindex)
-    : pImpl(new GameStepValidator(txdb, pindex))
+GameStepMiner::GameStepMiner(CTxDB &txdb, CBlockIndex *pindex)
+    : pImpl(new GameStepMinerImpl(txdb, pindex))
 {
 }
 
-GameStepValidatorMiner::~GameStepValidatorMiner()
+GameStepMiner::~GameStepMiner()
 {
     delete pImpl;
 }
 
-bool GameStepValidatorMiner::IsValid(const CTransaction& tx)
+bool GameStepMiner::AddTx(const CTransaction& tx)
 {
-    return pImpl->IsValid(tx);
+    return pImpl->AddTx(tx);
 }
 
-bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block, GameState &outState, std::vector<CTransaction> &outvgametx)
+int64 GameStepMiner::ComputeTax()
+{
+    return pImpl->ComputeTax();
+}
+
+bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block, int64 &nTax, GameState &outState, std::vector<CTransaction> &outvgametx)
 {
     if (block->hashPrevBlock != inState.hashBlock)
         return error("PerformStep: game state for wrong block");
 
     StepData stepData;
-    stepData.nNameCoinAmount = NAME_COIN_AMOUNT;
-    stepData.nTreasureAmount = GetBlockValue(inState.nHeight + 1, 0);
+    InitStepData(stepData, inState);
     stepData.newHash = block->GetHash();
 
     GameStepValidator gameStepValidator(&inState);
@@ -159,6 +250,8 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
     StepResult stepResult;
     if (!Game::PerformStep(inState, stepData, outState, stepResult))
         return error("PerformStep failed for block %s", block->GetHash().ToString().c_str());
+
+    nTax = stepResult.nTaxAmount;
 
     return CreateGameTransactions(pnameDb, outState, stepResult, outvgametx);
 }
@@ -226,7 +319,8 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         CBlock block;
         block.ReadFromDisk(plast);
 
-        if (!PerformStep(nameDb.get(), lastState, &block, outState, vgametx))
+        int64 nTax;
+        if (!PerformStep(nameDb.get(), lastState, &block, nTax, outState, vgametx))
             return false;
         if (block.vgametx != vgametx)
         {
@@ -267,7 +361,7 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 }
 
 // Called from ConnectBlock
-bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
+bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nFees)
 {
     GameState outState;
 
@@ -282,11 +376,13 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
     if (currentState.hashBlock != block->hashPrevBlock)
         return error("AdvanceGameState: incorrect hash encountered");
 
+    int64 nTax = 0;
+
     {
         // When connecting genesis block, there is no nameindexfull.dat file yet
         std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
 
-        if (!PerformStep(nameDb.get(), currentState, block, outState, block->vgametx))
+        if (!PerformStep(nameDb.get(), currentState, block, nTax, outState, block->vgametx))
             return false;
     }
 
@@ -304,6 +400,8 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block)
     // Prune old states from DB, keeping every Nth for quick lookup (intermediate states can be obtained by integrating blocks)
     if (pindex->nHeight - 1 <= 0 || (pindex->nHeight - 1) % KEEP_EVERY_NTH_STATE != 0)
         gameDb.Erase(pindex->nHeight - 1);
+
+    nFees += nTax;
 
     return true;
 }

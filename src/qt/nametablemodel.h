@@ -8,7 +8,6 @@ class NameTablePriv;
 class CWallet;
 class WalletModel;
 
-extern const QString STR_NAME_FIRSTUPDATE_DEFAULT;
 extern const QString NON_REWARD_ADDRESS_PREFIX;
 
 namespace Game
@@ -75,6 +74,8 @@ struct NameTableEntry
     QString address;
     bool fRewardAddressDifferent;
     QString state;
+    bool moving;
+    int color;
     int nHeight;
     bool transferred;
 
@@ -89,13 +90,13 @@ struct NameTableEntry
     NameTableEntry() : nHeight(NAME_NON_EXISTING), transferred(false) {}
     NameTableEntry(const QString &name, const QString &value, const QString &address, int nHeight, bool transferred = false) :
         name(name), value(value), address(address),
-        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred)
+        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1), moving(false)
     {
     }
 
     NameTableEntry(const std::string &name, const std::string &value, const std::string &address, int nHeight, bool transferred = false) :
         name(QString::fromStdString(name)), value(QString::fromStdString(value)), address(QString::fromStdString(address)),
-        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred)
+        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1), moving(false)
     {
     }
 };

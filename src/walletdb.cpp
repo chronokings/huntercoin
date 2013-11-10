@@ -9,7 +9,7 @@
 #include <boost/filesystem.hpp>
 
 #ifdef GUI
-#include "chronokings.h"
+#include "huntercoin.h"
 extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
 extern std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;   // Name for name_new hash (to show name in transaction list)
 #endif
@@ -384,14 +384,7 @@ bool CWalletDB::LoadWallet(CWallet* pwallet)
 
     // Upgrade
     if (nFileVersion < VERSION)
-    {
-        // Get rid of old debug.log file in current directory
-        if (nFileVersion <= 105 && !pszSetDataDir[0])
-            unlink("debug.log");
-
         WriteVersion(VERSION);
-    }
-
 
     return true;
 }

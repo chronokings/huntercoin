@@ -32,6 +32,7 @@ public:
     virtual std::string IrcPrefix() = 0;
     virtual void MessageStart(char* pchMessageStart) = 0;
     virtual void AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx) = 0;
+    virtual void RemoveFromMemoryPool(const CTransaction& tx) = 0;
 
     /* These are for display and wallet management purposes.  Not for use to decide
      * whether to spend a coin. */
@@ -52,13 +53,14 @@ public:
 };
 
 // A simple wrapper (pImpl patter) to remove dependency on the game-related headers when miner just wants to check transactions
-class GameStepValidatorMiner
+class GameStepMiner
 {
-    class GameStepValidator *pImpl;
+    class GameStepMinerImpl *pImpl;
 public:
-    GameStepValidatorMiner(CTxDB &txdb, CBlockIndex *pindex);
-    ~GameStepValidatorMiner();
-    bool IsValid(const CTransaction& tx);
+    GameStepMiner(CTxDB &txdb, CBlockIndex *pindex);
+    ~GameStepMiner();
+    bool AddTx(const CTransaction& tx);
+    int64 ComputeTax();
 };
 
 extern CHooks* InitHook();

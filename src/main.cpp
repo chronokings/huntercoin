@@ -551,6 +551,8 @@ bool CTransaction::AddToMemoryPoolUnchecked()
 
 bool CTransaction::RemoveFromMemoryPool()
 {
+    hooks->RemoveFromMemoryPool(*this);
+
     // Remove transaction from memory pool
     CRITICAL_BLOCK(cs_mapTransactions)
     {
@@ -806,15 +808,16 @@ uint256 static GetOrphanRoot(const CBlock* pblock)
 
 int64 GetBlockValue(int nHeight, int64 nFees)
 {
-    // Miner: 50% + fee
-    // Game : 50%
+    // Miner: 10% + fee + tax
+    // Game : 90%
 
-    // The value below is the miner reward only (i.e. equals 50% of the generated coins per block)
-    // E.g. if it says 50, then miner gets 50 and another 50 go to players.
-    int64 nSubsidy = 50 * COIN;
+    int64 nSubsidy = 1 * COIN;
 
-    // Subsidy is cut in half every 210000 blocks
-    nSubsidy >>= (nHeight / 210000);
+    // Subsidy is cut in half every 2100000 blocks
+    // Total amount of coins: 42000000
+    // Initially coins per block: 10 (1 to miner, 9 to game treasure)
+    // Thus reward halving period is 42000000 / 2 / 10 = 2100000
+    nSubsidy >>= (nHeight / 2100000);
 
     return nSubsidy + nFees;
 }
@@ -839,7 +842,7 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
     if(pindexLast->nHeight >= hooks->GetFullRetargetStartBlock() && ((pindexLast->nHeight+1) > nInterval))
         nBlocksBack = nInterval;
 
-    // Go back by what we want to be 14 days worth of blocks
+    // Go back by what we want to be nTargetTimespan seconds worth of blocks
     const CBlockIndex* pindexFirst = pindexLast;
     for (int i = 0; pindexFirst && i < nBlocksBack; i++)
         pindexFirst = pindexFirst->pprev;
@@ -847,11 +850,16 @@ unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
 
     // Limit adjustment step
     int64 nActualTimespan = pindexLast->GetBlockTime() - pindexFirst->GetBlockTime();
-    printf("  nActualTimespan = %"PRI64d"  before bounds\n", nActualTimespan);
-    if (nActualTimespan < nTargetTimespan/4)
-        nActualTimespan = nTargetTimespan/4;
-    if (nActualTimespan > nTargetTimespan*4)
-        nActualTimespan = nTargetTimespan*4;
+
+    // In beta version we remote the 4x increase/decrease limitation
+    if (!VERSION_IS_BETA)
+    {
+        printf("  nActualTimespan = %"PRI64d"  before bounds\n", nActualTimespan);
+        if (nActualTimespan < nTargetTimespan/4)
+            nActualTimespan = nTargetTimespan/4;
+        if (nActualTimespan > nTargetTimespan*4)
+            nActualTimespan = nTargetTimespan*4;
+    }
 
     // Retarget
     CBigNum bnNew;
@@ -1304,7 +1312,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
     // nFees may include taxes from the game, so we check it after creating game transactions
 
-    if (vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
+    if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
         return false;
 
     // Update block index on disk without changing it in memory.
@@ -1354,58 +1362,60 @@ bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
     for (CBlockIndex* pindex = pindexNew; pindex != pfork; pindex = pindex->pprev)
         vConnect.push_back(pindex);
     reverse(vConnect.begin(), vConnect.end());
-
-    // Disconnect shorter branch
-    vector<CTransaction> vResurrect;
-    BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
+    
+    vector<CTransaction> vResurrect, vDelete;
+    CRITICAL_BLOCK(cs_main)    // Lock to prevent concurrent game state reads on the non-main chain
     {
-        CBlock block;
-        if (!block.ReadFromDisk(pindex))
-            return error("Reorganize() : ReadFromDisk for disconnect failed");
-        if (!block.DisconnectBlock(txdb, pindex))
-            return error("Reorganize() : DisconnectBlock failed");
-
-        // Queue memory transactions to resurrect
-        BOOST_FOREACH(const CTransaction& tx, block.vtx)
-            if (!tx.IsCoinBase())
-                vResurrect.push_back(tx);
-    }
-
-    // Connect longer branch
-    vector<CTransaction> vDelete;
-    for (int i = 0; i < vConnect.size(); i++)
-    {
-        CBlockIndex* pindex = vConnect[i];
-        CBlock block;
-        if (!block.ReadFromDisk(pindex))
-            return error("Reorganize() : ReadFromDisk for connect failed");
-        if (!block.ConnectBlock(txdb, pindex))
+        // Disconnect shorter branch
+        BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
         {
-            // Invalid block
-            txdb.TxnAbort();
-            return error("Reorganize() : ConnectBlock failed");
+            CBlock block;
+            if (!block.ReadFromDisk(pindex))
+                return error("Reorganize() : ReadFromDisk for disconnect failed");
+            if (!block.DisconnectBlock(txdb, pindex))
+                return error("Reorganize() : DisconnectBlock failed");
+
+            // Queue memory transactions to resurrect
+            BOOST_FOREACH(const CTransaction& tx, block.vtx)
+                if (!tx.IsCoinBase())
+                    vResurrect.push_back(tx);
         }
 
-        // Queue memory transactions to delete
-        BOOST_FOREACH(const CTransaction& tx, block.vtx)
-            vDelete.push_back(tx);
+        // Connect longer branch
+        for (int i = 0; i < vConnect.size(); i++)
+        {
+            CBlockIndex* pindex = vConnect[i];
+            CBlock block;
+            if (!block.ReadFromDisk(pindex))
+                return error("Reorganize() : ReadFromDisk for connect failed");
+            if (!block.ConnectBlock(txdb, pindex))
+            {
+                // Invalid block
+                txdb.TxnAbort();
+                return error("Reorganize() : ConnectBlock failed");
+            }
+
+            // Queue memory transactions to delete
+            BOOST_FOREACH(const CTransaction& tx, block.vtx)
+                vDelete.push_back(tx);
+        }
+        if (!txdb.WriteHashBestChain(pindexNew->GetBlockHash()))
+            return error("Reorganize() : WriteHashBestChain failed");
+
+        // Make sure it's successfully written to disk before changing memory structure
+        if (!txdb.TxnCommit())
+            return error("Reorganize() : TxnCommit failed");
+
+        // Disconnect shorter branch
+        BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
+            if (pindex->pprev)
+                pindex->pprev->pnext = NULL;
+
+        // Connect longer branch
+        BOOST_FOREACH(CBlockIndex* pindex, vConnect)
+            if (pindex->pprev)
+                pindex->pprev->pnext = pindex;
     }
-    if (!txdb.WriteHashBestChain(pindexNew->GetBlockHash()))
-        return error("Reorganize() : WriteHashBestChain failed");
-
-    // Make sure it's successfully written to disk before changing memory structure
-    if (!txdb.TxnCommit())
-        return error("Reorganize() : TxnCommit failed");
-
-    // Disconnect shorter branch
-    BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
-        if (pindex->pprev)
-            pindex->pprev->pnext = NULL;
-
-    // Connect longer branch
-    BOOST_FOREACH(CBlockIndex* pindex, vConnect)
-        if (pindex->pprev)
-            pindex->pprev->pnext = pindex;
 
     // Resurrect memory transactions that were in the disconnected branch
     BOOST_FOREACH(CTransaction& tx, vResurrect)
@@ -1817,9 +1827,9 @@ bool CheckDiskSpace(uint64 nAdditionalBytes)
         strMiscWarning = strMessage;
         printf("*** %s\n", strMessage.c_str());
 #ifdef GUI
-        uiInterface.ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
+        uiInterface.ThreadSafeMessageBox(strMessage, "Huntercoin", wxOK | wxICON_EXCLAMATION);
 #else
-        ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
+        ThreadSafeMessageBox(strMessage, "Huntercoin", wxOK | wxICON_EXCLAMATION);
 #endif
 
         CreateThread(Shutdown, NULL);
@@ -1886,7 +1896,7 @@ bool LoadBlockIndex(bool fAllowNew)
 {
     if (fTestNet)
     {
-        bnProofOfWorkLimit = CBigNum(~uint256(0) >> 28);
+        bnProofOfWorkLimit = CBigNum(~uint256(0) >> 24);
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
         pchMessageStart[2] = 0xb5;
@@ -3111,8 +3121,6 @@ void CBlock::SetNull()
 
 CBlock* CreateNewBlock(CReserveKey& reservekey)
 {
-    CBlockIndex* pindexPrev = pindexBest;
-
     // Create new block
     auto_ptr<CBlock> pblock(new CBlock());
     if (!pblock.get())
@@ -3128,8 +3136,11 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
     // Add our coinbase tx as first transaction
     pblock->vtx.push_back(txNew);
 
+    CBlockIndex* pindexPrev;
+
     // Collect memory pool transactions into the block
     int64 nFees = 0;
+
     CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(cs_mapTransactions)
     {
@@ -3194,7 +3205,9 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
         }
 
         // If we do not exclude invalid game transactions, the block won't be accepted by ConnectBlock
-        GameStepValidatorMiner gameStepValidator(txdb, pindexPrev);
+        // Also we need to compute tax
+        pindexPrev = pindexBest;
+        GameStepMiner gameStepMiner(txdb, pindexPrev);
 
         // Collect transactions into block
         map<uint256, CTxIndex> mapTestPool;
@@ -3224,7 +3237,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
             map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
             if (!tx.ConnectInputs(txdb, mapTestPoolTmp, CDiskTxPos(1,1,1), pindexPrev, nFees, false, true, nMinFee))
                 continue;
-            if (!gameStepValidator.IsValid(tx))
+            if (!gameStepMiner.AddTx(tx))
                 continue;
             swap(mapTestPool, mapTestPoolTmp);
 
@@ -3248,6 +3261,9 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
                 }
             }
         }
+
+        int64 nTax = gameStepMiner.ComputeTax();
+        nFees += nTax;
     }
     pblock->vtx[0].vout[0].nValue = GetBlockValue(pindexPrev->nHeight+1, nFees);
 
@@ -3394,7 +3410,7 @@ void static BitcoinMiner(CWallet *pwallet)
 
     while (fGenerateBitcoins)
     {
-        if (AffinityBugWorkaround(ThreadBitcoinMiner))
+        if (AffinityBugWorkaround(ThreadBitcoinMiner, pwallet))
             return;
         if (fShutdown)
             return;

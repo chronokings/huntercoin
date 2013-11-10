@@ -5,10 +5,12 @@
 #include "guiconstants.h"
 
 #include "../headers.h"
-#include "../chronokings.h"
+#include "../huntercoin.h"
 #include "../gamedb.h"
 #include "../gamestate.h"
 #include "ui_interface.h"
+
+#include "gamechatview.h" // For ColorCSS
 
 #include "../json/json_spirit_writer_template.h"
 
@@ -343,7 +345,7 @@ public:
         }
     }
 
-    bool updateGameState(bool &fRewardAddrChanged)
+    bool updateGameState(bool &fRewardAddrChanged, bool &fMovingStatusChanged)
     {
         LOCK(cs_main);
 
@@ -378,6 +380,18 @@ public:
 
             if (item->state != s)
             {
+                std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
+                if (it != gameState.players.end())
+                {
+                    bool newMoving = it->second.coord != it->second.target;
+                    if (item->moving != newMoving)
+                    {
+                        fMovingStatusChanged = true;
+                        item->moving = newMoving;
+                    }
+                    item->color = it->second.color;
+                }
+
                 item->state = s;
                 fChanged = true;
             }
@@ -425,10 +439,13 @@ NameTableModel::~NameTableModel()
 void NameTableModel::updateGameState()
 {
     bool fRewardAddrChanged = false;
+    bool fMovingStatusChanged = false;
 
     // If any item changed (State or Address), we refresh the entire column
-    if (priv->updateGameState(fRewardAddrChanged))
+    if (priv->updateGameState(fRewardAddrChanged, fMovingStatusChanged))
         emit dataChanged(index(0, State), index(priv->size() - 1, State));
+    if (fMovingStatusChanged)
+        emit dataChanged(index(0, Status), index(priv->size() - 1, Status));
     if (fRewardAddrChanged)
         emit dataChanged(index(0, Address), index(priv->size() - 1, Address));
 }
@@ -518,6 +535,8 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
                     return QString("Not configured");
                 return QString("Pending (update)");
             }
+            else if (rec->moving)
+                return QString("OK (moving)");
             else
                 return QString("OK");
         }
@@ -530,6 +549,14 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
         if (index.column() == Address)
             font = GUIUtil::bitcoinAddressFont();
         return font;
+    }
+    else if (role == Qt::DecorationRole)
+    {
+        if (index.column() == Name && rec->color >= 0)
+        {
+            QString colorCSS = GameChatView::ColorCSS[rec->color];
+            return QColor(colorCSS);
+        }
     }
 
     return QVariant();
@@ -548,11 +575,11 @@ QVariant NameTableModel::headerData(int section, Qt::Orientation orientation, in
             switch(section)
             {
             case Name:
-                return tr("Player name for Chrono Kings");
+                return tr("Player name for Huntercoin");
             case Value:
                 return tr("Last move of the player");
             case Address:
-                return tr("Chrono Kings address to which the name is registered.\n\nNote: rewards can go to another address, if specified in the player profile");
+                return tr("Huntercoin address to which the name is registered.\n\nNote: rewards can go to another address, if specified in the player profile");
             case State:
                 return tr("State of the player in the game");
             case Status:

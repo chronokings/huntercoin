@@ -627,6 +627,13 @@ void ParseParameters(int argc, char* argv[])
         mapArgs[psz] = pszValue;
         mapMultiArgs[psz].push_back(pszValue);
     }
+
+    // Enforce testnet mode for BETA version
+    if (VERSION_IS_BETA && !GetBoolArg("-testnet"))
+    {
+        mapArgs["-testnet"] = "";
+        fTestNet = true;
+    }
 }
 
 
@@ -709,7 +716,7 @@ void FormatException(char* pszMessage, std::exception* pex, const char* pszThrea
     pszModule[0] = '\0';
     GetModuleFileNameA(NULL, pszModule, sizeof(pszModule));
 #else
-    const char* pszModule = "chronokings";
+    const char* pszModule = "huntercoin";
 #endif
     if (pex)
         snprintf(pszMessage, 1000,
@@ -735,7 +742,7 @@ void PrintException(std::exception* pex, const char* pszThread)
     strMiscWarning = pszMessage;
 #ifdef GUI
     if (wxTheApp && !fDaemon)
-        MyMessageBox(pszMessage, "Chrono Kings", wxOK | wxICON_ERROR);
+        MyMessageBox(pszMessage, "Huntercoin", wxOK | wxICON_ERROR);
 #endif
     throw;
 }
@@ -748,9 +755,9 @@ void ThreadOneMessageBox(string strMessage)
         return;
     fMessageBoxOpen = true;
 #ifdef GUI
-    uiInterface.ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
+    uiInterface.ThreadSafeMessageBox(strMessage, "Huntercoin", wxOK | wxICON_EXCLAMATION);
 #else
-    ThreadSafeMessageBox(strMessage, "Chrono Kings", wxOK | wxICON_EXCLAMATION);
+    ThreadSafeMessageBox(strMessage, "Huntercoin", wxOK | wxICON_EXCLAMATION);
 #endif
     fMessageBoxOpen = false;
 }
@@ -815,9 +822,9 @@ string GetDefaultDataDir()
 {
     string strSuffix = GetDefaultDataDirSuffix();
 
-    // Windows: C:\Documents and Settings\username\Application Data\ChronoKings
-    // Mac: ~/Library/Application Support/ChronoKings
-    // Unix: ~/.chronokings
+    // Windows: C:\Documents and Settings\username\Application Data\Huntercoin
+    // Mac: ~/Library/Application Support/Huntercoin
+    // Unix: ~/.huntercoin
 #ifdef __WXMSW__
     // Windows
     return MyGetSpecialFolderPath(CSIDL_APPDATA, true) + "\\" + strSuffix;
@@ -893,7 +900,7 @@ string GetConfigFile(string confFile)
 
 string GetConfigFile()
 {
-    return GetConfigFile("chronokings.conf");
+    return GetConfigFile("huntercoin.conf");
 }
 
 void ReadConfigFile(map<string, string>& mapSettingsRet,
@@ -911,7 +918,7 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
     
     for (pod::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it)
     {
-        // Don't overwrite existing settings so command line settings override chronokings.conf
+        // Don't overwrite existing settings so command line settings override huntercoin.conf
         string strKey = string("-") + it->string_key;
         if (mapSettingsRet.count(strKey) == 0)
             mapSettingsRet[strKey] = it->value[0];
@@ -922,7 +929,7 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
 string GetPidFile()
 {
     namespace fs = boost::filesystem;
-    fs::path pathConfig(GetArg("-pid", "chronokingsd.pid"));
+    fs::path pathConfig(GetArg("-pid", "huntercoind.pid"));
     if (!pathConfig.is_complete())
         pathConfig = fs::path(GetDataDir()) / pathConfig;
     return pathConfig.string();
@@ -1039,10 +1046,10 @@ void AddTimeData(unsigned int ip, int64 nTime)
                 if (!fMatch)
                 {
                     fDone = true;
-                    string strMessage = _("Warning: Please check that your computer's date and time are correct.  If your clock is wrong Chrono Kings will not work properly.");
+                    string strMessage = _("Warning: Please check that your computer's date and time are correct.  If your clock is wrong Huntercoin will not work properly.");
                     strMiscWarning = strMessage;
                     printf("*** %s\n", strMessage.c_str());
-                    boost::thread(boost::bind(MyMessageBox, strMessage+" ", string("Chrono Kings"), wxOK | wxICON_EXCLAMATION, (wxWindow*)NULL, -1, -1));
+                    boost::thread(boost::bind(MyMessageBox, strMessage+" ", string("Huntercoin"), wxOK | wxICON_EXCLAMATION, (wxWindow*)NULL, -1, -1));
                 }
             }
         }
@@ -1060,9 +1067,9 @@ void AddTimeData(unsigned int ip, int64 nTime)
 string FormatVersion(int nVersion)
 {
     if (nVersion%100 == 0)
-        return strprintf("%d.%d.%d", nVersion/1000000, (nVersion/10000)%100, (nVersion/100)%100);
+        return strprintf("%d.%d.%02d", nVersion/1000000, (nVersion/10000)%100, (nVersion/100)%100);
     else
-        return strprintf("%d.%d.%d.%d", nVersion/1000000, (nVersion/10000)%100, (nVersion/100)%100, nVersion%100);
+        return strprintf("%d.%d.%02d.%d", nVersion/1000000, (nVersion/10000)%100, (nVersion/100)%100, nVersion%100);
 }
 
 string FormatFullVersion()
