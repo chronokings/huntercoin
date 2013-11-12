@@ -630,10 +630,7 @@ void ParseParameters(int argc, char* argv[])
 
     // Enforce testnet mode for BETA version
     if (VERSION_IS_BETA && !GetBoolArg("-testnet"))
-    {
         mapArgs["-testnet"] = "";
-        fTestNet = true;
-    }
 }
 
 

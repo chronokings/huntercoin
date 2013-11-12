@@ -171,7 +171,11 @@ bool AppInit2(int argc, char* argv[])
             }
         }
     }
-    else if (VERSION_IS_BETA)  // Force testnet for beta version
+
+    GetDataDir();    // Force creation of the default datadir directory, so we can create /testnet subdir in it
+
+    // Force testnet for beta version
+    if (VERSION_IS_BETA && !GetBoolArg("-testnet"))
         mapArgs["-testnet"] = "";
 
     // Set testnet flag first to determine the default datadir correctly
