@@ -10,6 +10,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
+#include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 
 using namespace std;
 using namespace boost;
@@ -212,6 +213,17 @@ bool AppInit2(int argc, char* argv[])
 
     fDebug = GetBoolArg("-debug");
     fAllowDNS = GetBoolArg("-dns");
+    std::string strAlgo = GetArg("-algo", "sha256d");
+    boost::to_lower(strAlgo);
+    if (strAlgo == "sha" || strAlgo == "sha256" || strAlgo == "sha256d")
+        miningAlgo = ALGO_SHA256D;
+    else if (strAlgo == "scrypt")
+        miningAlgo = ALGO_SCRYPT;
+    else
+    {
+        wxMessageBox("Incorrect -algo parameter specified, expected sha256d or scrypt", "Huntercoin");
+        return false;
+    }
 
 #if !defined(WIN32) && !defined(QT_GUI)
     fDaemon = GetBoolArg("-daemon");
@@ -596,7 +608,8 @@ std::string HelpMessage()
         "  -rpcallowip=<ip> \t\t  " + _("Allow JSON-RPC connections from specified IP address\n") +
         "  -rpcconnect=<ip> \t  "   + _("Send commands to node running on <ip> (default: 127.0.0.1)\n") +
         "  -keypool=<n>     \t  "   + _("Set key pool size to <n> (default: 100)\n") +
-        "  -rescan          \t  "   + _("Rescan the block chain for missing wallet transactions\n");
+        "  -rescan          \t  "   + _("Rescan the block chain for missing wallet transactions\n") +
+        "  -algo=<algo>     \t  "   + _("Mining algorithm: sha256d or scrypt. Also affects getdifficulty.\n");
 
 #ifdef USE_SSL
     strUsage += std::string() +

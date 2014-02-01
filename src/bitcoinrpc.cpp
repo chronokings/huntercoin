@@ -335,6 +335,9 @@ Value BlockToValue(CBlock &block)
     Object obj;
     obj.push_back(Pair("hash", block.GetHash().ToString().c_str()));
     obj.push_back(Pair("version", block.nVersion));
+    int algo = block.GetAlgo();
+    obj.push_back(Pair("algo", algo));
+    obj.push_back(Pair("pow_hash", block.GetPoWHash(algo).ToString().c_str()));
     obj.push_back(Pair("previousblockhash", block.hashPrevBlock.ToString().c_str()));
     obj.push_back(Pair("merkleroot", block.hashMerkleRoot.ToString().c_str()));
     obj.push_back(Pair("time", (uint64_t)block.nTime));
@@ -449,17 +452,21 @@ Value getconnectioncount(const Array& params, bool fHelp)
 }
 
 
-double GetDifficulty()
+double GetDifficulty(int algo)
 {
     // Floating point number that is a multiple of the minimum difficulty,
     // minimum difficulty = 1.0.
+    const CBlockIndex* blockindex = GetLastBlockIndexForAlgo(pindexBest, algo);
+    unsigned int nBits;
+    if (blockindex == NULL)
+        nBits = bnInitialHashTarget[algo].GetCompact();
+    else
+        nBits = blockindex->nBits;
 
-    if (pindexBest == NULL)
-        return 1.0;
-    int nShift = (pindexBest->nBits >> 24) & 0xff;
+    int nShift = (nBits >> 24) & 0xff;
 
     double dDiff =
-        (double)0x0000ffff / (double)(pindexBest->nBits & 0x00ffffff);
+        (double)0x0000ffff / (double)(nBits & 0x00ffffff);
 
     while (nShift < 29)
     {
@@ -482,7 +489,7 @@ Value getdifficulty(const Array& params, bool fHelp)
             "getdifficulty\n"
             "Returns the proof-of-work difficulty as a multiple of the minimum difficulty.");
 
-    return GetDifficulty();
+    return GetDifficulty(miningAlgo);
 }
 
 
@@ -554,7 +561,13 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("proxy",         (fUseProxy ? addrProxy.ToStringIPPort() : string())));
     obj.push_back(Pair("generate",      (bool)fGenerateBitcoins));
     obj.push_back(Pair("genproclimit",  (int)(fLimitProcessors ? nLimitProcessors : -1)));
-    obj.push_back(Pair("difficulty",    (double)GetDifficulty()));
+    if (miningAlgo == ALGO_SHA256D)
+        obj.push_back(Pair("algo",          std::string("sha256d")));
+    else if (miningAlgo == ALGO_SCRYPT)
+        obj.push_back(Pair("algo",          std::string("scrypt")));
+    obj.push_back(Pair("difficulty",    (double)GetDifficulty(miningAlgo)));
+    obj.push_back(Pair("difficulty_sha256d",    (double)GetDifficulty(ALGO_SHA256D)));
+    obj.push_back(Pair("difficulty_scrypt",    (double)GetDifficulty(ALGO_SCRYPT)));
     obj.push_back(Pair("hashespersec",  gethashespersec(params, false)));
     obj.push_back(Pair("testnet",       fTestNet));
     obj.push_back(Pair("keypoololdest", (boost::int64_t)pwalletMain->GetOldestKeyPoolTime()));
@@ -1875,7 +1888,7 @@ Value getwork(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block
-            pblock = CreateNewBlock(reservekey);
+            pblock = CreateNewBlock(reservekey, miningAlgo);
             if (!pblock)
                 throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
             vNewBlock.push_back(pblock);
@@ -1997,7 +2010,7 @@ Value getworkaux(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block
-            pblock = CreateNewBlock(reservekey);
+            pblock = CreateNewBlock(reservekey, miningAlgo);
             if (!pblock)
                 throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
             vNewBlock.push_back(pblock);
@@ -2075,7 +2088,7 @@ Value getworkaux(const Array& params, bool fHelp)
             // Requested aux proof of work
             int nChainIndex = params[2].get_int();
 
-            CAuxPow pow(pblock->vtx[0]);
+            CAuxPow pow(miningAlgo, pblock->vtx[0]);
 
             for (int i = 3 ; i < params.size() ; i++)
             {
@@ -2149,7 +2162,7 @@ Value getmemorypool(const Array& params, bool fHelp)
             // Create new block
             if(pblock)
                 delete pblock;
-            pblock = CreateNewBlock(reservekey);
+            pblock = CreateNewBlock(reservekey, miningAlgo);
             if (!pblock)
                 throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
         }
@@ -2240,7 +2253,7 @@ Value getauxblock(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block with nonce = 0 and extraNonce = 1
-            pblock = CreateNewBlock(reservekey);
+            pblock = CreateNewBlock(reservekey, miningAlgo);
 
             // Update nTime
             pblock->nTime = max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
@@ -2251,7 +2264,7 @@ Value getauxblock(const Array& params, bool fHelp)
             pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
 
             // Sets the version
-            pblock->SetAuxPow(new CAuxPow());
+            pblock->SetAuxPow(new CAuxPow(miningAlgo));
 
             // Save
             mapNewBlock[pblock->GetHash()] = pblock;
@@ -2275,7 +2288,7 @@ Value getauxblock(const Array& params, bool fHelp)
         hash.SetHex(params[0].get_str());
         vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
         CDataStream ss(vchAuxPow, SER_GETHASH|SER_BLOCKHEADERONLY);
-        CAuxPow* pow = new CAuxPow();
+        CAuxPow* pow = new CAuxPow(miningAlgo);
         ss >> *pow;
         if (!mapNewBlock.count(hash))
             return ::error("getauxblock() : block not found");
@@ -3775,7 +3788,7 @@ void ConvertTo(Value& value, bool fAllowNull=false)
         Value value2;
         string strJSON = value.get_str();
         if (!read_string(strJSON, value2))
-            throw runtime_error(string("Error parsing JSON:")+strJSON);
+            throw runtime_error(string("Error parsing JSON: ") + strJSON);
         ConvertTo<T>(value2, fAllowNull);
         value = value2;
     }

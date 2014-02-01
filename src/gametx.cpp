@@ -20,7 +20,7 @@ enum
     GAMEOP_KILLED_BY = 1,
 
     // Syntax (scriptSig):
-    //     player GAMEOP_COLLECTED_BOUNTY firstBlock lastBlock collectedFirstBlock collectedLastBlock
+    //     player GAMEOP_COLLECTED_BOUNTY characterIndex firstBlock lastBlock collectedFirstBlock collectedLastBlock
     // vin.size() == vout.size(), they correspond to each other, i.e. a null input is used
     // to hold info about the output in its scriptSig
     // (alternatively we could add vout index to the scriptSig, to allow more complex transactions
@@ -51,10 +51,10 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
         txin.scriptSig << vchName << GAMEOP_KILLED_BY;
 
         // List all killers, if player was simultaneously killed by several other players
-        typedef std::multimap<PlayerID, PlayerID>::const_iterator Iter;
+        typedef std::multimap<PlayerID, CharacterID>::const_iterator Iter;
         std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range(victim);
         for (Iter it = iters.first; it != iters.second; ++it)
-            txin.scriptSig << vchFromString(it->second);
+            txin.scriptSig << vchFromString(it->second.ToString());
         txNew.vin.push_back(txin);
     }
     if (!txNew.IsNull())
@@ -66,9 +66,9 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
     txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
     txNew.vout.reserve(stepResult.bounties.size());
 
-    BOOST_FOREACH(const PAIRTYPE(PlayerID, CollectedLootInfo) &bounty, stepResult.bounties)
+    BOOST_FOREACH(const PAIRTYPE(CharacterID, CollectedLootInfo) &bounty, stepResult.bounties)
     {
-        std::vector<unsigned char> vchName = vchFromString(bounty.first);
+        std::vector<unsigned char> vchName = vchFromString(bounty.first.player);
         CTransaction tx;
         if (!pnameDb || !GetTxOfNameAtHeight(*pnameDb, vchName, gameState.nHeight, tx))
             return error("Game engine created bounty for non-existing player");
@@ -79,7 +79,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
         // Note: we only use the resulting game state to pay rewards. If we need to pay them to just-killed players,
         // this function should be modified to accept two game states, or the game state must be augmented with deadPlayers array.
 
-        std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(bounty.first);
+        std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(bounty.first.player);
         if (mi == gameState.players.end())
             return error("Game engine created bounty for non-existing (dead?) player");
 
@@ -104,6 +104,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
 
         CTxIn txin;
         txin.scriptSig << vchName << GAMEOP_COLLECTED_BOUNTY
+                << bounty.first.index
                 << bounty.second.firstBlock
                 << bounty.second.lastBlock
                 << bounty.second.collectedFirstBlock
@@ -138,7 +139,8 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
     strRet += _("Player");
     strRet += " ";
     strRet += nameStartTag;
-    strRet += stringFromVch(vch);
+    std::string strPlayerName = stringFromVch(vch);
+    strRet += strPlayerName;
     strRet += nameEndTag;
     
     // Colon is needed to separate text from player name, since player name can contain whitespaces.
@@ -150,6 +152,7 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
         return strRet;
 
     bool fFirst = true; // For writing comma-separated values
+    unsigned char characterIndex;
 
     switch (opcode - OP_1 + 1)
     {
@@ -167,13 +170,23 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
                     strRet += _("killed by");
                     strRet += " ";
                 }
-                strRet += nameStartTag;
-                strRet += stringFromVch(vch) + nameEndTag;
+                std::string s = stringFromVch(vch);
+                if (s == strPlayerName)
+                    strRet += "self-destruction";
+                else
+                {
+                    strRet += nameStartTag;
+                    strRet += s;
+                    strRet += nameEndTag;
+                }
             }
             if (fFirst)
                 strRet += _("killed for staying too long in the spawn area");
             break;
         case GAMEOP_COLLECTED_BOUNTY:
+            scriptSig.GetOp(pc, opcode, vch);
+            if (opcode >= OP_1)
+                strRet += strprintf(".%d", int(opcode - OP_1 + 1));
             strRet += " ";
             strRet += _("collected bounty");
             break;

@@ -1,16 +1,17 @@
 #ifndef GAMEMAPVIEW_H
 #define GAMEMAPVIEW_H
 
-#include "gamepathfinder.h"
+#include "gamemovecreator.h"
 
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QGraphicsPathItem>
+#include <QGraphicsPixmapItem>
 #include <QHash>
 
 namespace Game
 {
-    class PlayerState;
+    class CharacterState;
     class GameState;
 }
 
@@ -29,9 +30,9 @@ public:
 
     explicit GameMapView(QWidget *parent = 0);
     ~GameMapView();
-    void SelectPlayers(const QStringList &names, const Game::GameState &state, const GamePathfinders &pathfinders);
-    void CenterMapOnPlayer(const Game::PlayerState &state);
-    void DeselectPlayers();
+    void SelectPlayer(const QString &name, const Game::GameState &state, QueuedMoves &queuedMoves);
+    void CenterMapOnCharacter(const Game::CharacterState &state);
+    void DeselectPlayer();
 
     const GameGraphicsObjects *grobjs;
 
@@ -46,6 +47,7 @@ signals:
 protected:
 
     QGraphicsScene *scene;
+    QGraphicsPixmapItem *crown;
     double zoomFactor;
 
     virtual void mousePressEvent(QMouseEvent *event);
@@ -56,7 +58,7 @@ protected:
 private:
 
     GameMapCache *gameMapCache;
-    QGraphicsPathItem *playerPath;
+    QGraphicsPathItem *playerPath, *queuedPlayerPath;
     QPainter::RenderHints defaultRenderHints;
 
     bool panning;

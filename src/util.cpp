@@ -1023,7 +1023,7 @@ void AddTimeData(unsigned int ip, int64 nTime)
         sort(vTimeOffsets.begin(), vTimeOffsets.end());
         int64 nMedian = vTimeOffsets[vTimeOffsets.size()/2];
         // Only let other nodes change our time by so much
-        if (abs64(nMedian) < 70 * 60)
+        if (abs64(nMedian) < 13 * 60)
         {
             nTimeOffset = nMedian;
         }

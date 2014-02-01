@@ -44,7 +44,7 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const;
     /*@}*/
 
-    // Ensures that all listeners update game state to then one returned by GetCurrentGameState()
+    // Ensures that all listeners update game state to the one returned by GetCurrentGameState()
     void emitGameStateChanged();
 
 private:
@@ -74,7 +74,6 @@ struct NameTableEntry
     QString address;
     bool fRewardAddressDifferent;
     QString state;
-    bool moving;
     int color;
     int nHeight;
     bool transferred;
@@ -90,13 +89,13 @@ struct NameTableEntry
     NameTableEntry() : nHeight(NAME_NON_EXISTING), transferred(false) {}
     NameTableEntry(const QString &name, const QString &value, const QString &address, int nHeight, bool transferred = false) :
         name(name), value(value), address(address),
-        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1), moving(false)
+        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1)
     {
     }
 
     NameTableEntry(const std::string &name, const std::string &value, const std::string &address, int nHeight, bool transferred = false) :
         name(QString::fromStdString(name)), value(QString::fromStdString(value)), address(QString::fromStdString(address)),
-        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1), moving(false)
+        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1)
     {
     }
 };

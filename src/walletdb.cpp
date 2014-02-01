@@ -345,11 +345,7 @@ bool CWalletDB::LoadWallet(CWallet* pwallet)
             }
 #endif
             else if (strType == "version")
-            {
                 ssValue >> nFileVersion;
-                if (nFileVersion == 10300)
-                    nFileVersion = 300;
-            }
             else if (strType == "setting")
             {
                 string strKey;

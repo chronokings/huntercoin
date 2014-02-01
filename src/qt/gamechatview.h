@@ -26,6 +26,7 @@ public:
 signals:
 
     void chatUpdated(const QString &html);
+    void chatScrollToAnchor(const QString &anchor);
 
 public slots:
 

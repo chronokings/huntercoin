@@ -71,7 +71,7 @@ public:
         cachedNameTable.clear();
 
         std::map< std::vector<unsigned char>, NameTableEntry > vNamesO;
-
+        
         CRITICAL_BLOCK(cs_main)
         CRITICAL_BLOCK(wallet->cs_mapWallet)
         {
@@ -111,17 +111,10 @@ public:
                 if (!fConfirmed)
                 {
                     std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
-                    Game::Move *m = Game::Move::Parse(sName, sValue);
-                    if (!m)
+                    Game::Move m;
+                    m.Parse(sName, sValue);
+                    if (!m || !m.IsValid(GetCurrentGameState()))
                         continue;
-
-                    if (!m->IsValid(GetCurrentGameState()))
-                    {
-                        delete m;
-                        continue;
-                    }
-                    else
-                        delete m;
                 }
 
                 const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
@@ -213,17 +206,10 @@ public:
                 if (!fConfirmed)
                 {
                     std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
-                    Game::Move *m = Game::Move::Parse(sName, sValue);
-                    if (!m)
+                    Game::Move m;
+                    m.Parse(sName, sValue);
+                    if (!m || !m.IsValid(GetCurrentGameState()))
                         continue;
-
-                    if (!m->IsValid(GetCurrentGameState()))
-                    {
-                        delete m;
-                        continue;
-                    }
-                    else
-                        delete m;
                 }
 
                 const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
@@ -345,15 +331,13 @@ public:
         }
     }
 
-    bool updateGameState(bool &fRewardAddrChanged, bool &fMovingStatusChanged)
+    bool updateGameState(bool &fRewardAddrChanged)
     {
         LOCK(cs_main);
 
         const Game::GameState &gameState = GetCurrentGameState();
         if (gameState.hashBlock == cachedLastBlock)
             return false;
-
-        emit parent->gameStateChanged(gameState);
 
         bool fChanged = false;
         for (int i = 0, n = size(); i < n; i++)
@@ -374,7 +358,8 @@ public:
                         fRewardAddrChanged = true;
                     }
 
-                    s = QString::fromStdString(json_spirit::write_string(it->second.ToJsonValue(), false));
+                    // Note: we do not provide crown_index here, so the JSON string won't contain has_crown field
+                    s = QString::fromStdString(json_spirit::write_string(it->second.ToJsonValue(-1), false));
                 }
             }
 
@@ -382,15 +367,7 @@ public:
             {
                 std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
                 if (it != gameState.players.end())
-                {
-                    bool newMoving = it->second.coord != it->second.target;
-                    if (item->moving != newMoving)
-                    {
-                        fMovingStatusChanged = true;
-                        item->moving = newMoving;
-                    }
                     item->color = it->second.color;
-                }
 
                 item->state = s;
                 fChanged = true;
@@ -398,6 +375,8 @@ public:
         }
 
         cachedLastBlock = gameState.hashBlock;
+        emit parent->gameStateChanged(gameState);
+
         return fChanged;
     }
 
@@ -439,13 +418,10 @@ NameTableModel::~NameTableModel()
 void NameTableModel::updateGameState()
 {
     bool fRewardAddrChanged = false;
-    bool fMovingStatusChanged = false;
 
     // If any item changed (State or Address), we refresh the entire column
-    if (priv->updateGameState(fRewardAddrChanged, fMovingStatusChanged))
+    if (priv->updateGameState(fRewardAddrChanged))
         emit dataChanged(index(0, State), index(priv->size() - 1, State));
-    if (fMovingStatusChanged)
-        emit dataChanged(index(0, Status), index(priv->size() - 1, Status));
     if (fRewardAddrChanged)
         emit dataChanged(index(0, Address), index(priv->size() - 1, Address));
 }
@@ -466,23 +442,23 @@ void NameTableModel::updateTransaction(const QString &hash, int status)
         if (mi == wallet->mapWallet.end())
             return;    // Not our transaction
         tx = mi->second;
+    }
 
-        if (tx.IsGameTx())
+    if (tx.IsGameTx())
+    {
+        BOOST_FOREACH(const CTxIn& txin, tx.vin)
         {
-            BOOST_FOREACH(const CTxIn& txin, tx.vin)
+            CTransaction txPrev;
+            uint256 hashBlock = 0;
+            if (GetTransaction(txin.prevout.hash, txPrev, hashBlock) &&
+                    hooks->IsMine(txPrev) &&
+                    GetNameOfTx(txPrev, vchName))
             {
-                CTransaction txPrev;
-                uint256 hashBlock = 0;
-                if (GetTransaction(txin.prevout.hash, txPrev, hashBlock) &&
-                        hooks->IsMine(txPrev) &&
-                        GetNameOfTx(txPrev, vchName))
-                {
-                    priv->refreshName(vchName);
-                }
+                priv->refreshName(vchName);
             }
-
-            return;
         }
+
+        return;
     }
 
     if (!GetNameOfTx(tx, vchName))
@@ -530,15 +506,12 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
             if (!rec->HeightValid())
             {
                 if (rec->nHeight == NameTableEntry::NAME_NEW)
-                    return QString("Pending (new)");
+                    return tr("Pending (new)");
                 else if (rec->nHeight == NameTableEntry::NAME_NEW_POSTPONED)
-                    return QString("Not configured");
-                return QString("Pending (update)");
+                    return tr("Not configured");
+                return tr("Pending (update)");
             }
-            else if (rec->moving)
-                return QString("OK (moving)");
-            else
-                return QString("OK");
+            return tr("OK");
         }
     }
     else if (role == Qt::TextAlignmentRole)
@@ -557,6 +530,11 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
             QString colorCSS = GameChatView::ColorCSS[rec->color];
             return QColor(colorCSS);
         }
+    }
+    else if (role == Qt::CheckStateRole && index.column() == Status)
+    {
+        // Return status (OK or pending) as boolean variable to enable/disable Go button
+        return rec->HeightValid();
     }
 
     return QVariant();

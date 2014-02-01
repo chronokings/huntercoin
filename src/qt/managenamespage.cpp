@@ -10,18 +10,19 @@
 #include "../main.h"
 #include "../hook.h"
 #include "../wallet.h"
+#include "../util.h"
 #include "../huntercoin.h"
 #include "guiconstants.h"
 #include "ui_interface.h"
-#include "configurenamedialog.h"
+#include "configurenamedialog1.h"
+#include "configurenamedialog2.h"
 #include "gamemapview.h"
 #include "gamechatview.h"
 
-#include <QSortFilterProxyModel>
 #include <QMessageBox>
-#include <QMenu>
 #include <QScrollBar>
-#include <QClipboard>
+#include <QTimeLine>
+#include <QInputDialog>
 
 #include "../json/json_spirit.h"
 #include "../json/json_spirit_utils.h"
@@ -29,86 +30,320 @@
 
 extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
 
+class CharacterTableModel : public QAbstractTableModel
+{
+    Q_OBJECT
+    Game::PlayerID player;
+    Game::PlayerState state;
+    Game::CharacterID crownHolder;
+    std::vector<int> alive;
+    const QueuedPlayerMoves &queuedMoves;
+    bool pending;      // Global flag if player transaction state is pending
+
+public:
+    CharacterTableModel(const Game::PlayerID &player_, const Game::PlayerState &state_, const QueuedPlayerMoves &queuedMoves_, Game::CharacterID crownHolder_)
+        : player(player_), state(state_), queuedMoves(queuedMoves_), crownHolder(crownHolder_), pending(false)
+    {
+        BOOST_FOREACH(const PAIRTYPE(int, Game::CharacterState) &pc, state.characters)
+            alive.push_back(pc.first);
+    }
+
+    enum ColumnIndex {
+        Name = 0,
+        Coins = 1,
+        Status = 2,
+        NUM_COLUMNS
+    };
+
+    /** @name Methods overridden from QAbstractTableModel
+        @{*/
+    int rowCount(const QModelIndex &parent = QModelIndex()) const
+    {
+        Q_UNUSED(parent);
+        return alive.size();
+    }
+
+    int columnCount(const QModelIndex &parent = QModelIndex()) const
+    {
+        Q_UNUSED(parent);
+        return NUM_COLUMNS;
+    }
+
+    void MoveQueueChanged()
+    {
+        emit dataChanged(index(0, Status), index(alive.size() - 1, Status));
+    }
+
+    void SetPending(bool pending_)
+    {
+        if (pending != pending_)
+        {
+            pending = pending_;
+            emit dataChanged(index(0, Status), index(alive.size() - 1, Status));
+        }
+    }
+
+    QVariant data(const QModelIndex &index, int role) const
+    {
+        if (!index.isValid())
+            return QVariant();
+
+        if (role == Qt::DisplayRole || role == Qt::EditRole)
+        {
+            int i = alive[index.row()];
+            QueuedPlayerMoves::const_iterator mi;
+            std::map<int, Game::CharacterState>::const_iterator mi2;
+            switch (index.column())
+            {
+                case Name:
+                {
+                    // TODO: for sorting return the index as number
+                    Game::CharacterID chid(player, i);
+                    QString ret = QString::fromStdString(chid.ToString());
+                    if (role == Qt::DisplayRole)
+                    {
+                        if (i == 0)
+                            ret = QString::fromUtf8("\u2605") + ret;
+                        if (crownHolder == chid)
+                            ret += QString::fromUtf8(" \u265B");
+                    }
+                    return ret;
+                }
+                case Coins:
+                    mi2 = state.characters.find(i);
+                    if (mi2 != state.characters.end())
+                        return QString::fromStdString(FormatMoney(mi2->second.loot.nAmount));    // TODO: for sorting return as float value
+                    return QVariant();
+                case Status:
+                    if (pending)
+                        return tr("Pending");
+                    mi = queuedMoves.find(i);
+                    if (mi != queuedMoves.end())
+                    {
+                        if (mi->second.destruct)
+                            return tr("Destruct");
+                        else
+                            return tr("Queued");
+                    }
+                    else
+                    {
+                        mi2 = state.characters.find(i);
+                        if (mi2 != state.characters.end() && mi2->second.waypoints.empty())
+                            return tr("Ready");
+                        else
+                            return tr("Moving");
+                    }
+            }
+        }
+        else if (role == Qt::TextAlignmentRole)
+            return QVariant(int(Qt::AlignLeft|Qt::AlignVCenter));
+
+        return QVariant();
+    }
+
+    QVariant headerData(int section, Qt::Orientation orientation, int role) const
+    {
+        if (orientation == Qt::Horizontal)
+        {
+            if (role == Qt::DisplayRole)
+            {
+                switch (section)
+                {
+                    case Name:
+                        return tr("Name");
+                    case Coins:
+                        return tr("Coins");
+                    case Status:
+                        return tr("Status");
+                }
+            }
+            else if (role == Qt::TextAlignmentRole)
+                return QVariant(int(Qt::AlignLeft|Qt::AlignVCenter));
+            else if (role == Qt::ToolTipRole)
+            {
+                switch (section)
+                {
+                    case Name:
+                        return tr("Character name");
+                    case Coins:
+                        return tr("Amount of collected loot (return the character to spawn area to cash out)");
+                    case Status:
+                        return tr("Character status");
+                }
+            }
+        }
+        return QVariant();
+    }
+
+    QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const
+    {
+        Q_UNUSED(parent);
+        return createIndex(row, column);
+    }
+
+    Qt::ItemFlags flags(const QModelIndex &index) const
+    {
+        if (!index.isValid())
+            return 0;
+
+        return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+    }
+    /*@}*/
+
+    int FindRow(const QString &name)
+    {
+        Game::CharacterID chid = Game::CharacterID::Parse(name.toStdString());
+        if (chid.player != player)
+            return -1;
+        std::vector<int>::const_iterator it = std::lower_bound(alive.begin(), alive.end(), chid.index);
+        if (it == alive.end())
+            return -1;
+        if (*it != chid.index)
+            return -1;
+        return it - alive.begin();
+    }
+};
+
+class NameTabs : public QTabBar
+{
+    Q_OBJECT
+
+public:
+    NameTabs(NameTableModel *model_, QWidget *parent = 0)
+        : QTabBar(parent), model(model_)
+    {
+#define NAME_TABS_CONNECT_HELPER(x) \
+            connect(model, SIGNAL(x), this, SLOT(x))
+
+        NAME_TABS_CONNECT_HELPER(dataChanged(const QModelIndex &, const QModelIndex &));
+        NAME_TABS_CONNECT_HELPER(modelReset());
+        NAME_TABS_CONNECT_HELPER(rowsInserted(const QModelIndex &, int, int));
+        NAME_TABS_CONNECT_HELPER(rowsMoved(const QModelIndex &, int, int, const QModelIndex &, int));
+        NAME_TABS_CONNECT_HELPER(rowsRemoved(const QModelIndex &, int, int));
+
+#undef NAME_TABS_CONNECT_HELPER
+
+        connect(this, SIGNAL(currentChanged(int)), this, SLOT(onCurrentChanged(int)));
+
+        setStyleSheet("QTabBar { font-weight: bold }");
+
+        CreateTabs();
+    }
+
+    void EmitSelect()
+    {
+        onCurrentChanged(currentIndex());
+    }
+
+signals:
+    void onSelectName(const QString &name);
+    void PendingStatusChanged();
+
+private slots:
+    void onCurrentChanged(int row)
+    {
+        if (row >= 0)
+        {
+            QModelIndex index = model->index(row, NameTableModel::Name);
+            QString name = index.data(Qt::EditRole).toString();
+            emit onSelectName(name);
+        }
+        else
+            emit onSelectName(QString());
+    }
+
+    void dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight)
+    {
+        int row_start = topLeft.row();
+        int row_end = bottomRight.row();
+        for (int i = row_start; i <= row_end; i++)
+        {
+            QModelIndex index = model->index(i, NameTableModel::Name);
+            setTabText(i, index.data(Qt::DisplayRole).toString());
+            setTabData(i, index.data(Qt::EditRole));
+            setTabTextColor(i, index.data(Qt::DecorationRole).value<QColor>());
+        }
+        int cur = currentIndex();
+        if (row_start <= cur && cur <= row_end)
+            emit PendingStatusChanged();
+    }
+
+    void modelReset()
+    {
+        ClearTabs();
+        CreateTabs();
+    }
+
+    void rowsInserted(const QModelIndex &parent, int start, int end)
+    {
+        Q_UNUSED(parent);
+        for (int i = start; i <= end; i++)
+        {
+            QModelIndex index = model->index(i, NameTableModel::Name);
+            insertTab(i, index.data(Qt::DisplayRole).toString());
+            setTabTextColor(i, index.data(Qt::DecorationRole).value<QColor>());
+        }
+    }
+
+    void rowsMoved(const QModelIndex &sourceParent, int sourceStart, int sourceEnd, const QModelIndex &destinationParent, int destinationRow)
+    {
+        throw std::runtime_error("NameTabs::rowsMoved not implemented");
+    }
+
+    void rowsRemoved(const QModelIndex &parent, int start, int end)
+    {
+        Q_UNUSED(parent);
+        for (int i = end; i >= start; i--)
+            removeTab(i);
+    }
+
+private:
+    NameTableModel *model;
+    
+    void ClearTabs()
+    {
+        for (int i = count(); i >= 0; i--)
+            removeTab(i);
+    }
+
+    void CreateTabs()
+    {
+        for (int i = 0, n = model->rowCount(); i < n; i++)
+        {
+            QModelIndex index = model->index(i, NameTableModel::Name);
+            addTab(index.data(Qt::DisplayRole).toString());
+            setTabTextColor(i, index.data(Qt::DecorationRole).value<QColor>());
+        }
+    }
+};
+
+#include "managenamespage.moc"
+
 // Prefix that indicates for the user that the player's reward address isn't the one shown
 // (currently this column is hidden though)
 const QString NON_REWARD_ADDRESS_PREFIX = "-";
 
 //
-// NameFilterProxyModel
-//
-
-NameFilterProxyModel::NameFilterProxyModel(QObject *parent /* = 0*/)
-    : QSortFilterProxyModel(parent)
-{
-}
-
-void NameFilterProxyModel::setNameSearch(const QString &search)
-{
-    nameSearch = search;
-    invalidateFilter();
-}
-
-bool NameFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
-{
-    QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
-
-    QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
-
-    Qt::CaseSensitivity case_sens = filterCaseSensitivity();
-    return name.contains(nameSearch, case_sens);
-}
-
-//
 // ManageNamesPage
 //
 
-const static int COLUMN_WIDTH_NAME = 140;
+const static int COLUMN_WIDTH_NAME = 120;
+const static int COLUMN_WIDTH_COINS = 90;
 
 ManageNamesPage::ManageNamesPage(QWidget *parent) :
-    QDialog(parent),
+    QWidget(parent),
     ui(new Ui::ManageNamesPage),
     model(0),
     walletModel(0),
-    proxyModel(0)
+    characterTableModel(0),
+    chrononAnim(0),
+    tabsNames(NULL),
+    rewardAddrChanged(false)
 {
     ui->setupUi(this);
 
-    // Context menu actions
-    QAction *copyNameAction = new QAction(tr("Copy &Name"), this);
-    QAction *copyAddressAction = new QAction(tr("Copy &Address"), this);
-
-    // Build context menu
-    contextMenu = new QMenu();
-    contextMenu->addAction(copyNameAction);
-
-    // Connect signals for context menu actions
-    connect(copyNameAction, SIGNAL(triggered()), this, SLOT(onCopyNameAction()));
-    connect(copyAddressAction, SIGNAL(triggered()), this, SLOT(onCopyAddressAction()));
-
-    connect(ui->tableView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(contextualMenu(QPoint))); 
-    connect(ui->tableView, SIGNAL(clicked(QModelIndex)), this, SLOT(onClickedPlayer(QModelIndex)));
-    connect(ui->tableView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(onConfigureName(QModelIndex)));
-    connect(ui->nameFilter, SIGNAL(textChanged(QString)), this, SLOT(changedNameFilter(QString)));
-
-    ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-    ui->registerName->installEventFilter(this);
-    ui->submitNameButton->installEventFilter(this);
-    ui->tableView->installEventFilter(this);
-    ui->nameFilter->installEventFilter(this);
-    ui->textChat->installEventFilter(this);
-
-    ui->registerName->setMaxLength(MAX_NAME_LENGTH);
-    ui->nameFilter->setFixedWidth(COLUMN_WIDTH_NAME);
-
-    ui->nameFilter->setMaxLength(MAX_NAME_LENGTH);
-
-#if QT_VERSION >= 0x040700
-    /* Do not move this to the XML file, Qt before 4.7 will choke on it */
-    ui->nameFilter->setPlaceholderText(tr("Name filter"));
-#endif
-
-    ui->nameFilter->setFixedWidth(COLUMN_WIDTH_NAME);
+    connect(ui->tableCharacters, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(onClickedCharacter(QModelIndex)));
+    ui->tableCharacters->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     gameMapView = new GameMapView(this);
     ui->verticalLayoutGameMap->addWidget(gameMapView);
@@ -117,88 +352,74 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
 
     gameChatView = new GameChatView(this);
     connect(gameChatView, SIGNAL(chatUpdated(const QString &)), ui->textChat, SLOT(setHtml(const QString &)));
-    
-    ClearSelectedPlayers();
+    connect(gameChatView, SIGNAL(chatScrollToAnchor(const QString &)), ui->textChat, SLOT(scrollToAnchor(const QString &)));
+
+    chrononAnim = new QTimeLine(3000, this);
+    chrononAnim->setUpdateInterval(50);
+    connect(chrononAnim, SIGNAL(valueChanged(qreal)), SLOT(chrononAnimChanged(qreal)));
+    connect(chrononAnim, SIGNAL(finished()), SLOT(chrononAnimFinished()));
+
+    onSelectName(QString());
 }
 
 ManageNamesPage::~ManageNamesPage()
 {
     delete ui;
+    delete characterTableModel;
 }
 
 void ManageNamesPage::setModel(WalletModel *walletModel)
 {
     this->walletModel = walletModel;
     model = walletModel->getNameTableModel();
+    model->updateGameState();
 
-    proxyModel = new NameFilterProxyModel(this);
-    proxyModel->setSourceModel(model);
-    proxyModel->setDynamicSortFilter(true);
-    proxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
-    proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    if (tabsNames)
+        delete tabsNames;
+    tabsNames = new NameTabs(model, this);
+    tabsNames->setDrawBase(false);
+    ui->horizontalLayoutTop->insertWidget(0, tabsNames);
 
-    ui->tableView->setModel(proxyModel);
-    ui->tableView->sortByColumn(0, Qt::AscendingOrder);
-    connect(ui->tableView->selectionModel(), SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this, SLOT(onSelectionChanged(QItemSelection, QItemSelection)));
-
-    ui->tableView->horizontalHeader()->setHighlightSections(false);
-
-    // Set column widths
-    ui->tableView->horizontalHeader()->resizeSection(
-            NameTableModel::Name, COLUMN_WIDTH_NAME);
-    ui->tableView->horizontalHeader()->setResizeMode(
-            NameTableModel::Status, QHeaderView::Stretch);
-
-    ui->tableView->setColumnHidden(NameTableModel::Value, true);
-    ui->tableView->setColumnHidden(NameTableModel::Address, true);
-    ui->tableView->setColumnHidden(NameTableModel::State, true);
+    connect(tabsNames, SIGNAL(onSelectName(const QString &)), this, SLOT(onSelectName(const QString &)));
+    connect(tabsNames, SIGNAL(PendingStatusChanged()), this, SLOT(PendingStatusChanged()));
+    tabsNames->EmitSelect();
 
     connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), gameChatView, SLOT(updateChat(const Game::GameState &)));
     connect(model, SIGNAL(gameStateChanged(const Game::GameState &)), this, SLOT(updateGameState(const Game::GameState &)));
 
-    ClearSelectedPlayers();
+    ui->tableCharacters->horizontalHeader()->setHighlightSections(false);
 
     model->emitGameStateChanged();
 }
 
-void ManageNamesPage::changedNameFilter(const QString &filter)
-{
-    if (!proxyModel)
-        return;
-    proxyModel->setNameSearch(filter);
-}
-
 extern bool IsValidPlayerName(const std::string &);
 
-void ManageNamesPage::on_submitNameButton_clicked()
+void ManageNamesPage::on_newButton_clicked()
 {
     if (!walletModel)
         return;
 
-    QString name = ui->registerName->text();
-
-    if (!IsValidPlayerName(name.toStdString()))
+    QString name;
+    for (;;)
     {
-        QMessageBox::warning(this, tr("Name registration error"),
-              tr("The entered name is invalid. Allowed characters: alphanumeric, underscore, hyphen, whitespace (but not at start/end and no double whitespaces)."),
-              QMessageBox::Ok);
-        return;
+        bool ok;
+        name = QInputDialog::getText(this, tr("New name"), tr("Player name:"), QLineEdit::Normal, "", &ok, Qt::WindowSystemMenuHint | Qt::WindowTitleHint);
+        if (!ok)
+            return;
+
+        if (!IsValidPlayerName(name.toStdString()))
+            QMessageBox::warning(this, tr("Name registration error"),
+                  tr("The entered name is invalid. Allowed characters: alphanumeric, underscore, hyphen, whitespace (but not at start/end and no double whitespaces)."),
+                  QMessageBox::Ok);
+        else
+            break;
     }
 
     if (!walletModel->nameAvailable(name))
     {
         QMessageBox::warning(this, tr("Name registration"), tr("Name not available"));
-        ui->registerName->setFocus();
         return;
     }
-
-    /*if (QMessageBox::Yes != QMessageBox::question(this, tr("Confirm name registration"),
-          tr("Are you sure you want to create player %1?").arg(name),
-          QMessageBox::Yes | QMessageBox::Cancel,
-          QMessageBox::Cancel))
-    {
-        return;
-    }*/
 
     WalletModel::UnlockContext ctx(walletModel->requestUnlock());
     if (!ctx.isValid())
@@ -212,17 +433,14 @@ void ManageNamesPage::on_submitNameButton_clicked()
 
         if (res.ok)
         {
-            ui->registerName->setText("");
-            ui->submitNameButton->setDefault(true);
-
             int newRowIndex;
             // FIXME: CT_NEW may have been sent from nameNew (via transaction).
             // Currently updateEntry is modified so it does not complain
             model->updateEntry(name, "", res.address, NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
-            ui->tableView->selectRow(newRowIndex);
-            ui->tableView->setFocus();
+            tabsNames->setCurrentIndex(newRowIndex);
+            onSelectName(name);
 
-            ConfigureNameDialog dlg(name, "", res.address, this);
+            ConfigureNameDialog1 dlg(name, "", res.address, this);
             dlg.setModel(walletModel);
             if (dlg.exec() == QDialog::Accepted)
             {
@@ -252,416 +470,394 @@ void ManageNamesPage::on_submitNameButton_clicked()
     QMessageBox::warning(this, tr("Name registration failed"), err_msg);
 }
 
-void ManageNamesPage::on_updateButton_clicked()
+void ManageNamesPage::on_destructButton_clicked()
 {
-    json_spirit::Object json;
-    MakeMove(json);
+    if (selectedCharacters.isEmpty())
+        return;
+
+    foreach (QString character, selectedCharacters)
+    {
+        Game::CharacterID chid = Game::CharacterID::Parse(character.toStdString());
+        if (chid.player != selectedPlayer.toStdString())
+            continue;
+
+        if (chid == gameState.crownHolder)
+        {
+            QMessageBox::information(this, tr("Self-destruction"),
+                  tr("Crown holder cannot self-destruct"),
+                  QMessageBox::Ok);
+            continue;
+        }
+
+        queuedMoves[chid.player][chid.index].destruct = true;
+    }    
+
+    UpdateQueuedMoves();
 }
 
-void ManageNamesPage::on_attackButton_clicked()
+void ManageNamesPage::on_goButton_clicked()
 {
-    int index = ui->comboBoxAttack->currentIndex();
-    attack = ui->comboBoxAttack->itemData(index).toString();
+    if (selectedPlayer.isEmpty())
+        return;
 
-    if (attack.isEmpty())
+    if (!walletModel)
         return;
 
     json_spirit::Object json;
-    json.push_back(json_spirit::Pair("attack", attack.toStdString()));
-    MakeMove(json);
+
+    QString msg = ui->messageEdit->text();
+    if (!msg.isEmpty())
+        json.push_back(json_spirit::Pair("msg", msg.toStdString()));
+
+    // Make sure the game state is up-to-date (otherwise it's only polled every 250 ms)
+    model->updateGameState();
+
+    std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
+    if (it == gameState.players.end() || rewardAddr.toStdString() != it->second.address)
+        json.push_back(json_spirit::Pair("address", rewardAddr.toStdString()));
+
+    std::string strSelectedPlayer = selectedPlayer.toStdString();
+    
+    std::map<Game::PlayerID, Game::PlayerState>::const_iterator mi = gameState.players.find(strSelectedPlayer);
+
+    const QueuedPlayerMoves &qpm = queuedMoves[strSelectedPlayer];
+
+    BOOST_FOREACH(const PAIRTYPE(int, QueuedMove)& item, qpm)
+    {
+        // TODO: this can be extracted as a method QueuedMove::ToJsonValue
+        json_spirit::Object obj;
+        if (item.second.destruct)
+            obj.push_back(json_spirit::Pair("destruct", json_spirit::Value(true)));
+        else
+        {
+            const std::vector<Game::Coord> *p = NULL;
+            if (mi != gameState.players.end())
+            {
+                std::map<int, Game::CharacterState>::const_iterator mi2 = mi->second.characters.find(item.first);
+                if (mi2 == mi->second.characters.end())
+                    continue;
+                const Game::CharacterState &ch = mi2->second;
+
+                // Caution: UpdateQueuedPath can modify the array queuedMoves that we are iterating over
+                p = UpdateQueuedPath(ch, queuedMoves, Game::CharacterID(strSelectedPlayer, item.first));
+            }
+
+            if (!p || p->empty())
+                p = &item.second.waypoints;
+
+            if (p->empty())
+                continue;
+
+            json_spirit::Array arr;
+            if (p->size() == 1)
+            {
+                // Single waypoint (which forces character to stop on the spot) is sent as is.
+                // It's also possible to send an empty waypoint array for this, but the behavior will differ 
+                // if it goes into the chain some blocks later (will stop on the current tile rather than
+                // the clicked one).
+                arr.push_back((*p)[0].x);
+                arr.push_back((*p)[0].y);
+            }
+            else
+                for (size_t i = 1, n = p->size(); i < n; i++)
+                {
+                    arr.push_back((*p)[i].x);
+                    arr.push_back((*p)[i].y);
+                }
+            obj.push_back(json_spirit::Pair("wp", arr));
+        }
+        json.push_back(json_spirit::Pair(strprintf("%d", item.first), obj));
+    }
+
+    QString data = QString::fromStdString(json_spirit::write_string(json_spirit::Value(json), false));
+
+    QString err_msg;
+    try
+    {
+        WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+        if (!ctx.isValid())
+            return;
+
+        err_msg = walletModel->nameUpdate(selectedPlayer, data, transferTo);
+    }
+    catch (std::exception& e) 
+    {
+        err_msg = e.what();
+    }
+
+    if (!err_msg.isEmpty())
+    {
+        if (err_msg == "ABORTED")
+            return;
+
+        printf("Name update error for player %s: %s\n\tMove: %s\n", qPrintable(selectedPlayer), qPrintable(err_msg), qPrintable(data));
+        QMessageBox::critical(this, tr("Name update error"), err_msg);
+        return;
+    }
+    ui->messageEdit->setText(QString());
+    transferTo = QString();
+
+    queuedMoves[strSelectedPlayer].clear();
+
+    UpdateQueuedMoves();
+    SetPlayerMoveEnabled(false);
+    rewardAddrChanged = false;
+}
+
+void ManageNamesPage::on_cancelButton_clicked()
+{
+    if (selectedCharacters.isEmpty())
+        return;
+
+    foreach (QString character, selectedCharacters)
+    {
+        Game::CharacterID chid = Game::CharacterID::Parse(character.toStdString());
+        if (chid.player != selectedPlayer.toStdString())
+            continue;
+
+        queuedMoves[chid.player].erase(chid.index);
+    }
+
+    UpdateQueuedMoves();
+}
+
+void ManageNamesPage::UpdateQueuedMoves()
+{
+    if (characterTableModel)
+        characterTableModel->MoveQueueChanged();
+    gameMapView->SelectPlayer(selectedPlayer, gameState, queuedMoves);
 }
 
 void ManageNamesPage::onTileClicked(int x, int y)
 {
-    if (selectedPlayers.isEmpty())
+    if (selectedCharacters.isEmpty())
         return;
 
-    if (!walletModel)
-        return;
-
-    json_spirit::Object json;
-
-    if (selectedPlayers.size() <= 1) // Message is ignored when many players are selected
+    Game::Coord target(x, y);
+    foreach (QString character, selectedCharacters)
     {
-        QString msg = ui->messageEdit->toPlainText();
-        if (!msg.isEmpty())
-            json.push_back(json_spirit::Pair("message", msg.toStdString()));
-    }
-    QString reward = ui->rewardAddr->text();
-    if (!reward.isEmpty() && !walletModel->validateAddress(reward))
-    {
-        ui->rewardAddr->setValid(false);
-        return;
-    }
-
-    QString addr = ui->transferTo->text();
-    if (!addr.isEmpty() && !walletModel->validateAddress(addr))
-    {
-        ui->transferTo->setValid(false);
-        return;
-    }
-
-    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
-    if (!ctx.isValid())
-        return;
-
-    foreach (QString selectedPlayer, selectedPlayers)
-    {
-        std::string pl = selectedPlayer.toStdString();
-        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(pl);
-        if (it == gameState.players.end())
+        Game::CharacterID chid = Game::CharacterID::Parse(character.toStdString());
+        if (chid.player != selectedPlayer.toStdString())
             continue;
 
-        bool addr_field_added = false;
-        if (reward.toStdString() != it->second.address)
-        {
-            json.push_back(json_spirit::Pair("address", reward.toStdString()));
-            addr_field_added = true;
-        }
-
-        GamePathfinder &pf = pathfinders[pl];
-        if (!pf.FindPath(it->second.coord, Game::Coord(x, y)))
-        {
-            pathfinders.erase(pl);
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator mi = gameState.players.find(chid.player);
+        if (mi == gameState.players.end())
             continue;
-        }
-        Game::Coord c;
-        if (!pf.GetNextWaypoint(c))
-            pathfinders.erase(pl);
-        printf("Sending first waypoint for player %s: (%d, %d)\n", pl.c_str(), c.x, c.y);
 
-        json.push_back(json_spirit::Pair("x", c.x));
-        json.push_back(json_spirit::Pair("y", c.y));
+        std::map<int, Game::CharacterState>::const_iterator mi2 = mi->second.characters.find(chid.index);
+        if (mi2 == mi->second.characters.end())
+            continue;
 
-        json_spirit::Value val(json);
-        std::string jsonStr = json_spirit::write_string(val, false);
-        QString data = QString::fromStdString(jsonStr);
+        Game::Coord start = mi2->second.coord;
 
-        QString err_msg;
-        try
-        {
-            err_msg = walletModel->nameUpdate(selectedPlayer, data, addr);
-        }
-        catch (std::exception& e) 
-        {
-            err_msg = e.what();
-        }
-
-        if (!err_msg.isEmpty())
-        {
-            if (err_msg == "ABORTED")
-                return;
-
-            QMessageBox::critical(this, tr("Name update error"), err_msg);
-            return;
-        }
-
-        json.pop_back(); // y
-        json.pop_back(); // x
-        if (addr_field_added)
-            json.pop_back();
+        std::vector<Game::Coord> wp = FindPath(start, target);
+        if (!wp.empty())
+            queuedMoves[chid.player][chid.index].waypoints = wp;
     }
 
-    ui->messageEdit->setPlainText(QString());
-    ui->transferTo->setText(QString());
+    UpdateQueuedMoves();
 }
 
-bool ManageNamesPage::MakeMove(json_spirit::Object &json)
+void ManageNamesPage::onClickedCharacter(const QModelIndex &index)
 {
-    if (selectedPlayers.isEmpty())
-        return false;
+    QString selectedCharacter = index.sibling(index.row(), CharacterTableModel::Name).data(Qt::EditRole).toString();
 
-    if (!walletModel)
-        return false;
-
-    if (selectedPlayers.size() <= 1) // Message is ignored when many players are selected
+    Game::CharacterID chid = Game::CharacterID::Parse(selectedCharacter.toStdString());
+    
+    std::map<Game::PlayerID, Game::PlayerState>::const_iterator mi = gameState.players.find(chid.player);
+    if (mi != gameState.players.end())
     {
-        QString msg = ui->messageEdit->toPlainText();
-        if (!msg.isEmpty())
-            json.push_back(json_spirit::Pair("message", msg.toStdString()));
+        std::map<int, Game::CharacterState>::const_iterator mi2 = mi->second.characters.find(chid.index);
+        if (mi2 != mi->second.characters.end())
+            gameMapView->CenterMapOnCharacter(mi2->second);
     }
-    QString reward = ui->rewardAddr->text();
-    if (!reward.isEmpty() && !walletModel->validateAddress(reward))
-    {
-        ui->rewardAddr->setValid(false);
-        return false;
-    }
-
-    QString addr = ui->transferTo->text();
-    if (!addr.isEmpty() && !walletModel->validateAddress(addr))
-    {
-        ui->transferTo->setValid(false);
-        return false;
-    }
-
-    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
-    if (!ctx.isValid())
-        return false;
-
-    foreach (QString selectedPlayer, selectedPlayers)
-    {
-        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
-
-        bool addr_field_added = false;
-        if (it == gameState.players.end() || reward.toStdString() != it->second.address)
-        {
-            json.push_back(json_spirit::Pair("address", reward.toStdString()));
-            addr_field_added = true;
-        }
-
-        // TODO: if move is attack and player isn't within range, do not send attack move
-
-        json_spirit::Value val(json);
-        std::string jsonStr = json_spirit::write_string(val, false);
-        QString data = QString::fromStdString(jsonStr);
-
-        QString err_msg;
-        try
-        {
-            err_msg = walletModel->nameUpdate(selectedPlayer, data, addr);
-        }
-        catch (std::exception& e) 
-        {
-            err_msg = e.what();
-        }
-
-        if (!err_msg.isEmpty())
-        {
-            if (err_msg == "ABORTED")
-                return false;
-
-            QMessageBox::critical(this, tr("Name update error"), err_msg);
-            return false;
-        }
-        
-        if (addr_field_added)
-            json.pop_back();
-    }
-
-    ui->messageEdit->setPlainText(QString());
-    ui->transferTo->setText(QString());
-
-    return true;
 }
 
-bool ManageNamesPage::eventFilter(QObject *object, QEvent *event)
+void ManageNamesPage::RefreshCharacterList()
 {
-    if (event->type() == QEvent::FocusIn)
-        ui->submitNameButton->setDefault(object == ui->registerName || object == ui->submitNameButton);
-    return QDialog::eventFilter(object, event);
-}
-
-void ManageNamesPage::onClickedPlayer(const QModelIndex &index)
-{
-    QString selectedPlayer = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
+    if (characterTableModel)
+        characterTableModel->deleteLater();
 
     std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
     if (it != gameState.players.end())
-        gameMapView->CenterMapOnPlayer(it->second);
-}
-
-void ManageNamesPage::onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
-{
-    if (!deselected.isEmpty())
     {
-        attack = QString();
-        ui->groupBoxMove->setEnabled(true);
-        ui->transferTo->setText(QString());
-        ui->messageEdit->setPlainText(QString());
+        // Note: pointer to queuedMoves is saved and must stay valid while the character table is visible
+        characterTableModel = new CharacterTableModel(it->first, it->second, queuedMoves[it->first], gameState.crownHolder);
+    }
+    else
+        characterTableModel = NULL;
+
+    // Delete old selection model, because setModel creates a new one
+    if (ui->tableCharacters->selectionModel())
+        ui->tableCharacters->selectionModel()->deleteLater();
+    ui->tableCharacters->setModel(characterTableModel);
+
+    if (!characterTableModel)
+    {
+        gameMapView->DeselectPlayer();
+        return;
     }
 
+    connect(ui->tableCharacters->selectionModel(), SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this, SLOT(onCharacterSelectionChanged(QItemSelection, QItemSelection)));
+
+    // Set column widths
+    ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Name, COLUMN_WIDTH_NAME);
+    ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Coins, COLUMN_WIDTH_COINS);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Name, QHeaderView::Fixed);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Coins, QHeaderView::Fixed);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Status, QHeaderView::Stretch);
+    QItemSelection sel;
+    foreach (QString character, selectedCharacters)
+    {
+        int row = characterTableModel->FindRow(character);
+        if (row >= 0)
+            sel.select(characterTableModel->index(row, 0), characterTableModel->index(row, 1));
+    }
+    ui->tableCharacters->selectionModel()->select(sel, QItemSelectionModel::ClearAndSelect);
+
+    gameMapView->SelectPlayer(selectedPlayer, gameState, queuedMoves);
+}
+
+void ManageNamesPage::SetPlayerEnabled(bool enable)
+{
+    ui->tableCharacters->setEnabled(enable);
+    ui->configButton->setEnabled(enable);
+    ui->destructButton->setEnabled(enable);
+    ui->cancelButton->setEnabled(enable);
+    ui->messageEdit->setEnabled(enable);
+
+    if (model)
+        model->updateGameState();
+    SetPlayerMoveEnabled(enable);
+}
+
+void ManageNamesPage::SetPlayerMoveEnabled(bool enable /* = true */)
+{
+    if (!model)
+        enable = false;
+
+    if (enable)
+    {
+        // If there are pending operations on the name, disable buttons
+        int row = tabsNames->currentIndex();
+        if (row >= 0)
+            enable = model->index(row, NameTableModel::Status).data(Qt::CheckStateRole).toBool();
+        else
+            enable = false;
+    }
+
+    ui->goButton->setEnabled(enable);
+    if (characterTableModel)
+        characterTableModel->SetPending(!enable);
+}
+
+void ManageNamesPage::PendingStatusChanged()
+{
+    if (!selectedPlayer.isEmpty())
+        SetPlayerEnabled(true);
+}
+
+void ManageNamesPage::onSelectName(const QString &name)
+{
+    selectedPlayer = name;
+        
+    rewardAddrChanged = false;
+
+    if (selectedPlayer.isEmpty())
+    {
+        selectedPlayer = QString();
+        transferTo = QString();
+        rewardAddr = QString();
+        rewardAddrChanged = false;
+        ui->messageEdit->setText(QString());
+        SetPlayerEnabled(false);
+        return;
+    }
+
+    transferTo = QString();
+    ui->messageEdit->setText(QString());
+
+    std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
+    if (it != gameState.players.end())
+        rewardAddr = QString::fromStdString(it->second.address);
+    else
+        rewardAddr = QString();
+
+    selectedCharacters.clear();
+    RefreshCharacterList();
+    SetPlayerEnabled(true);
+}
+
+void ManageNamesPage::onCharacterSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
+{
     foreach (QModelIndex index, deselected.indexes())
     {
-        QString deselectedPlayer = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
-        selectedPlayers.removeAll(deselectedPlayer);
+        QString deselectedCharacter = index.sibling(index.row(), CharacterTableModel::Name).data(Qt::EditRole).toString();
+        selectedCharacters.removeAll(deselectedCharacter);
     }
 
     foreach (QModelIndex index, selected.indexes())
     {
-        QString selectedPlayer = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
-        if (selectedPlayers.contains(selectedPlayer))
+        QString selectedCharacter = index.sibling(index.row(), CharacterTableModel::Name).data(Qt::EditRole).toString();
+        if (selectedCharacters.contains(selectedCharacter))
             continue;
 
-        selectedPlayers.append(selectedPlayer);
-
-        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
-        if (it == gameState.players.end())
-            continue;
-
-        if (ui->rewardAddr->text().isEmpty())
-            ui->rewardAddr->setText(QString::fromStdString(it->second.address));
+        selectedCharacters.append(selectedCharacter);
     }
-
-    RefreshSelectedPlayers();
-}
-
-void ManageNamesPage::ClearSelectedPlayers()
-{
-    gameMapView->DeselectPlayers();
-    attack = QString();
-    ui->groupBoxMove->setEnabled(false);
-    ui->transferTo->setText(QString());
-    ui->rewardAddr->setText(QString());
-    ui->messageEdit->setPlainText(QString());
-    ui->comboBoxAttack->clear();
-    ui->attackButton->setEnabled(false);
-}
-
-void ManageNamesPage::RefreshSelectedPlayers()
-{
-    if (selectedPlayers.isEmpty())
-    {
-        ClearSelectedPlayers();
-        return;
-    }
-
-    ui->groupBoxMove->setEnabled(true);
-    ui->messageEdit->setEnabled(selectedPlayers.size() == 1);
-
-    std::set<std::string> victims;
-
-    foreach (QString selectedPlayer, selectedPlayers)
-    {
-        std::vector<std::string> vec = gameState.ListPossibleAttacks(selectedPlayer.toStdString());
-        victims.insert(vec.begin(), vec.end());
-    }
-
-    ui->comboBoxAttack->clear();
-    BOOST_FOREACH(std::string victim, victims)
-    {
-        QString s = QString::fromStdString(victim);
-        ui->comboBoxAttack->addItem(GUIUtil::HtmlEscape(s), s);
-        int idx = ui->comboBoxAttack->findData(s);
-        QString colorCSS = GameChatView::ColorCSS[gameState.players[victim].color];
-        ui->comboBoxAttack->setItemData(idx, QColor(colorCSS), Qt::ForegroundRole);
-    }
-
-    ui->comboBoxAttack->setCurrentIndex(ui->comboBoxAttack->findData(attack));
-
-    gameMapView->SelectPlayers(selectedPlayers, gameState, pathfinders);
-}
-
-void ManageNamesPage::on_comboBoxAttack_currentIndexChanged(int index)
-{
-    attack = ui->comboBoxAttack->itemData(index).toString();
-    ui->attackButton->setEnabled(!attack.isEmpty());
 }
 
 void ManageNamesPage::updateGameState(const Game::GameState &gameState)
 {
+    chrononAnim->stop();
+
     this->gameState = gameState;
 
+    // Update reward address from the game state, unless it was explicitly changed by the user and not yet committed (via Go button)
+    if (!selectedPlayer.isEmpty() && !rewardAddrChanged)
+    {
+        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(selectedPlayer.toStdString());
+        if (it != gameState.players.end())
+            rewardAddr = QString::fromStdString(it->second.address);
+        else
+            rewardAddr = QString();
+    }
+
+    chrononAnim->start();
     gameMapView->updateGameMap(gameState);
-
-    if (!selectedPlayers.isEmpty())
-    {
-        /*
-        // Remove dead players from selection
-        QStringList newSelectedPlayers;
-        foreach (QString selectedPlayer, selectedPlayers)
-            if (gameState.players.count(selectedPlayer.toStdString()))
-                newSelectedPlayers.append(selectedPlayer);
-
-        selectedPlayers = newSelectedPlayers;
-        */
-
-        RefreshSelectedPlayers();
-    }
-
-    // Send new waypoint for players that reached the current one
-
-    // TODO: instead of waiting for player stopping at the current waypoint,
-    // sent immediately when the next waypoint becomes linearly reachable
-    // from every position between current position and current waypoint
-
-    std::vector<Game::PlayerID> vUpdate, vDelete;
-    BOOST_FOREACH(PAIRTYPE(const Game::PlayerID, GamePathfinder)& item, pathfinders)
-    {
-        const std::string &pl = item.first;
-        GamePathfinder &pf = item.second;
-
-        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(pl);
-        if (it == gameState.players.end())
-            continue;
-
-        if (it->second.coord == it->second.target)
-        {
-            // Player stopped
-            // Queue an update, unless already pending
-            std::vector<unsigned char> vchName = vchFromString(pl);
-            if (!(mapNamePending.count(vchName) && mapNamePending[vchName].size()))
-                vUpdate.push_back(pl);
-        }
-        else if (it->second.target != pf.GetCurWaypoint())
-        {
-            // Waypoint changed externally, reject pathfinding
-            printf("Waypoint changed for player %s: expected target (%d, %d), actual target (%d, %d). Discarding pathfinding.\n", pl.c_str(), pf.GetCurWaypoint().x, pf.GetCurWaypoint().y, it->second.target.x, it->second.target.y);
-            vDelete.push_back(pl);
-        }
-    }
-
-    BOOST_FOREACH(const Game::PlayerID &pl, vDelete)
-        pathfinders.erase(pl);
-
-    if (vUpdate.empty())
-        return;
-
-    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
-    if (!ctx.isValid())
-        return;
-
-    BOOST_FOREACH(const Game::PlayerID &pl, vUpdate)
-    {
-        GamePathfinder &pf = pathfinders[pl];
-
-        std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(pl);
-
-        Game::Coord c;
-        if (!pf.GetNextWaypoint(c))
-            pathfinders.erase(pl);
-        printf("Sending next waypoint for player %s: (%d, %d)\n", pl.c_str(), c.x, c.y);
-
-        json_spirit::Object json;
-        json.push_back(json_spirit::Pair("x", c.x));
-        json.push_back(json_spirit::Pair("y", c.y));
-
-        json_spirit::Value val(json);
-        std::string jsonStr = json_spirit::write_string(val, false);
-        QString data = QString::fromStdString(jsonStr);
-
-        QString err_msg;
-        try
-        {
-            err_msg = walletModel->nameUpdate(QString::fromStdString(pl), data, "");
-        }
-        catch (std::exception& e) 
-        {
-            err_msg = e.what();
-        }
-
-        if (!err_msg.isEmpty())
-        {
-            if (err_msg == "ABORTED")
-                return;
-
-            QMessageBox::critical(this, tr("Name update error when sending next waypoint"), err_msg);
-            return;
-        }
-    }
+    RefreshCharacterList();
+    SetPlayerMoveEnabled();
 }
 
-void ManageNamesPage::contextualMenu(const QPoint &point)
+void ManageNamesPage::chrononAnimChanged(qreal t)
 {
-    QModelIndex index = ui->tableView->indexAt(point);
-    if (index.isValid())
-        contextMenu->exec(QCursor::pos());
+    const static qreal FADE_IN = qreal(0.35);
+    if (t <= FADE_IN)
+        t /= FADE_IN;
+    else
+        t = 1 - (t - FADE_IN) / (1 - FADE_IN);
+    QColor c(int(t * 255), 0, 0);
+
+    ui->chrononLabel->setText(
+            "<font color='" + c.name() + "'><b>"
+            + tr("Chronon: %1").arg(gameState.nHeight)
+            + QString("</b></font>")
+        );
 }
 
-void ManageNamesPage::onConfigureName(const QModelIndex &index)
+void ManageNamesPage::chrononAnimFinished()
 {
-    QString name = index.sibling(index.row(), NameTableModel::Name).data(Qt::EditRole).toString();
-    QString value = index.sibling(index.row(), NameTableModel::Value).data(Qt::EditRole).toString();
-    QString address = index.sibling(index.row(), NameTableModel::Address).data(Qt::EditRole).toString();
+    ui->chrononLabel->setText(tr("Chronon: %1").arg(gameState.nHeight));
+}
+
+void ManageNamesPage::on_configButton_clicked()
+{
+    int row = tabsNames->currentIndex();
+    if (row < 0)
+        return;
+
+    QString name = model->index(row, NameTableModel::Name).data(Qt::EditRole).toString();
+    QString value = model->index(row, NameTableModel::Value).data(Qt::EditRole).toString();
+    QString address = model->index(row, NameTableModel::Address).data(Qt::EditRole).toString();
 
     if (address.startsWith(NON_REWARD_ADDRESS_PREFIX))
         address = address.mid(NON_REWARD_ADDRESS_PREFIX.size());
@@ -681,10 +877,21 @@ void ManageNamesPage::onConfigureName(const QModelIndex &index)
             mapMyNameFirstUpdate[vchName].fPostponed = true;
         }
         else
-            return;   // We only allow ConfigureNameDialog for name_new. Name_update should be done via the game GUI.
+        {
+            ConfigureNameDialog2 dlg(name, address, rewardAddr, transferTo, this);
+            dlg.setModel(walletModel);
+            if (dlg.exec() == QDialog::Accepted)
+            {
+                rewardAddr = dlg.getRewardAddr();
+                rewardAddrChanged = true;
+                transferTo = dlg.getTransferTo();
+                QMessageBox::information(this, tr("Name configured"), tr("To apply changes, you need to press Go button"));
+            }
+            return;
+        }
     }
 
-    ConfigureNameDialog dlg(name, value, address, this);
+    ConfigureNameDialog1 dlg(name, value, address, this);
     dlg.setModel(walletModel);
     int dlgRes = dlg.exec();
 
@@ -704,48 +911,6 @@ void ManageNamesPage::onConfigureName(const QModelIndex &index)
     }
 }
 
-void ManageNamesPage::onCopyNameAction()
-{
-    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Name);
-}
-
-void ManageNamesPage::onCopyAddressAction()
-{
-    GUIUtil::copyEntryData(ui->tableView, NameTableModel::Address);
-}
-
-void ManageNamesPage::on_pasteButton_clicked()
-{
-    // Paste text from clipboard into reward address field
-    ui->rewardAddr->setText(QApplication::clipboard()->text());
-}
-
-void ManageNamesPage::on_addressBookButton_clicked()
-{
-    if (!walletModel)
-        return;
-    AddressBookPage dlg(AddressBookPage::ForSending, AddressBookPage::SendingTab, this);
-    dlg.setModel(walletModel->getAddressTableModel());
-    if (dlg.exec())
-        ui->rewardAddr->setText(dlg.getReturnValue());
-}
-
-void ManageNamesPage::on_pasteButton_2_clicked()
-{
-    // Paste text from clipboard into "transfer to" field
-    ui->transferTo->setText(QApplication::clipboard()->text());
-}
-
-void ManageNamesPage::on_addressBookButton_2_clicked()
-{
-    if (!walletModel)
-        return;
-    AddressBookPage dlg(AddressBookPage::ForSending, AddressBookPage::SendingTab, this);
-    dlg.setModel(walletModel->getAddressTableModel());
-    if (dlg.exec())
-        ui->transferTo->setText(dlg.getReturnValue());
-}
-
 void ManageNamesPage::exportClicked()
 {
     // CSV is currently the only supported format
@@ -759,7 +924,7 @@ void ManageNamesPage::exportClicked()
 
     CSVModelWriter writer(filename);
 
-    writer.setModel(proxyModel);
+    writer.setModel(model);
     // name, column, role
     writer.addColumn("Name", NameTableModel::Name, Qt::EditRole);
     writer.addColumn("Last Move", NameTableModel::Value, Qt::EditRole);

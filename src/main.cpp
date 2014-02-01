@@ -32,7 +32,8 @@ map<COutPoint, CInPoint> mapNextTx;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
 uint256 hashGenesisBlock;
-CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
+CBigNum bnProofOfWorkLimit[NUM_ALGOS] = { CBigNum(~uint256(0) >> 32), CBigNum(~uint256(0) >> 20) };
+CBigNum bnInitialHashTarget[NUM_ALGOS] = { CBigNum(~uint256(0) >> 32), CBigNum(~uint256(0) >> 20) };
 const int nInitialBlockThreshold = 0; // Regard blocks up until N-threshold as "initial download"
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
@@ -41,6 +42,7 @@ CBigNum bnBestInvalidWork = 0;
 uint256 hashBestChain = 0;
 CBlockIndex* pindexBest = NULL;
 int64 nTimeBestReceived = 0;
+int miningAlgo = ALGO_SHA256D;
 
 CMedianFilter<int> cPeerBlockCounts(8, 0); // Amount of blocks that other nodes claim to have
 
@@ -382,7 +384,7 @@ bool CTransaction::CheckTransaction() const
 
     if (IsCoinBase())
     {
-        if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 100)
+        if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 230)
             return error("CTransaction::CheckTransaction() : coinbase script size");
     }
     else
@@ -792,11 +794,16 @@ bool CBlock::ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions)
 void CBlock::SetAuxPow(CAuxPow* pow)
 {
     if (pow != NULL)
-        nVersion |=  BLOCK_VERSION_AUXPOW;
+    {
+        nVersion |= BLOCK_VERSION_AUXPOW;
+        if (GetAlgo() != pow->algo)
+            error("CBlock::SetAuxPow() : mismatching algorithms");
+    }
     else
-        nVersion &=  ~BLOCK_VERSION_AUXPOW;
+        nVersion &= ~BLOCK_VERSION_AUXPOW;
     auxpow.reset(pow);
 }
+
 
 uint256 static GetOrphanRoot(const CBlock* pblock)
 {
@@ -822,75 +829,71 @@ int64 GetBlockValue(int nHeight, int64 nFees)
     return nSubsidy + nFees;
 }
 
-unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast)
+const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, int algo)
 {
-    const int64 nTargetSpacing = 60;    // A block every minute
-    const int64 nInterval = 2016;       // Retargetting interval in blocks
-    const int64 nTargetTimespan = nTargetSpacing * nInterval;   // Desired retargetting interval in seconds
+    while (pindex && pindex->pprev && (pindex->GetAlgo() != algo))
+        pindex = pindex->pprev;
+    return pindex;
+}
 
-    // Genesis block
-    if (pindexLast == NULL)
-        return bnProofOfWorkLimit.GetCompact();
-
-    // Only change once per interval
-    if ((pindexLast->nHeight+1) % nInterval != 0)
-        return pindexLast->nBits;
-
-    // Go back the full period unless it's the first retarget after genesis. Code courtesy of ArtForz
-
-    int nBlocksBack = nInterval-1;
-    if(pindexLast->nHeight >= hooks->GetFullRetargetStartBlock() && ((pindexLast->nHeight+1) > nInterval))
-        nBlocksBack = nInterval;
-
-    // Go back by what we want to be nTargetTimespan seconds worth of blocks
-    const CBlockIndex* pindexFirst = pindexLast;
-    for (int i = 0; pindexFirst && i < nBlocksBack; i++)
-        pindexFirst = pindexFirst->pprev;
-    assert(pindexFirst);
-
-    // Limit adjustment step
-    int64 nActualTimespan = pindexLast->GetBlockTime() - pindexFirst->GetBlockTime();
-
-    // In beta version we remote the 4x increase/decrease limitation
-    if (!VERSION_IS_BETA)
+const CBlockIndex* GetLastBlockIndexForAlgo(const CBlockIndex* pindex, int algo)
+{
+    for (;;)
     {
-        printf("  nActualTimespan = %"PRI64d"  before bounds\n", nActualTimespan);
-        if (nActualTimespan < nTargetTimespan/4)
-            nActualTimespan = nTargetTimespan/4;
-        if (nActualTimespan > nTargetTimespan*4)
-            nActualTimespan = nTargetTimespan*4;
+        if (!pindex)
+            return NULL;
+        if (pindex->GetAlgo() == algo)
+            return pindex;
+        pindex = pindex->pprev;
     }
+}
 
-    // Retarget
+// PPCoin-style retarget with dual algo support,
+// i.e. PoW/PoW instead of PPCoin's PoW/PoS
+unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast, int algo)
+{
+    if (pindexLast == NULL)
+        return bnProofOfWorkLimit[algo].GetCompact(); // genesis block
+
+    const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, algo);
+    if (pindexPrev->pprev == NULL)
+        return bnInitialHashTarget[algo].GetCompact(); // first block
+    const CBlockIndex* pindexPrevPrev = GetLastBlockIndex(pindexPrev->pprev, algo);
+    if (pindexPrevPrev->pprev == NULL)
+        return bnInitialHashTarget[algo].GetCompact(); // second block
+
+    int64 nActualSpacing = pindexPrev->GetBlockTime() - pindexPrevPrev->GetBlockTime();
+
+    // ppcoin: target change every block
+    // ppcoin: retarget with exponential moving toward target spacing
     CBigNum bnNew;
-    bnNew.SetCompact(pindexLast->nBits);
-    bnNew *= nActualTimespan;
-    bnNew /= nTargetTimespan;
+    bnNew.SetCompact(pindexPrev->nBits);
 
-    if (bnNew > bnProofOfWorkLimit)
-        bnNew = bnProofOfWorkLimit;
+    const int64 nTargetSpacing = 60 * NUM_ALGOS;         // A block every minute for all algos in total
+    const int64 nInterval = 2016;
+    const int64 nTargetTimespan = nTargetSpacing * nInterval;
 
-    /// debug print
-    printf("GetNextWorkRequired RETARGET\n");
-    printf("nTargetTimespan = %"PRI64d"    nActualTimespan = %"PRI64d"\n", nTargetTimespan, nActualTimespan);
-    printf("Before: %08x  %s\n", pindexLast->nBits, CBigNum().SetCompact(pindexLast->nBits).getuint256().ToString().c_str());
-    printf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.getuint256().ToString().c_str());
+    bnNew *= ((nInterval - 1) * nTargetSpacing + nActualSpacing + nActualSpacing);
+    bnNew /= ((nInterval + 1) * nTargetSpacing);
+
+    if (bnNew > bnProofOfWorkLimit[algo])
+        bnNew = bnProofOfWorkLimit[algo];
 
     return bnNew.GetCompact();
 }
 
-bool CheckProofOfWork(uint256 hash, unsigned int nBits)
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, int algo)
 {
     CBigNum bnTarget;
     bnTarget.SetCompact(nBits);
 
     // Check range
-    if (bnTarget <= 0 || bnTarget > bnProofOfWorkLimit)
-        return error("CheckProofOfWork() : nBits below minimum work");
+    if (bnTarget <= 0 || bnTarget > bnProofOfWorkLimit[algo])
+        return error("CheckProofOfWork(algo=%d) : nBits below minimum work", algo);
 
     // Check proof of work matches claimed amount
     if (hash > bnTarget.getuint256())
-        return error("CheckProofOfWork() : hash doesn't match nBits");
+        return error("CheckProofOfWork(algo=%s) : hash doesn't match nBits", algo);
 
     return true;
 }
@@ -1539,19 +1542,20 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos)
     return true;
 }
 
-
-// Start accepting AUX POW at this block
-// 
-// Even if we do not accept AUX POW ourselves, we can always be the parent chain.
-
 int GetAuxPowStartBlock()
 {
-    return hooks->GetAuxPowStartBlock();
+    // Genesis block has version = 1, other can be merged-mined
+    if (fTestNet)
+        return 1;
+    else
+        return 1;
 }
 
-int GetOurChainID()
+int GetOurChainID(int algo)
 {
-    return hooks->GetOurChainID();
+    // Chain IDs for merged mining: SHA-256d, scrypt
+    const static int chain_id[NUM_ALGOS] = { 0x0006, 0x0002 };
+    return chain_id[algo];
 }
 
 bool CBlock::WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet)
@@ -1582,27 +1586,31 @@ bool CBlock::WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet)
 
 bool CBlock::CheckProofOfWork(int nHeight) const
 {
+    // Prevent same work from being submitted twice:
+    // - this block must have our chain ID
+    // - parent block must not have the same chain ID (see CAuxPow::Check)
+    // - index of this chain in chain merkle tree must be pre-determined (see CAuxPow::Check)
+    int algo = GetAlgo();
+    
     if (nHeight >= GetAuxPowStartBlock())
     {
-        // Prevent same work from being submitted twice:
-        // - this block must have our chain ID
-        // - parent block must not have the same chain ID (see CAuxPow::Check)
-        // - index of this chain in chain merkle tree must be pre-determined (see CAuxPow::Check)
-        if (!fTestNet && nHeight != INT_MAX && GetChainID() != GetOurChainID())
+        if (nHeight != INT_MAX && GetChainID() != GetOurChainID(algo))
             return error("CheckProofOfWork() : block does not have our chain ID");
 
         if (auxpow.get() != NULL)
         {
+            if (auxpow->algo != algo)
+                return error("CheckProofOfWork() : AUX POW uses different algorithm");
             if (!auxpow->Check(GetHash(), GetChainID()))
                 return error("CheckProofOfWork() : AUX POW is not valid");
             // Check proof of work matches claimed amount
-            if (!::CheckProofOfWork(auxpow->GetParentBlockHash(), nBits))
+            if (!::CheckProofOfWork(auxpow->GetParentBlockHash(), nBits, algo))
                 return error("CheckProofOfWork() : AUX proof of work failed");
         }
         else
         {
             // Check proof of work matches claimed amount
-            if (!::CheckProofOfWork(GetHash(), nBits))
+            if (!::CheckProofOfWork(GetPoWHash(algo), nBits, algo))
                 return error("CheckProofOfWork() : proof of work failed");
         }
     }
@@ -1613,8 +1621,8 @@ bool CBlock::CheckProofOfWork(int nHeight) const
             return error("CheckProofOfWork() : AUX POW is not allowed at this block");
         }
 
-        // Check proof of work matches claimed amount
-        if (!::CheckProofOfWork(GetHash(), nBits))
+        // Check if proof of work matches claimed amount
+        if (!::CheckProofOfWork(GetPoWHash(algo), nBits, algo))
             return error("CheckProofOfWork() : proof of work failed");
     }
     return true;
@@ -1675,12 +1683,20 @@ bool CBlock::AcceptBlock()
     int nHeight = pindexPrev->nHeight+1;
 
     // Check proof of work
-    if (nBits != GetNextWorkRequired(pindexPrev))
+    if (nBits != GetNextWorkRequired(pindexPrev, GetAlgo()))
         return error("AcceptBlock() : incorrect proof of work");
 
     // Check timestamp against prev
     if (GetBlockTime() <= pindexPrev->GetMedianTimePast())
         return error("AcceptBlock() : block's timestamp is too early");
+
+    // limit block in future accepted in chain to only a time window of 30 min
+    if (GetBlockTime() > GetAdjustedTime() + 30 * 60)
+        return error("CheckBlock() : block timestamp too far in the future");
+
+    // Check timestamp against prev it should not be more then 2 times the window
+    if (GetBlockTime() <= pindexPrev->GetBlockTime() - 2 * 30 * 60)
+        return error("AcceptBlock() : block's timestamp is too early compare to last block");
 
     // Check that all transactions are finalized
     BOOST_FOREACH(const CTransaction& tx, vtx)
@@ -1896,7 +1912,11 @@ bool LoadBlockIndex(bool fAllowNew)
 {
     if (fTestNet)
     {
-        bnProofOfWorkLimit = CBigNum(~uint256(0) >> 24);
+        bnProofOfWorkLimit[ALGO_SHA256D] = CBigNum(~uint256(0) >> 24);
+        bnInitialHashTarget[ALGO_SHA256D] = CBigNum(~uint256(0) >> 24);
+        bnProofOfWorkLimit[ALGO_SCRYPT] = CBigNum(~uint256(0) >> 12);
+        bnInitialHashTarget[ALGO_SCRYPT] = CBigNum(~uint256(0) >> 12);
+
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
         pchMessageStart[2] = 0xb5;
@@ -2213,17 +2233,18 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CAddress addrFrom;
         uint64 nNonce = 1;
         vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
-        if (pfrom->nVersion == 10300)
-            pfrom->nVersion = 300;
-        if (pfrom->nVersion >= 106 && !vRecv.empty())
+        if (!vRecv.empty())
             vRecv >> addrFrom >> nNonce;
-        if (pfrom->nVersion >= 106 && !vRecv.empty())
+        if (!vRecv.empty())
             vRecv >> pfrom->strSubVer;
-        if (pfrom->nVersion >= 209 && !vRecv.empty())
+        if (!vRecv.empty())
             vRecv >> pfrom->nStartingHeight;
 
         if (pfrom->nVersion == 0)
             return false;
+
+        if (pfrom->nVersion < 1000000)
+            return error("The remote node is using old beta version");
 
         // Disconnect if we connected to ourself
         if (nNonce == nLocalHostNonce && nNonce > 1)
@@ -2242,11 +2263,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         AddTimeData(pfrom->addr.ip, nTime);
 
         // Change version
-        if (pfrom->nVersion >= 209)
-            pfrom->PushMessage("verack");
+        pfrom->PushMessage("verack");
         pfrom->vSend.SetVersion(min(pfrom->nVersion, VERSION));
-        if (pfrom->nVersion < 209)
-            pfrom->vRecv.SetVersion(min(pfrom->nVersion, VERSION));
 
         if (!pfrom->fInbound)
         {
@@ -2259,7 +2277,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             }
 
             // Get recent addresses
-            if (pfrom->nVersion >= 31402 || mapAddresses.size() < 1000)
+            if (mapAddresses.size() < 1000)
             {
                 pfrom->PushMessage("getaddr");
                 pfrom->fGetAddr = true;
@@ -2305,11 +2323,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         vector<CAddress> vAddr;
         vRecv >> vAddr;
 
-        // Don't want addr from older versions unless seeding
-        if (pfrom->nVersion < 209)
-            return true;
-        if (pfrom->nVersion < 31402 && mapAddresses.size() > 1000)
-            return true;
         if (vAddr.size() > 1000)
             return error("message addr size() = %d", vAddr.size());
 
@@ -2342,8 +2355,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     multimap<uint256, CNode*> mapMix;
                     BOOST_FOREACH(CNode* pnode, vNodes)
                     {
-                        if (pnode->nVersion < 31402)
-                            continue;
                         unsigned int nPointer;
                         memcpy(&nPointer, &pnode, sizeof(nPointer));
                         uint256 hashKey = hashRand ^ nPointer;
@@ -2764,17 +2775,14 @@ bool ProcessMessages(CNode* pfrom)
         }
 
         // Checksum
-        if (vRecv.GetVersion() >= 209)
+        uint256 hash = Hash(vRecv.begin(), vRecv.begin() + nMessageSize);
+        unsigned int nChecksum = 0;
+        memcpy(&nChecksum, &hash, sizeof(nChecksum));
+        if (nChecksum != hdr.nChecksum)
         {
-            uint256 hash = Hash(vRecv.begin(), vRecv.begin() + nMessageSize);
-            unsigned int nChecksum = 0;
-            memcpy(&nChecksum, &hash, sizeof(nChecksum));
-            if (nChecksum != hdr.nChecksum)
-            {
-                printf("ProcessMessage(%s, %u bytes) : CHECKSUM ERROR nChecksum=%08x hdr.nChecksum=%08x\n",
-                       strCommand.c_str(), nMessageSize, nChecksum, hdr.nChecksum);
-                continue;
-            }
+            printf("ProcessMessage(%s, %u bytes) : CHECKSUM ERROR nChecksum=%08x hdr.nChecksum=%08x\n",
+                   strCommand.c_str(), nMessageSize, nChecksum, hdr.nChecksum);
+            continue;
         }
 
         // Copy message to its own buffer
@@ -3103,7 +3111,7 @@ public:
 
 void CBlock::SetNull()
 {
-    nVersion = BLOCK_VERSION_DEFAULT | (GetOurChainID() * BLOCK_VERSION_CHAIN_START);
+    nVersion = BLOCK_VERSION_DEFAULT | (GetOurChainID(ALGO_SHA256D) * BLOCK_VERSION_CHAIN_START);
     hashPrevBlock = 0;
     hashMerkleRoot = 0;
     hashGameMerkleRoot = 0;
@@ -3119,12 +3127,25 @@ void CBlock::SetNull()
     nGameTxFile = nGameTxPos = -1;
 }
 
-CBlock* CreateNewBlock(CReserveKey& reservekey)
+CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
 {
     // Create new block
     auto_ptr<CBlock> pblock(new CBlock());
     if (!pblock.get())
         return NULL;
+        
+    pblock->nVersion = BLOCK_VERSION_DEFAULT | (GetOurChainID(algo) * BLOCK_VERSION_CHAIN_START);
+    switch (algo)
+    {
+        case ALGO_SHA256D:
+            break;
+        case ALGO_SCRYPT:
+            pblock->nVersion |= BLOCK_VERSION_SCRYPT;
+            break;
+        default:
+            error("CreateNewBlock: bad algo");
+            return NULL;
+    }
 
     // Create coinbase tx
     CTransaction txNew;
@@ -3271,7 +3292,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey)
     pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
     pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
     pblock->nTime          = max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
-    pblock->nBits          = GetNextWorkRequired(pindexPrev);
+    pblock->nBits          = GetNextWorkRequired(pindexPrev, algo);
     pblock->nNonce         = 0;
 
     return pblock.release();
@@ -3340,13 +3361,17 @@ void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash
 
 bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 {
-    uint256 hash = pblock->GetHash();
+    int algo = pblock->GetAlgo();
+    uint256 hash = pblock->GetPoWHash(algo);
     uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
 
     CAuxPow *auxpow = pblock->auxpow.get();
 
     if (auxpow != NULL)
     {
+        if (auxpow->algo != algo)
+            return error("CheckWork() : AUX POW uses different algorithm");
+
         if (!auxpow->Check(hash, pblock->GetChainID()))
             return error("AUX POW is not valid");
 
@@ -3355,7 +3380,8 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 
         //// debug print
         printf("BitcoinMiner:\n");
-        printf("AUX proof-of-work found  \n     our hash: %s   \n  parent hash: %s  \n       target: %s\n",
+        printf("AUX proof-of-work found  \n  block-hash: %s       our hash: %s   \n  parent hash: %s  \n       target: %s\n",
+                pblock->GetHash().GetHex().c_str(),
                 hash.GetHex().c_str(),
                 auxpow->GetParentBlockHash().GetHex().c_str(),
                 hashTarget.GetHex().c_str());
@@ -3367,7 +3393,10 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 
         //// debug print
         printf("BitcoinMiner:\n");
-        printf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex().c_str(), hashTarget.GetHex().c_str());
+        printf("proof-of-work found  \n  block-hash: %s  \n  hash: %s  \ntarget: %s\n",
+                pblock->GetHash().GetHex().c_str(),
+                hash.GetHex().c_str(),
+                hashTarget.GetHex().c_str());
     }
 
     pblock->print();
@@ -3430,7 +3459,7 @@ void static BitcoinMiner(CWallet *pwallet)
         unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
         CBlockIndex* pindexPrev = pindexBest;
 
-        auto_ptr<CBlock> pblock(CreateNewBlock(reservekey));
+        auto_ptr<CBlock> pblock(CreateNewBlock(reservekey, ALGO_SHA256D));
         if (!pblock.get())
             return;
         IncrementExtraNonce(pblock.get(), pindexPrev, nExtraNonce, nPrevTime);
@@ -3541,13 +3570,167 @@ void static BitcoinMiner(CWallet *pwallet)
     }
 }
 
+void static ScryptMiner(CWallet *pwallet)
+{
+    printf("ScryptMiner started\n");
+    SetThreadPriority(THREAD_PRIORITY_LOWEST);
+
+    // Each thread has its own key and counter
+    CReserveKey reservekey(pwallet);
+    unsigned int nExtraNonce = 0;
+    int64 nPrevTime = 0;
+
+    while (fGenerateBitcoins)
+    {
+        if (AffinityBugWorkaround(ThreadBitcoinMiner, pwallet))
+            return;
+        if (fShutdown)
+            return;
+
+        while (vNodes.empty() || IsInitialBlockDownload())
+        {
+            Sleep(1000);
+            if (fShutdown)
+                return;
+            if (!fGenerateBitcoins)
+                return;
+        }
+
+        //
+        // Create new block
+        //
+        unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
+        CBlockIndex* pindexPrev = pindexBest;
+
+        auto_ptr<CBlock> pblock(CreateNewBlock(reservekey, ALGO_SCRYPT));
+        if (!pblock.get())
+            return;
+        IncrementExtraNonce(pblock.get(), pindexPrev, nExtraNonce, nPrevTime);
+
+        printf("Running ScryptMiner with %d transactions in block\n", pblock->vtx.size());
+
+
+        //
+        // Prebuild hash buffers
+        //
+        char pmidstatebuf[32+16]; char* pmidstate = alignup<16>(pmidstatebuf);
+        char pdatabuf[128+16];    char* pdata     = alignup<16>(pdatabuf);
+        char phash1buf[64+16];    char* phash1    = alignup<16>(phash1buf);
+
+        FormatHashBuffers(pblock.get(), pmidstate, pdata, phash1);
+
+        unsigned int& nBlockTime = *(unsigned int*)(pdata + 64 + 4);
+        unsigned int& nBlockBits = *(unsigned int*)(pdata + 64 + 8);
+
+        //
+        // Search
+        //
+        int64 nStart = GetTime();
+        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+        loop
+        {
+            unsigned int nHashesDone = 0;
+            uint256 thash;
+            char scratchpad[SCRYPT_SCRATCHPAD_SIZE];
+            loop
+            {
+#if defined(USE_SSE2)
+                // Detection would work, but in cases where we KNOW it always has SSE2,
+                // it is faster to use directly than to use a function pointer or conditional.
+#if defined(_M_X64) || defined(__x86_64__) || defined(_M_AMD64) || (defined(MAC_OSX) && defined(__i386__))
+                // Always SSE2: x86_64 or Intel MacOS X
+                scrypt_1024_1_1_256_sp_sse2(BEGIN(pblock->nVersion), BEGIN(thash), scratchpad);
+#else
+                // Detect SSE2: 32bit x86 Linux or Windows
+                scrypt_1024_1_1_256_sp(BEGIN(pblock->nVersion), BEGIN(thash), scratchpad);
+#endif
+#else
+                // Generic scrypt
+                scrypt_1024_1_1_256_sp_generic(BEGIN(pblock->nVersion), BEGIN(thash), scratchpad);
+#endif
+
+                if (thash <= hashTarget)
+                {
+                    // Found a solution
+                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                    CheckWork(pblock.get(), *pwallet, reservekey);
+                    SetThreadPriority(THREAD_PRIORITY_LOWEST);
+                    break;
+                }
+                pblock->nNonce += 1;
+                nHashesDone += 1;
+                if ((pblock->nNonce & 0xFF) == 0)
+                    break;
+            }
+
+            // Meter hashes/sec
+            static int64 nHashCounter;
+            if (nHPSTimerStart == 0)
+            {
+                nHPSTimerStart = GetTimeMillis();
+                nHashCounter = 0;
+            }
+            else
+                nHashCounter += nHashesDone;
+            if (GetTimeMillis() - nHPSTimerStart > 4000)
+            {
+                static CCriticalSection cs;
+                CRITICAL_BLOCK(cs)
+                {
+                    if (GetTimeMillis() - nHPSTimerStart > 4000)
+                    {
+                        dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
+                        nHPSTimerStart = GetTimeMillis();
+                        nHashCounter = 0;
+                        string strStatus = strprintf("    %.0f khash/s", dHashesPerSec/1000.0);
+                        UIThreadCall(boost::bind(CalledSetStatusBar, strStatus, 0));
+                        static int64 nLogTime;
+                        if (GetTime() - nLogTime > 30 * 60)
+                        {
+                            nLogTime = GetTime();
+                            printf("%s ", DateTimeStrFormat("%x %H:%M", GetTime()).c_str());
+                            printf("hashmeter %3d CPUs %6.0f khash/s\n", vnThreadsRunning[3], dHashesPerSec/1000.0);
+                        }
+                    }
+                }
+            }
+
+            // Check for stop or if block needs to be rebuilt
+            if (fShutdown)
+                return;
+            if (!fGenerateBitcoins)
+                return;
+            if (fLimitProcessors && vnThreadsRunning[3] > nLimitProcessors)
+                return;
+            if (vNodes.empty())
+                break;
+            if (pblock->nNonce >= 0xffff0000)
+                break;
+            if (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                break;
+            if (pindexPrev != pindexBest)
+                break;
+
+            // Update nTime every few seconds
+            pblock->nTime = max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
+            nBlockTime = ByteReverse(pblock->nTime);
+        }
+    }
+}
+
+
 void static ThreadBitcoinMiner(void* parg)
 {
     CWallet* pwallet = (CWallet*)parg;
     try
     {
         vnThreadsRunning[3]++;
-        BitcoinMiner(pwallet);
+        if (miningAlgo == ALGO_SHA256D)
+            BitcoinMiner(pwallet);
+        else if (miningAlgo == ALGO_SCRYPT)
+            ScryptMiner(pwallet);
+        else
+            error("ThreadBitcoinMiner: unknown algo");
         vnThreadsRunning[3]--;
     }
     catch (std::exception& e) {
@@ -3598,7 +3781,6 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet)
 // and the hash should be hard-coded.
 void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
 {
-
     printf("# Mining genesis block...\n");
 
     int64 nPrevTime = 0;
@@ -3690,16 +3872,6 @@ void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
     }
 }
 
-
-
-bool CBlockIndex::CheckIndex() const
-{
-    if (nVersion & BLOCK_VERSION_AUXPOW)
-        return CheckProofOfWork(auxpow->GetParentBlockHash(), nBits);
-    else
-        return CheckProofOfWork(GetBlockHash(), nBits);
-}
-
 std::string CBlockIndex::ToString() const
 {
     return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, game-merkle=%s, hashBlock=%s, hashParentBlock=%s)",
@@ -3709,4 +3881,21 @@ std::string CBlockIndex::ToString() const
             GetBlockHash().ToString().substr(0,20).c_str(),
             (auxpow.get() != NULL) ? auxpow->GetParentBlockHash().ToString().substr(0,20).c_str() : "-"
             );
+}
+
+CBigNum CBlockIndex::GetBlockWork() const
+{
+    CBigNum bnTarget;
+    bnTarget.SetCompact(nBits);
+    if (bnTarget <= 0)
+        return 0;
+    CBigNum work = (CBigNum(1)<<256) / (bnTarget+1);
+
+    // Apply scrypt-to-SHA ratio
+    // We assume that scrypt is 2^12 times harder to mine (for the same difficulty target)
+    // This only affects how a longer chain is selected in case of conflict
+    if (GetAlgo() == ALGO_SCRYPT)
+        work <<= 12;
+
+    return work;
 }

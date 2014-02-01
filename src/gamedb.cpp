@@ -7,7 +7,7 @@
 
 using namespace Game;
 
-static const int KEEP_EVERY_NTH_STATE = 2016;
+static const int KEEP_EVERY_NTH_STATE = 2000;
 
 class CGameDB : public CDB
 {
@@ -89,30 +89,25 @@ public:
     }
 
     // Returns:
-    //   false - invalid move tx (m set to NULL)
-    //   true  - non-move tx (m set to NULL) or valid tx (move stored in m, caller must delete it)
-    bool IsValid(const CTransaction& tx, const Move *&m)
+    //   false - invalid move tx
+    //   true  - non-move tx or valid tx
+    bool IsValid(const CTransaction& tx, Move &outMove)
     {
         if (!GetNameOfTx(tx, vchName) || !GetValueOfNameTx(tx, vchValue))
-        {
-            m = NULL;
             return true;
-        }
 
         std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
         if (dup.count(sName))
             return error("GameStepValidator: duplicate player name %s", sName.c_str());
         dup.insert(sName);
-        m = Move::Parse(sName, sValue);
+
+        Move m;
+        m.Parse(sName, sValue);
         if (!m)
             return error("GameStepValidator: cannot parse move %s for player %s", sValue.c_str(), sName.c_str());
-        if (!m->IsValid(*pstate))
-        {
-            delete m;
-            m = NULL;
+        if (!m.IsValid(*pstate))
             return error("GameStepValidator: invalid move for the game state: move %s for player %s", sValue.c_str(), sName.c_str());
-        }
-        std::string addressLock = m->AddressOperationPermission(*pstate);
+        std::string addressLock = m.AddressOperationPermission(*pstate);
         if (!addressLock.empty())
         {
             // If one of inputs has address equal to addressLock, then that input has been signed by the address owner
@@ -143,21 +138,17 @@ public:
                 }
             }
             if (!found)
-            {
-                delete m;
-                m = NULL;
                 return error("GameStepValidator: address operation permission denied: move %s for player %s", sValue.c_str(), sName.c_str());
-            }
         }
+        outMove = m;
         return true;
     }
 
     bool IsValid(const CTransaction& tx)
     {
-        const Move *m;
+        Move m;
         if (!IsValid(tx, m))
             return false;
-        delete m;
         return true;
     }
 };
@@ -182,11 +173,11 @@ public:
 
     bool AddTx(const CTransaction& tx)
     {
-        const Move *m;
+        Move m;
         if (!IsValid(tx, m))
             return false;
         if (m)
-            stepData.vpMoves.push_back(m);
+            stepData.vMoves.push_back(m);
 
         return true;
     }
@@ -240,11 +231,11 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
     // Create moves for all move transactions
     BOOST_FOREACH(const CTransaction& tx, block->vtx)
     {
-        const Move *m;
+        Move m;
         if (!gameStepValidator.IsValid(tx, m))
             return error("GameStepValidator rejected transaction %s in block %s", tx.GetHash().ToString().substr(0,10).c_str(), block->GetHash().ToString().c_str());
         if (m)
-            stepData.vpMoves.push_back(m);
+            stepData.vMoves.push_back(m);
     }
 
     StepResult stepResult;

@@ -53,8 +53,8 @@ extern Value sendtoaddress(const Array& params, bool fHelp);
 const static std::string VALUE_DEAD("{\"dead\":1}");
 
 uint256 hashHuntercoinGenesisBlock[2] = {
-        uint256("00000000693aa9b1230fe223094a8ca01cc5f896d14dd63726a561d4c46fc83f"),    // Main net
-        uint256("0000000045b53004055a6839c46cce359a2fd6ca2b07ddfea02693a8b30b2836")     // Test net
+        uint256("00000000db7eb7a9e1a06cf995363dcdc4c28e8ae04827a961942657db9a1631"),    // Main net
+        uint256("000000492c361a01ce7558a3bfb198ea3ff2f86f8b0c2e00d26135c53f4acbf7")     // Test net
     };
 
 class CHuntercoinHooks : public CHooks
@@ -92,20 +92,6 @@ public:
     }
     virtual bool IsMine(const CTransaction& tx);
     virtual bool IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new = false);
-    virtual int GetOurChainID()
-    {
-        return 0x0005;
-    }
-
-    virtual int GetAuxPowStartBlock()
-    {
-        return 1;
-    }
-
-    virtual int GetFullRetargetStartBlock()
-    {
-            return 0;
-    }
 
     virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
         unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
@@ -1130,7 +1116,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
 
         vector<unsigned char> vchToHash(vchRand);
         vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
-        uint160 hash =  Hash160(vchToHash);
+        uint160 hash = Hash160(vchToHash);
         if (uint160(vchHash) != hash)
         {
             throw runtime_error("previous tx used a different random value");
@@ -1309,7 +1295,7 @@ Value game_getstate(const Array& params, bool fHelp)
 
 Value game_getplayerstate(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() > 1)
+    if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
                 "game_getplayerstate <name> [height]\n"
                 "Returns player state. Similar to game_getstate, but filters the name.\n"
@@ -1349,11 +1335,13 @@ Value game_getplayerstate(const Array& params, bool fHelp)
             throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot compute game state at specified height");
     }
 
-    std::map<Game::PlayerID, Game::PlayerState>::const_iterator mi = state.players.find(params[0].get_str());
+    Game::PlayerID player_name = params[0].get_str();
+    std::map<Game::PlayerID, Game::PlayerState>::const_iterator mi = state.players.find(player_name);
     if (mi == state.players.end())
         throw JSONRPCError(RPC_DATABASE_ERROR, "No such player");
 
-    return mi->second.ToJsonValue();
+    int crown_index = player_name == state.crownHolder.player ? state.crownHolder.index : -1;
+    return mi->second.ToJsonValue(crown_index);
 }
 
 void UnspendInputs(CWalletTx& wtx)
@@ -2315,7 +2303,7 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
     if (!good)
         return error("name transaction has unknown script format");
 
-    Game::Move *m;
+    Game::Move m;
     switch (op)
     {
         case OP_NAME_NEW:
@@ -2329,20 +2317,18 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
                 return error("name_firstupdate tx with rand too big");
             if (vvch[2].size() > MAX_VALUE_LENGTH)
                 return error("name_firstupdate tx with value too long");
-            m = Game::Move::Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
+            m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
             if (!m)
                 return error("name_firstupdate : incorrect game move");
-            delete m;
             break;
         case OP_NAME_UPDATE:
             if (vvch[0].size() > MAX_NAME_LENGTH)
                 return error("name transaction with name too long");
             if (vvch[1].size() > MAX_VALUE_LENGTH)
                 return error("name_update tx with value too long");
-            m = Game::Move::Parse(stringFromVch(vvch[0]), stringFromVch(vvch[1]));
+            m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[1]));
             if (!m)
                 return error("name_update : incorrect game move");
-            delete m;
             break;
         default:
             return error("name transaction has unknown op");
@@ -2488,27 +2474,33 @@ bool CHuntercoinHooks::GenesisBlock(CBlock& block)
     block = CBlock();
     block.hashPrevBlock = 0;
     block.nVersion = 1;
-    block.nBits    = bnProofOfWorkLimit.GetCompact();
+    block.nBits    = bnInitialHashTarget[0].GetCompact();
     CTransaction txNew;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
     txNew.vout[0].nValue = GetBlockValue(0, 0);
     if (fTestNet)
     {
-        txNew.vin[0].scriptSig = CScript() << vchFromString("*** BETA version test net ***");
+        txNew.vin[0].scriptSig = CScript() << vchFromString("\nHuntercoin test net\n");
         txNew.vout[0].scriptPubKey.SetBitcoinAddress("hRDGZuirWznh25mqZM5bKmeEAcw7dmDwUx");
-        txNew.vout[0].nValue = 1000 * COIN;     // Preallocated coins for easy testing and giveaway
-        block.nBits = CBigNum(~uint256(0) >> 32).GetCompact();   // Set initial difficulty to 1
-        block.nTime    = 1384073067;
-        block.nNonce   = 2633014729u;
+        txNew.vout[0].nValue = 100 * COIN;     // Preallocated coins for easy testing and giveaway
+        block.nTime    = 1391193136;
+        block.nNonce   = 1997599826u;
     }
     else
     {
-        // TODO: genesis block
-        txNew.vin[0].scriptSig = CScript() << vchFromString("*** Genesis block ***");
-        txNew.vout[0].scriptPubKey.SetBitcoinAddress("");
-        block.nTime    = 1376144317;
-        block.nNonce   = 2346213161u;
+        const char *timestamp =
+                "\n"
+                "Huntercoin genesis timestamp\n"
+                "31/Jan/2014 20:10 GMT\n"
+                "Bitcoin block 283440: 0000000000000001795d3c369b0746c0b5d315a6739a7410ada886de5d71ca86\n"
+                "Litecoin block 506479: 77c49384e6e8dd322da0ebb32ca6c8f047d515d355e9f22b116430a888fffd38\n"
+            ;
+        txNew.vin[0].scriptSig = CScript() << vchFromString(std::string(timestamp));
+        txNew.vout[0].scriptPubKey.SetBitcoinAddress("HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ");
+        txNew.vout[0].nValue = 85000 * COIN;     // Preallocated coins for bounties and giveaway
+        block.nTime    = 1391199780;
+        block.nNonce   = 1906435634u;
     }
     block.vtx.push_back(txNew);
     block.hashMerkleRoot = block.BuildMerkleTree(false);

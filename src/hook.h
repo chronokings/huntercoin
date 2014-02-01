@@ -38,10 +38,6 @@ public:
      * whether to spend a coin. */
     virtual bool IsMine(const CTransaction& tx) = 0;
     virtual bool IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new = false) = 0;
-    virtual int GetOurChainID() = 0;
-
-    virtual int GetAuxPowStartBlock() = 0;
-    virtual int GetFullRetargetStartBlock() = 0;
 
     // Allows overriding of the default fee for certain transaction types
     virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,

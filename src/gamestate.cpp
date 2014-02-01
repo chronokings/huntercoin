@@ -14,34 +14,6 @@
 
 using namespace Game;
 
-static bool CheckJsonObject(const json_spirit::Object &obj, const std::map<std::string, json_spirit::Value_type> &expectedFields)
-{
-    using namespace json_spirit;
-
-    int n = 0;
-    BOOST_FOREACH(const PAIRTYPE(std::string, Value_type)& f, expectedFields)
-    {
-        const char *fieldName = f.first.c_str();
-        Value_type fieldType = f.second;
-        bool fAllowNull = false;
-        if (fieldName[0] == '?')
-        {
-            fAllowNull = true;
-            fieldName++;
-        }
-
-        Value v = find_value(obj, fieldName);
-        if (v.type() == fieldType)
-            n++;
-        else
-        {
-            if (!(v.type() == null_type && fAllowNull))
-                return false;
-        }
-    }
-    return obj.size() == n;    // Check that there are no extra fields in obj
-}
-
 json_spirit::Value ValueFromAmount(int64 amount);
 
 bool IsValidPlayerName(const PlayerID &player)
@@ -67,6 +39,7 @@ inline bool IsWalkable(const Coord &c)
 {
     return IsWalkable(c.x, c.y);
 }
+
 } // namespace Game
 
 
@@ -98,154 +71,6 @@ private:
 
 const CBigNum RandomGenerator::MIN_STATE = CBigNum().SetCompact(0x097FFFFFu);
 
-
-
-// Various types of moves
-
-struct EmptyMove : public Move
-{
-    bool IsValid() const
-    {
-        return true;
-    }
-
-    bool IsValid(const GameState &state) const
-    {
-        return state.players.count(player) != 0;
-    }
-};
-
-struct SpawnMove : public Move
-{
-    int color;
-
-    bool IsValid() const
-    {
-        return color >= 0 || color <= NUM_TEAM_COLORS;
-    }
-
-    bool IsValid(const GameState &state) const
-    {
-        return state.players.count(player) == 0;
-    }
-
-    void ApplySpawn(GameState &state, RandomGenerator &rnd) const
-    {
-        PlayerState newPlayer;
-        newPlayer.color = color;
-        int pos = rnd.GetIntRnd(2 * SPAWN_AREA_LENGTH - 1);
-        int x = pos < SPAWN_AREA_LENGTH ? pos : 0;
-        int y = pos < SPAWN_AREA_LENGTH ? 0 : pos - SPAWN_AREA_LENGTH;
-        switch (color)
-        {
-            case 0: // Yellow (top-left)
-                newPlayer.coord = Coord(x, y);
-                break;
-            case 1: // Red (top-right)
-                newPlayer.coord = Coord(MAP_WIDTH - 1 - x, y);
-                break;
-            case 2: // Green (bottom-right)
-                newPlayer.coord = Coord(MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
-                break;
-            case 3: // Blue (bottom-left)
-                newPlayer.coord = Coord(x, MAP_HEIGHT - 1 - y);
-                break;
-            default:
-                throw std::runtime_error("ApplySpawn: incorrect color");
-        }
-
-        // Set look-direction for the sprite
-        if (newPlayer.coord.x == 0)
-        {
-            if (newPlayer.coord.y == 0)
-                newPlayer.dir = 3;
-            else if (newPlayer.coord.y == MAP_HEIGHT - 1)
-                newPlayer.dir = 9;
-            else
-                newPlayer.dir = 6;
-        }
-        else if (newPlayer.coord.x == MAP_WIDTH - 1)
-        {
-            if (newPlayer.coord.y == 0)
-                newPlayer.dir = 1;
-            else if (newPlayer.coord.y == MAP_HEIGHT - 1)
-                newPlayer.dir = 7;
-            else
-                newPlayer.dir = 4;
-        }
-        else if (newPlayer.coord.y == 0)
-            newPlayer.dir = 2;
-        else if (newPlayer.coord.y == MAP_HEIGHT - 1)
-            newPlayer.dir = 8;
-
-        // Set from and target to coord
-        newPlayer.StopMoving();
-        state.players[player] = newPlayer;
-    }
-};
-
-// Sets new waypoint
-struct StepMove : public Move
-{
-    int targetX, targetY;
-
-    bool IsValid() const
-    {
-        return IsInsideMap(targetX, targetY);
-    }
-
-    bool IsValid(const GameState &state) const
-    {
-        return state.players.count(player) != 0;
-    }
-
-    void ApplyStep(GameState &state) const
-    {
-        PlayerState &pl = state.players[player];
-        pl.from = pl.coord;
-        pl.target = Coord(targetX, targetY);
-    }
-};
-
-struct AttackMove : public Move
-{
-    PlayerID victim;
-
-    bool IsValid() const
-    {
-        return IsValidPlayerName(victim);
-    }
-
-    bool IsValid(const GameState &state) const
-    {
-        return state.players.count(player) != 0;
-    }
-
-    bool IsAttack(const GameState &state, PlayerID &outVictim) const
-    {
-        std::map<PlayerID, PlayerState>::const_iterator mi = state.players.find(victim);
-        if (mi == state.players.end())
-            return false;
-
-        const PlayerState &p1 = state.players.find(player)->second;
-        const PlayerState &p2 = mi->second;
-        if (p1.color == p2.color)
-            return false;
-        if (distLInf(p1.coord, p2.coord) > 1)
-            return false;
-
-        // Victim is safe in the spawn area
-        // TODO: should we restrict this rule to spawn area of the same color only?
-        if (IsInSpawnArea(p2.coord))
-            return false;
-
-        outVictim = victim;
-        return true;
-    }
-};
-
-
-
 bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit::Value &v)
 {
     for (std::vector<json_spirit::Pair>::iterator i = obj.begin(); i != obj.end(); ++i)
@@ -260,7 +85,152 @@ bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit
     return false;
 }
 
-void MoveBase::ApplyCommon(GameState &state) const
+bool Move::IsValid(const GameState &state) const
+{
+    if (IsSpawn())
+        return state.players.count(player) == 0;
+    else
+        return state.players.count(player) != 0;
+}
+
+bool ParseWaypoints(json_spirit::Object &obj, std::vector<Coord> &result, bool &bWaypoints)
+{
+    using namespace json_spirit;
+
+    bWaypoints = false;
+    result.clear();
+    Value v;
+    if (!ExtractField(obj, "wp", v))
+        return true;
+    if (v.type() != array_type)
+        return false;
+    Array arr = v.get_array();
+    if (arr.size() % 2)
+        return false;
+    int n = arr.size() / 2;
+    if (n > MAX_WAYPOINTS)
+        return false;
+    result.resize(n);
+    for (int i = 0; i < n; i++)
+    {
+        if (arr[2 * i].type() != int_type || arr[2 * i + 1].type() != int_type)
+            return false;
+        int x = arr[2 * i].get_int();
+        int y = arr[2 * i + 1].get_int();
+        if (!IsInsideMap(x, y))
+            return false;
+        // Waypoints are reversed for easier deletion of current waypoint from the end of the vector
+        result[n - 1 - i] = Coord(x, y);
+        if (i && result[n - 1 - i] == result[n - i])
+            return false; // Forbid duplicates        
+    }
+    bWaypoints = true;
+    return true;
+}
+
+bool ParseDestruct(json_spirit::Object &obj, bool &result)
+{
+    using namespace json_spirit;
+
+    result = false;
+    Value v;
+    if (!ExtractField(obj, "destruct", v))
+        return true;
+    if (v.type() != bool_type)
+        return false;
+    result = v.get_bool();
+    return true;
+}
+
+bool Move::Parse(const PlayerID &player, const std::string &json)
+{
+    using namespace json_spirit;
+
+    if (!IsValidPlayerName(player))
+        return false;
+        
+    Value v;
+    if (!read_string(json, v) || v.type() != obj_type)
+        return false;
+    Object obj = v.get_obj();
+
+    if (ExtractField(obj, "msg", v))
+    {
+        if (v.type() != str_type)
+            return false;
+        message = v.get_str();
+    }
+    if (ExtractField(obj, "address", v))
+    {
+        if (v.type() != str_type)
+            return false;
+        const std::string &addr = v.get_str();
+        if (!addr.empty() && !IsValidBitcoinAddress(addr))
+            return false;
+        address = addr;
+    }
+    if (ExtractField(obj, "addressLock", v))
+    {
+        if (v.type() != str_type)
+            return false;
+        const std::string &addr = v.get_str();
+        if (!addr.empty() && !IsValidBitcoinAddress(addr))
+            return false;
+        addressLock = addr;
+    }
+
+    if (ExtractField(obj, "color", v))
+    {
+        if (v.type() != int_type)
+            return false;
+        color = v.get_int();
+        if (color >= NUM_TEAM_COLORS)
+            return false;
+        if (!obj.empty()) // Extra fields are not allowed in JSON string
+            return false;
+        this->player = player;
+        return true;
+    }
+
+    std::set<int> character_indices;
+    for (std::vector<json_spirit::Pair>::iterator it = obj.begin(); it != obj.end(); ++it)
+    {
+        int i = atoi(it->name_);
+        if (i < 0 || strprintf("%d", i) != it->name_)
+            return false;               // Number formatting must be strict
+        if (character_indices.count(i))
+            return false;               // Cannot contain duplicate character indices
+        character_indices.insert(i);
+        v = it->value_;
+        if (v.type() != obj_type)
+            return false;
+        Object subobj = v.get_obj();
+        bool bWaypoints = false;
+        std::vector<Coord> wp;
+        if (!ParseWaypoints(subobj, wp, bWaypoints))
+            return false;
+        bool bDestruct;
+        if (!ParseDestruct(subobj, bDestruct))
+            return false;
+
+        if (bDestruct)
+        {
+            if (bWaypoints)
+                return false;     // Cannot combine destruct and waypoints
+            destruct.insert(i);
+        }
+        else if (bWaypoints)
+            waypoints[i] = wp;
+
+        if (!subobj.empty())      // Extra fields are not allowed in JSON string
+            return false;
+    }
+        
+    this->player = player;
+    return true;
+}
+
+void Move::ApplyCommon(GameState &state) const
 {
     if (message)
     {
@@ -273,7 +243,7 @@ void MoveBase::ApplyCommon(GameState &state) const
         state.players[player].addressLock = *addressLock;
 }
 
-std::string MoveBase::AddressOperationPermission(const GameState &state) const
+std::string Move::AddressOperationPermission(const GameState &state) const
 {
     if (!address && !addressLock)
         return std::string();      // No address operation requested - allow
@@ -285,82 +255,32 @@ std::string MoveBase::AddressOperationPermission(const GameState &state) const
     return mi->second.addressLock;
 }
 
-/*static*/ Move *Move::Parse(const PlayerID &player, const std::string &json)
+void Move::ApplySpawn(GameState &state, RandomGenerator &rnd) const
 {
-    if (!IsValidPlayerName(player))
-        return NULL;
-
-    using namespace json_spirit;
-    Value v;
-    if (!read_string(json, v) || v.type() != obj_type)
-        return NULL;
-    Object obj = v.get_obj();
-
-    // Initialize common fields
-    MoveBase move_base(player);
-    if (ExtractField(obj, "message", v))
+    PlayerState &pl = state.players[player];
+    if (pl.next_character_index == 0)
     {
-        if (v.type() != str_type)
-            return NULL;
-        move_base.message = v.get_str();
+        pl.color = color;
+        for (int i = 0; i < NUM_INITIAL_CHARACTERS; i++)
+            pl.SpawnCharacter(rnd);
     }
-    if (ExtractField(obj, "address", v))
-    {
-        if (v.type() != str_type)
-            return NULL;
-        const std::string &addr = v.get_str();
-        if (!addr.empty() && !IsValidBitcoinAddress(addr))
-            return NULL;
-        move_base.address = addr;
-    }
-    if (ExtractField(obj, "addressLock", v))
-    {
-        if (v.type() != str_type)
-            return NULL;
-        const std::string &addr = v.get_str();
-        if (!addr.empty() && !IsValidBitcoinAddress(addr))
-            return NULL;
-        move_base.addressLock = addr;
-    }
+}
 
-    // Create proper move type depending on the remaining (move-specific) fields
-
-    Move *move;
-
-    if (CheckJsonObject(obj, std::map<std::string, json_spirit::Value_type>()))
-        move = new EmptyMove;
-    else if (CheckJsonObject(obj, boost::assign::map_list_of("color", int_type)))
+void Move::ApplyWaypoints(GameState &state) const
+{
+    PlayerState &pl = state.players[player];
+    BOOST_FOREACH(const PAIRTYPE(int, std::vector<Coord>) &p, waypoints)
     {
-        SpawnMove *m = new SpawnMove;
-        m->color = find_value(obj, "color").get_int();
-        move = m;
-    }
-    else if (CheckJsonObject(obj, boost::assign::map_list_of("x", int_type)("y", int_type)))
-    {
-        StepMove *m = new StepMove;
-        m->targetX = find_value(obj, "x").get_int();
-        m->targetY = find_value(obj, "y").get_int();
-        move = m;
-    }
-    else if (CheckJsonObject(obj, boost::assign::map_list_of("attack", str_type)))
-    {
-        AttackMove *m = new AttackMove;
-        m->victim = find_value(obj, "attack").get_str();
-        move = m;
-    }
-    else
-        return NULL;
+        std::map<int, CharacterState>::iterator mi = pl.characters.find(p.first);
+        if (mi == pl.characters.end())
+            continue;
+        CharacterState &ch = mi->second;
+        const std::vector<Coord> &wp = p.second;
 
-    // Copy fields that are common to all moves
-    *(MoveBase*)move = move_base;
-
-    if (!move->IsValid())
-    {
-        delete move;
-        return NULL;
+        if (ch.waypoints.empty() || wp.empty() || ch.waypoints.back() != wp.back())
+            ch.from = ch.coord;
+        ch.waypoints = wp;
     }
-
-    return move;
 }
 
 // Returns direction from c1 to c2 as a number from 1 to 9 (as on the numeric keypad)
@@ -380,20 +300,81 @@ unsigned char GetDirection(const Coord &c1, const Coord &c2)
     return (1 - dy) * 3 + dx + 2;
 }
 
-PlayerState::PlayerState()
-    : color(0),
-    coord(0, 0), dir(0),
-    from(0, 0), target(0, 0),
-    stay_in_spawn_area(0),
-    message_block(0)
+std::string CharacterID::ToString() const
 {
+    if (!index)
+        return player;
+    return player + strprintf(".%d", int(index));
+}
+
+void CharacterState::Spawn(int color, RandomGenerator &rnd)
+{
+    int pos = rnd.GetIntRnd(2 * SPAWN_AREA_LENGTH - 1);
+    int x = pos < SPAWN_AREA_LENGTH ? pos : 0;
+    int y = pos < SPAWN_AREA_LENGTH ? 0 : pos - SPAWN_AREA_LENGTH;
+    switch (color)
+    {
+        case 0: // Yellow (top-left)
+            coord = Coord(x, y);
+            break;
+        case 1: // Red (top-right)
+            coord = Coord(MAP_WIDTH - 1 - x, y);
+            break;
+        case 2: // Green (bottom-right)
+            coord = Coord(MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
+            break;
+        case 3: // Blue (bottom-left)
+            coord = Coord(x, MAP_HEIGHT - 1 - y);
+            break;
+        default:
+            throw std::runtime_error("CharacterState::Spawn: incorrect color");
+    }
+
+    // Set look-direction for the sprite
+    if (coord.x == 0)
+    {
+        if (coord.y == 0)
+            dir = 3;
+        else if (coord.y == MAP_HEIGHT - 1)
+            dir = 9;
+        else
+            dir = 6;
+    }
+    else if (coord.x == MAP_WIDTH - 1)
+    {
+        if (coord.y == 0)
+            dir = 1;
+        else if (coord.y == MAP_HEIGHT - 1)
+            dir = 7;
+        else
+            dir = 4;
+    }
+    else if (coord.y == 0)
+        dir = 2;
+    else if (coord.y == MAP_HEIGHT - 1)
+        dir = 8;
+
+    StopMoving();
 }
 
 // Simple straight-line motion
-void PlayerState::MoveTowardsWaypoint()
+void CharacterState::MoveTowardsWaypoint()
 {
-    if (target == coord)
+    if (waypoints.empty())
+    {
+        from = coord;
         return;
+    }
+    if (coord == waypoints.back())
+    {
+        from = coord;
+        do
+        {
+            waypoints.pop_back();
+            if (waypoints.empty())
+                return;
+        } while (coord == waypoints.back());
+    }
 
     struct Helper
     {
@@ -425,6 +406,7 @@ void PlayerState::MoveTowardsWaypoint()
     };
 
     Coord new_c;
+    Coord target = waypoints.back();
     
     int dx = target.x - from.x;
     int dy = target.y - from.y;
@@ -449,55 +431,105 @@ void PlayerState::MoveTowardsWaypoint()
         if (new_dir != 5)
             dir = new_dir;
         coord = new_c;
+
+        if (coord == target)
+        {
+            from = coord;
+            do
+            {
+                waypoints.pop_back();
+            } while (!waypoints.empty() && coord == waypoints.back());
+        }
     }
 }
 
-std::vector<Coord> PlayerState::DumpPath() const
+std::vector<Coord> CharacterState::DumpPath(const std::vector<Coord> *alternative_waypoints /* = NULL */) const
 {
     std::vector<Coord> ret;
-    PlayerState tmp = *this;
-    while (tmp.target != tmp.coord)
+    CharacterState tmp = *this;
+
+    if (alternative_waypoints)
     {
-        ret.push_back(tmp.coord);
-        tmp.MoveTowardsWaypoint();
+        tmp.StopMoving();
+        tmp.waypoints = *alternative_waypoints;
     }
-    if (!ret.empty())
-        ret.push_back(tmp.target);
+
+    if (!tmp.waypoints.empty())
+    {
+        do
+        {
+            ret.push_back(tmp.coord);
+            tmp.MoveTowardsWaypoint();
+        } while (!tmp.waypoints.empty());
+        if (ret.empty() || ret.back() != tmp.coord)
+            ret.push_back(tmp.coord);
+    }
     return ret;
 }
 
-json_spirit::Value PlayerState::ToJsonValue() const
+void PlayerState::SpawnCharacter(RandomGenerator &rnd)
+{
+    characters[next_character_index++].Spawn(color, rnd);
+}
+
+json_spirit::Value PlayerState::ToJsonValue(int crown_index) const
 {
     using namespace json_spirit;
 
     Object obj;
     obj.push_back(Pair("color", (int)color));
-    obj.push_back(Pair("x", coord.x));
-    obj.push_back(Pair("y", coord.y));
-    if (target != coord)
-    {
-        // Waypoint info
-        obj.push_back(Pair("fromX", from.x));
-        obj.push_back(Pair("fromY", from.y));
-        obj.push_back(Pair("targetX", target.x));
-        obj.push_back(Pair("targetY", target.y));
-    }
-    obj.push_back(Pair("dir", (int)dir));
     if (!message.empty())
     {
-        obj.push_back(Pair("message", message));
-        obj.push_back(Pair("message_block", message_block));
+        obj.push_back(Pair("msg", message));
+        obj.push_back(Pair("msg_block", message_block));
     }
     if (!address.empty())
         obj.push_back(Pair("address", address));
     if (!addressLock.empty())
         obj.push_back(Pair("addressLock", address));
 
+    BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, characters)
+    {
+        int i = pc.first;
+        const CharacterState &ch = pc.second;
+        obj.push_back(Pair(strprintf("%d", i), ch.ToJsonValue(i == crown_index)));
+    }
+
+    return obj;
+}
+
+json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
+{
+    using namespace json_spirit;
+
+    Object obj;
+    obj.push_back(Pair("x", coord.x));
+    obj.push_back(Pair("y", coord.y));
+    if (!waypoints.empty())
+    {
+        obj.push_back(Pair("fromX", from.x));
+        obj.push_back(Pair("fromY", from.y));
+        Array arr;
+        for (int i = waypoints.size() - 1; i >= 0; i--)
+        {
+            arr.push_back(Value(waypoints[i].x));
+            arr.push_back(Value(waypoints[i].y));
+        }
+        obj.push_back(Pair("wp", arr));
+    }
+    obj.push_back(Pair("dir", (int)dir));
+    obj.push_back(Pair("stay_in_spawn_area", stay_in_spawn_area));
+    obj.push_back(Pair("loot", ValueFromAmount(loot.nAmount)));
+    if (has_crown)
+        obj.push_back(Pair("has_crown", true));
+
     return obj;
 }
 
 GameState::GameState()
 {
+    crownPos.x = CROWN_START_X;
+    crownPos.y = CROWN_START_Y;
     nHeight = -1;
     hashBlock = 0;
 }
@@ -510,13 +542,16 @@ json_spirit::Value GameState::ToJsonValue() const
 
     Object subobj;
     BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
-        subobj.push_back(Pair(p.first, p.second.ToJsonValue()));
+    {
+        int crown_index = p.first == crownHolder.player ? crownHolder.index : -1;
+        subobj.push_back(Pair(p.first, p.second.ToJsonValue(crown_index)));
+    }
     obj.push_back(Pair("players", subobj));
 
     Array arr;
     BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo) &p, loot)
     {
-        Object subobj;
+        subobj.clear();
         subobj.push_back(Pair("x", p.first.x));
         subobj.push_back(Pair("y", p.first.y));
         subobj.push_back(Pair("amount", ValueFromAmount(p.second.nAmount)));
@@ -527,6 +562,25 @@ json_spirit::Value GameState::ToJsonValue() const
         arr.push_back(subobj);
     }
     obj.push_back(Pair("loot", arr));
+    arr.resize(0);
+    BOOST_FOREACH(const Coord &c, hearts)
+    {
+        Object subobj;
+        subobj.push_back(Pair("x", c.x));
+        subobj.push_back(Pair("y", c.y));
+        arr.push_back(subobj);
+    }
+    obj.push_back(Pair("hearts", arr));
+
+    subobj.clear();
+    subobj.push_back(Pair("x", crownPos.x));
+    subobj.push_back(Pair("y", crownPos.y));
+    if (!crownHolder.player.empty())
+    {
+        subobj.push_back(Pair("holderName", crownHolder.player));
+        subobj.push_back(Pair("holderIndex", crownHolder.index));
+    }
+    obj.push_back(Pair("crown", subobj));
 
     obj.push_back(Pair("height", nHeight));
     obj.push_back(Pair("hashBlock", hashBlock.ToString().c_str()));
@@ -555,60 +609,168 @@ void GameState::DivideLootAmongPlayers()
     std::map<Coord, int> playersOnLootTile;
     BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
     {
-        const Coord &coord = p.second.coord;
-        if (loot.count(coord) != 0)
+        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, p.second.characters)
         {
-            std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
-            if (mi != playersOnLootTile.end())
-                mi->second++;
-            else
-                playersOnLootTile.insert(std::make_pair(coord, 1));
+            int i = pc.first;
+            const CharacterState &ch = pc.second;
+
+            const Coord &coord = ch.coord;
+            if (loot.count(coord) != 0)
+            {
+                std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
+                if (mi != playersOnLootTile.end())
+                    mi->second++;
+                else
+                    playersOnLootTile.insert(std::make_pair(coord, 1));
+            }
         }
     }
     // Split equally, if multiple players on loot cell
     // If not divisible, the amounts are dependent on the order of players
     BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, players)
     {
-        const Coord &coord = p.second.coord;
-        std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
-        if (mi != playersOnLootTile.end())
+        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, p.second.characters)
         {
-            LootInfo lootInfo = loot[coord];
-            lootInfo.nAmount /= (mi->second--);
+            int i = pc.first;
+            CharacterState &ch = pc.second;
 
-            // If amount was ~1e-8 and several players moved onto it, then some of them will get nothing
-            if (lootInfo.nAmount > 0)
+            const Coord &coord = ch.coord;
+            std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
+            if (mi != playersOnLootTile.end())
             {
-                p.second.loot.Collect(lootInfo, nHeight);
-                AddLoot(coord, -lootInfo.nAmount);
-            }
+                LootInfo lootInfo = loot[coord];
+                lootInfo.nAmount /= (mi->second--);
 
-            assert((mi->second == 0) == (loot.count(coord) == 0));   // If no more players on this tile, then all loot must be collected
+                // If amount was ~1e-8 and several players moved onto it, then some of them will get nothing
+                if (lootInfo.nAmount > 0)
+                {
+                    ch.loot.Collect(lootInfo, nHeight);
+                    AddLoot(coord, -lootInfo.nAmount);
+                }
+
+                assert((mi->second == 0) == (loot.count(coord) == 0));   // If no more players on this tile, then all loot must be collected
+            }
         }
     }
 }
 
-std::vector<PlayerID> GameState::ListPossibleAttacks(const PlayerID &player) const
+void GameState::UpdateCrownState(bool &respawn_crown)
 {
-    std::vector<PlayerID> ret;
+    respawn_crown = false;
+    if (crownHolder.player.empty())
+        return;
 
-    AttackMove attack;
-    attack.player = player;
-
-    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
+    std::map<PlayerID, PlayerState>::const_iterator mi = players.find(crownHolder.player);
+    if (mi == players.end())
     {
-        attack.victim = p.first;
-        PlayerID victim;
-        if (attack.IsValid() && attack.IsValid(*this) && attack.IsAttack(*this, victim))
-            ret.push_back(victim);
+        // Player is dead, drop the crown
+        crownHolder = CharacterID();
+        return;
     }
-    return ret;
+
+    const PlayerState &pl = mi->second;
+    std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(crownHolder.index);
+    if (mi2 == pl.characters.end())
+    {
+        // Character is dead, drop the crown
+        crownHolder = CharacterID();
+        return;
+    }
+
+    if (IsInSpawnArea(mi2->second.coord))
+    {
+        // Character entered spawn area, drop the crown
+        crownHolder = CharacterID();
+        respawn_crown = true;
+    }
+    else
+    {
+        // Update crown position to character position
+        crownPos = mi2->second.coord;
+    }
 }
 
-StepData::~StepData()
+void GameState::CrownBonus(int64 nAmount)
 {
-    BOOST_FOREACH(const Move *m, vpMoves)
-        delete m;
+    if (!crownHolder.player.empty())
+    {
+        CharacterState &ch = players[crownHolder.player].characters[crownHolder.index];
+        ch.loot.Collect(LootInfo(nAmount, nHeight), nHeight);
+    }
+}
+
+void GameState::CollectHearts(RandomGenerator &rnd)
+{
+    std::map<Coord, std::vector<PlayerState*> > playersOnHeartTile;
+    for (std::map<PlayerID, PlayerState>::iterator mi = players.begin(); mi != players.end(); mi++)
+    {
+        PlayerState *pl = &mi->second;
+        if (!pl->CanSpawnCharacter())
+            continue;
+        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, pl->characters)
+        {
+            const CharacterState &ch = pc.second;
+
+            if (hearts.count(ch.coord))
+                playersOnHeartTile[ch.coord].push_back(pl);
+        }
+    }
+    for (std::map<Coord, std::vector<PlayerState*> >::iterator mi = playersOnHeartTile.begin(); mi != playersOnHeartTile.end(); mi++)
+    {
+        const Coord &c = mi->first;
+        std::vector<PlayerState*> &v = mi->second;
+        int n = v.size();
+        int i;
+        for (;;)
+        {
+            if (!n)
+            {
+                i = -1;
+                break;
+            }
+            i = n == 1 ? 0 : rnd.GetIntRnd(n);
+            if (v[i]->CanSpawnCharacter())
+                break;
+            v.erase(v.begin() + i);
+            n--;
+        }
+        if (i >= 0)
+        {
+            v[i]->SpawnCharacter(rnd);
+            hearts.erase(c);
+        }
+    }
+}
+
+void GameState::CollectCrown(RandomGenerator &rnd, bool respawn_crown)
+{
+    if (!crownHolder.player.empty())
+    {
+        assert(!respawn_crown);
+        return;
+    }
+
+    if (respawn_crown)
+    {   
+        int a = rnd.GetIntRnd(NUM_CROWN_LOCATIONS);
+        crownPos.x = CrownSpawn[2 * a];
+        crownPos.y = CrownSpawn[2 * a + 1];
+    }
+
+    std::vector<CharacterID> charactersOnCrownTile;
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &pl, players)
+    {
+        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, pl.second.characters)
+        {
+            if (pc.second.coord == crownPos)
+                charactersOnCrownTile.push_back(CharacterID(pl.first, pc.first));
+        }
+    }
+    int n = charactersOnCrownTile.size();
+    if (!n)
+        return;
+    int i = n == 1 ? 0 : rnd.GetIntRnd(n);
+    crownHolder = charactersOnCrownTile[i];
 }
 
 // Loot is pushed out from the spawn area to avoid some ambiguities with banking rules (as spawn areas are also banks)
@@ -643,10 +805,35 @@ Coord PushCoordOutOfSpawnArea(const Coord &c)
         return c;     // Should not happen
 }
 
+struct AttackableCharacter
+{
+    const std::string *name;
+    int index;
+    unsigned char color;
+};
+
+std::multimap<Coord, AttackableCharacter> *MapCharactersToTiles(const std::map<PlayerID, PlayerState> &players)
+{
+    std::multimap<Coord, AttackableCharacter> *m = new std::multimap<Coord, AttackableCharacter>();
+    for (std::map<PlayerID, PlayerState>::const_iterator p = players.begin(); p != players.end(); p++)
+        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, p->second.characters)
+        {
+            int i = pc.first;
+            const CharacterState &ch = pc.second;
+
+            AttackableCharacter a;
+            a.name = &p->first;
+            a.index = i;
+            a.color = p->second.color;
+            m->insert(std::pair<Coord, AttackableCharacter>(ch.coord, a));
+        }
+    return m;
+}
+
 bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameState &outState, StepResult &stepResult)
 {
-    BOOST_FOREACH(const Move *m, stepData.vpMoves)
-        if (!m->IsValid(inState))
+    BOOST_FOREACH(const Move &m, stepData.vMoves)
+        if (!m.IsValid(inState))
             return false;
 
     outState = inState;
@@ -657,48 +844,150 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     stepResult = StepResult();
 
     // Apply attacks
-    BOOST_FOREACH(const Move *m, stepData.vpMoves)
+    std::multimap<Coord, AttackableCharacter> *charactersOnTile = NULL;   // Delayed creation - only if at least one attack happened
+    BOOST_FOREACH(const Move &m, stepData.vMoves)
     {
-        PlayerID victim;
-        if (m->IsAttack(inState, victim))
+        if (m.destruct.empty())
+            continue;
+        const PlayerState &pl = inState.players.find(m.player)->second;
+        BOOST_FOREACH(int i, m.destruct)
         {
-            const PlayerState &victimState = inState.players.find(victim)->second;
-            stepResult.killedPlayers.insert(victim);
-            stepResult.killedBy.insert(std::make_pair(victim, m->player));
-
-            outState.players[m->player].StopMoving();
+            if (!pl.characters.count(i))
+                continue;
+            CharacterID chid(m.player, i);
+            if (inState.crownHolder == chid)
+                continue;
+            if (!charactersOnTile)
+                charactersOnTile = MapCharactersToTiles(inState.players);
+            int radius = i == 0 ? DESTRUCT_RADIUS_MAIN : DESTRUCT_RADIUS;
+            Coord c = pl.characters.find(i)->second.coord;
+            for (int y = c.y - radius; y <= c.y + radius; y++)
+                for (int x = c.x - radius; x <= c.x + radius; x++)
+                {
+                    std::pair<std::multimap<Coord, AttackableCharacter>::const_iterator, std::multimap<Coord, AttackableCharacter>::const_iterator> its =
+                                    charactersOnTile->equal_range(Coord(x, y));
+                    for (std::multimap<Coord, AttackableCharacter>::const_iterator it = its.first; it != its.second; it++)
+                    {
+                        const AttackableCharacter &a = it->second;
+                        if (a.color == pl.color)
+                            continue;  // Do not kill same color
+                        if (a.index == 0)
+                        {
+                            stepResult.killedBy.insert(std::make_pair(*a.name, chid));
+                            stepResult.killedPlayers.insert(*a.name);
+                        }
+                        if (outState.players[*a.name].characters.count(a.index))
+                        {
+                            CharacterState &ch = outState.players[*a.name].characters[a.index];
+                            // Drop loot
+                            int64 nAmount = ch.loot.nAmount;
+                            if (a.index == 0)
+                                nAmount += stepData.nNameCoinAmount;
+                            if (nAmount > 0)
+                            {
+                                // Tax from killing: 4%
+                                int64 nTax = nAmount / 25;
+                                stepResult.nTaxAmount += nTax;
+                                nAmount -= nTax;
+                                outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
+                            }
+                            outState.players[*a.name].characters.erase(a.index);
+                        }
+                    }
+                }
+            if (outState.players[m.player].characters.count(i))
+            {
+                CharacterState &ch = outState.players[m.player].characters[i];
+                // Drop loot
+                int64 nAmount = pl.characters.find(i)->second.loot.nAmount;
+                if (i == 0)
+                    nAmount += stepData.nNameCoinAmount;
+                if (nAmount > 0)
+                {
+                    // Tax from killing: 4%
+                    int64 nTax = nAmount / 25;
+                    stepResult.nTaxAmount += nTax;
+                    nAmount -= nTax;
+                    outState.AddLoot(PushCoordOutOfSpawnArea(pl.characters.find(i)->second.coord), nAmount);
+                }
+                outState.players[m.player].characters.erase(i);
+            }
+            if (i == 0)
+            {
+                stepResult.killedPlayers.insert(m.player);
+                stepResult.killedBy.insert(std::make_pair(m.player, CharacterID(m.player, i)));
+            }
         }
     }
+
+    delete charactersOnTile;
 
     // Kill players who stay too long in the spawn area
     BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.players)
-        if (IsInSpawnArea(p.second.coord))
+    {
+        std::set<int> toErase;
+        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, p.second.characters)
         {
-            if (p.second.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA)
-                stepResult.killedPlayers.insert(p.first);
+            int i = pc.first;
+            CharacterState &ch = pc.second;
+
+            if (IsInSpawnArea(ch.coord))
+            {
+                if (ch.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA)
+                {
+                    int64 nAmount = ch.loot.nAmount;
+                    if (i == 0)
+                    {
+                        nAmount += stepData.nNameCoinAmount;
+                        stepResult.killedPlayers.insert(p.first);
+                    }
+                    if (nAmount > 0)
+                        outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
+                    toErase.insert(i);   // Cannot erase right now, because it will invalidate the iterator 'pc'
+                }
+            }
+            else
+                ch.stay_in_spawn_area = 0;
         }
-        else
-            p.second.stay_in_spawn_area = 0;
+        BOOST_FOREACH(int i, toErase)
+            p.second.characters.erase(i);
+    }
 
     BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
     {
-        const PlayerState &victimState = inState.players.find(victim)->second;
-        int64 nAmount = stepData.nNameCoinAmount + victimState.loot.nAmount;
+        const PlayerState &victimState = outState.players.find(victim)->second;
 
         // If killed by the game for staying in the spawn area, then no tax
-        if (stepResult.killedBy.count(victim) != 0)
+        bool apply_tax = stepResult.killedBy.count(victim) != 0;
+
+        // Kill all alive characters of the player
+        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, victimState.characters)
         {
-            // Tax from killing: 4%
-            int64 nTax = nAmount / 25;
-            stepResult.nTaxAmount += nTax;
-            nAmount -= nTax;
+            int i = pc.first;
+            const CharacterState &ch = pc.second;
+
+            assert(i != 0);  // If player is killed, main character must have been killed
+
+            int64 nAmount = ch.loot.nAmount;
+            if (nAmount > 0)
+            {
+                if (apply_tax)
+                {
+                    // Tax from killing: 4%
+                    int64 nTax = nAmount / 25;
+                    stepResult.nTaxAmount += nTax;
+                    nAmount -= nTax;
+                }
+
+                outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
+            }
         }
-        outState.AddLoot(PushCoordOutOfSpawnArea(victimState.coord), nAmount);
     }
 
     // Apply updates to target coordinate
-    BOOST_FOREACH(const Move *m, stepData.vpMoves)
-        m->ApplyStep(outState);
+    BOOST_FOREACH(const Move &m, stepData.vMoves)
+        if (!m.IsSpawn())
+            m.ApplyWaypoints(outState);
 
     // Erase killed players
     BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
@@ -706,26 +995,33 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     // For all alive players perform path-finding
     BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.players)
-        p.second.MoveTowardsWaypoint();
-        
+        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, p.second.characters)
+            pc.second.MoveTowardsWaypoint();
+
+    bool respawn_crown = false;
+    outState.UpdateCrownState(respawn_crown);
+
     // Caution: banking must not depend on the randomized events, because they depend on the hash -
     // miners won't be able to compute tax amount if it depends on the hash.
 
     // Banking
     BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.players)
-    {
-        PlayerState &pl = p.second;
-        if (pl.loot.nAmount > 0 && IsInSpawnArea(pl.coord))
+        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, p.second.characters)
         {
-            // Tax from banking: 10%
-            int64 nTax = pl.loot.nAmount / 10;
-            stepResult.nTaxAmount += nTax;
-            pl.loot.nAmount -= nTax;
+            int i = pc.first;
+            CharacterState &ch = pc.second;
 
-            stepResult.bounties[p.first] = pl.loot;
-            pl.loot = CollectedLootInfo();
+            if (ch.loot.nAmount > 0 && IsInSpawnArea(ch.coord))
+            {
+                // Tax from banking: 10%
+                int64 nTax = ch.loot.nAmount / 10;
+                stepResult.nTaxAmount += nTax;
+                ch.loot.nAmount -= nTax;
+
+                stepResult.bounties[CharacterID(p.first, i)] = ch.loot;
+                ch.loot = CollectedLootInfo();
+            }
         }
-    }
 
     // Miners set hashBlock to 0 in order to compute tax and include it into the coinbase.
     // At this point the tax is fully computed, so we can return.
@@ -735,32 +1031,46 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     RandomGenerator rnd(outState.hashBlock);
 
     // Spawn new players
-    BOOST_FOREACH(const Move *m, stepData.vpMoves)
-        m->ApplySpawn(outState, rnd);
+    BOOST_FOREACH(const Move &m, stepData.vMoves)
+        if (m.IsSpawn())
+            m.ApplySpawn(outState, rnd);
 
     // Apply address & message updates
-    BOOST_FOREACH(const Move *m, stepData.vpMoves)
-        m->ApplyCommon(outState);
+    BOOST_FOREACH(const Move &m, stepData.vMoves)
+        m.ApplyCommon(outState);
+
+    int64 nCrownBonus = CROWN_BONUS * stepData.nTreasureAmount / TOTAL_HARVEST;
 
     // Drop a random rewards onto the harvest areas
     int64 nTotalTreasure = 0;
     for (int i = 0; i < NUM_HARVEST_AREAS; i++)
     {
-        Coord harvest;
-
-        do
-        {
-            harvest.x = HarvestAreas[i].x + rnd.GetIntRnd(HarvestAreas[i].w);
-            harvest.y = HarvestAreas[i].y + rnd.GetIntRnd(HarvestAreas[i].h);
-        } while (!IsWalkable(harvest));
-        int64 nTreasure = HarvestAreas[i].fraction * stepData.nTreasureAmount / TOTAL_HARVEST;
+        int a = rnd.GetIntRnd(HarvestAreaSizes[i]);
+        Coord harvest(HarvestAreas[i][2 * a], HarvestAreas[i][2 * a + 1]);
+        int64 nTreasure = HarvestPortions[i] * stepData.nTreasureAmount / TOTAL_HARVEST;
         outState.AddLoot(harvest, nTreasure);
         nTotalTreasure += nTreasure;
     }
-    assert(nTotalTreasure == stepData.nTreasureAmount);
+    assert(nTotalTreasure + nCrownBonus == stepData.nTreasureAmount);
 
     // Players collect loot
     outState.DivideLootAmongPlayers();
+    outState.CrownBonus(nCrownBonus);
+
+    // Drop heart onto the map (1 heart per 5 blocks)
+    if (outState.nHeight % HEART_EVERY_NTH_BLOCK == 0)
+    {
+        Coord heart;
+        do
+        {
+            heart.x = rnd.GetIntRnd(MAP_WIDTH);
+            heart.y = rnd.GetIntRnd(MAP_HEIGHT);
+        } while (!IsWalkable(heart) || IsInSpawnArea(heart));
+        outState.hearts.insert(heart);
+    }
+
+    outState.CollectHearts(rnd);
+    outState.CollectCrown(rnd, respawn_crown);
 
     return true;
 }

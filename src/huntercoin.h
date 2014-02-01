@@ -55,7 +55,7 @@ public:
 };
 
 static const int NAMECOIN_TX_VERSION = 0x7100;
-static const int64 NAME_COIN_AMOUNT = CENT;
+static const int64 NAME_COIN_AMOUNT = 1 * COIN;
 // We can make name_new cheaper, if we want, separately from name_(first)update
 // This can be used e.g. to send short messages in the hash field. The coin will be
 // destroyed in this case. We can try setting it to 0 though.

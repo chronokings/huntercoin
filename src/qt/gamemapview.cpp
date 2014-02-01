@@ -6,7 +6,6 @@
 
 #include <QImage>
 #include <QGraphicsItem>
-#include <QGraphicsPixmapItem>
 #include <QGraphicsSimpleTextItem>
 #include <QStyleOptionGraphicsItem>
 #include <QScrollBar>
@@ -29,20 +28,21 @@ struct GameGraphicsObjects
     // Player sprites for each color and 10 directions (with 0 and 5 being null, the rest are as on numpad)
     QPixmap player_sprite[Game::NUM_TEAM_COLORS][10];
 
-    QPixmap coin_sprite;
+    QPixmap coin_sprite, heart_sprite, crown_sprite;
     QPixmap tiles[NUM_TILE_IDS];
 
     QBrush player_text_brush[Game::NUM_TEAM_COLORS];
 
-    QPen magenta_pen;
+    QPen magenta_pen, gray_pen;
 
     GameGraphicsObjects()
-        : magenta_pen(Qt::magenta, 2.0)
+        : magenta_pen(Qt::magenta, 2.0),
+        gray_pen(QColor(170, 170, 170), 2.0)
     {
         player_text_brush[0] = QBrush(QColor(255, 255, 100));
         player_text_brush[1] = QBrush(QColor(255, 80, 80));
         player_text_brush[2] = QBrush(QColor(100, 255, 100));
-        player_text_brush[3] = QBrush(QColor(130, 150, 255));
+        player_text_brush[3] = QBrush(QColor(0, 170, 255));
 
         for (int i = 0; i < Game::NUM_TEAM_COLORS; i++)
             for (int j = 1; j < 10; j++)
@@ -52,6 +52,8 @@ struct GameGraphicsObjects
             }
 
         coin_sprite.load(":/gamemap/sprites/coin");
+        heart_sprite.load(":/gamemap/sprites/heart");
+        crown_sprite.load(":/gamemap/sprites/crown");
 
         for (short tile = 0; tile < NUM_TILE_IDS; tile++)
             tiles[tile].load(":/gamemap/" + QString::number(tile));
@@ -82,6 +84,7 @@ class GameMapCache
             referenced = true;
             coin = scene->addPixmap(grobjs->coin_sprite);
             coin->setOffset(x, y);
+            coin->setZValue(0.1);
             text = new QGraphicsTextItem(coin);
             text->setHtml(
                     "<center>"
@@ -112,6 +115,37 @@ class GameMapCache
         {
             scene->removeItem(coin);
             delete coin;
+            //scene->invalidate();
+        }
+    };
+
+    class CachedHeart : public CacheEntry
+    {
+        QGraphicsPixmapItem *heart;
+
+    public:
+
+        CachedHeart() : heart(NULL) { }
+
+        void Create(QGraphicsScene *scene, const GameGraphicsObjects *grobjs, int x, int y)
+        {
+            referenced = true;
+            heart = scene->addPixmap(grobjs->heart_sprite);
+            heart->setOffset(x, y);
+            heart->setZValue(0.2);
+        }
+
+        void Update()
+        {
+            referenced = true;
+        }
+
+        operator bool() const { return heart != NULL; }
+
+        void Destroy(QGraphicsScene *scene)
+        {
+            scene->removeItem(heart);
+            delete heart;
             //scene->invalidate();
         }
     };
@@ -234,7 +268,23 @@ class GameMapCache
     const GameGraphicsObjects *grobjs;
 
     std::map<Coord, CachedCoin> cached_coins;
-    std::map<PlayerID, CachedPlayer> cached_players;
+    std::map<Coord, CachedHeart> cached_hearts;
+    std::map<QString, CachedPlayer> cached_players;
+
+    template<class CACHE>
+    void EraseUnreferenced(CACHE &cache)
+    {
+        for (typename CACHE::iterator mi = cache.begin(); mi != cache.end(); )
+        {
+            if (mi->second.referenced)
+                ++mi;
+            else
+            {
+                mi->second.Destroy(scene);
+                cache.erase(mi++);
+            }
+        }
+    }
 
 public:
 
@@ -248,7 +298,9 @@ public:
         // Mark each cached object as unreferenced
         for (std::map<Coord, CachedCoin>::iterator mi = cached_coins.begin(); mi != cached_coins.end(); ++mi)
             mi->second.referenced = false;
-        for (std::map<PlayerID, CachedPlayer>::iterator mi = cached_players.begin(); mi != cached_players.end(); ++mi)
+        for (std::map<Coord, CachedHeart>::iterator mi = cached_hearts.begin(); mi != cached_hearts.end(); ++mi)
+            mi->second.referenced = false;
+        for (std::map<QString, CachedPlayer>::iterator mi = cached_players.begin(); mi != cached_players.end(); ++mi)
             mi->second.referenced = false;
     }
 
@@ -261,39 +313,32 @@ public:
         else
             c.Update(nAmount);
     }
-    
-    void AddPlayer(const std::string &name, int x, int y, int z_order, int color, int dir, int64 nAmount)
+
+    void PlaceHeart(const Coord &coord)
+    {
+        CachedHeart &h = cached_hearts[coord];
+
+        if (!h)
+            h.Create(scene, grobjs, coord.x * TILE_SIZE, coord.y * TILE_SIZE);
+        else
+            h.Update();
+    }
+
+    void AddPlayer(const QString &name, int x, int y, int z_order, int color, int dir, int64 nAmount)
     {
         CachedPlayer &p = cached_players[name];
         if (!p)
-            p.Create(scene, grobjs, x, y, z_order, QString::fromStdString(name), color, dir, nAmount);
+            p.Create(scene, grobjs, x, y, z_order, name, color, dir, nAmount);
         else
             p.Update(x, y, z_order, color, dir, nAmount);
     }
 
+    // Erase unreferenced objects from cache
     void EndCachedScene()
     {
-        // Erase unreferenced objects
-        for (std::map<Coord, CachedCoin>::iterator mi = cached_coins.begin(); mi != cached_coins.end(); )
-        {
-            if (mi->second.referenced)
-                ++mi;
-            else
-            {
-                mi->second.Destroy(scene);
-                cached_coins.erase(mi++);
-            }
-        }
-        for (std::map<PlayerID, CachedPlayer>::iterator mi = cached_players.begin(); mi != cached_players.end(); )
-        {
-            if (mi->second.referenced)
-                ++mi;
-            else
-            {
-                mi->second.Destroy(scene);
-                cached_players.erase(mi++);
-            }
-        }
+        EraseUnreferenced(cached_coins);
+        EraseUnreferenced(cached_hearts);
+        EraseUnreferenced(cached_players);
     }
 };
 
@@ -336,7 +381,7 @@ public:
 
 GameMapView::GameMapView(QWidget *parent)
     : QGraphicsView(parent), zoomFactor(1.0), panning(false), use_cross_cursor(false), scheduledZoom(1.0),
-    grobjs(new GameGraphicsObjects), playerPath(NULL)
+    grobjs(new GameGraphicsObjects), playerPath(NULL), queuedPlayerPath(NULL)
 {
     scene = new QGraphicsScene(this);
 
@@ -344,6 +389,9 @@ GameMapView::GameMapView(QWidget *parent)
     scene->setBspTreeDepth(15);
 
     setScene(scene);
+    setSceneRect(0, 0, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
+    centerOn(MAP_WIDTH * TILE_SIZE / 2, MAP_HEIGHT * TILE_SIZE / 2);
+    setResizeAnchor(QGraphicsView::AnchorViewCenter);
 
     gameMapCache = new GameMapCache(scene, grobjs);
 
@@ -402,6 +450,11 @@ GameMapView::GameMapView(QWidget *parent)
     scene->addRect(0, (MAP_HEIGHT - SPAWN_AREA_LENGTH) * TILE_SIZE,
         TILE_SIZE, (SPAWN_AREA_LENGTH - 1) * TILE_SIZE,
         no_pen, QColor(0, 0, 255, spawn_opacity));
+        
+    crown = scene->addPixmap(grobjs->crown_sprite);
+    crown->hide();
+    crown->setOffset(CROWN_START_X * TILE_SIZE, CROWN_START_Y * TILE_SIZE);
+    crown->setZValue(0.3);
 }
 
 GameMapView::~GameMapView()
@@ -409,6 +462,13 @@ GameMapView::~GameMapView()
     delete gameMapCache;
     delete grobjs;
 }
+
+struct CharacterEntry
+{
+    QString name;
+    unsigned char color;
+    const CharacterState *state;
+};
 
 void GameMapView::updateGameMap(const GameState &gameState)
 {
@@ -418,28 +478,49 @@ void GameMapView::updateGameMap(const GameState &gameState)
         delete playerPath;
         playerPath = NULL;
     }
+    if (queuedPlayerPath)
+    {
+        scene->removeItem(queuedPlayerPath);
+        delete queuedPlayerPath;
+        queuedPlayerPath = NULL;
+    }
 
     gameMapCache->StartCachedScene();
     BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo) &loot, gameState.loot)
         gameMapCache->PlaceCoin(loot.first, loot.second.nAmount);
+    BOOST_FOREACH(const Coord &h, gameState.hearts)
+        gameMapCache->PlaceHeart(h);
 
     // Sort by coordinate bottom-up, so the stacking (multiple players on tile) looks correct
-    typedef const std::pair<const PlayerID, PlayerState> *PlayerEntryPtr;
-    std::multimap<Coord, PlayerEntryPtr> sortedPlayers;
+    std::multimap<Coord, CharacterEntry> sortedPlayers;
 
     for (std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.begin(); mi != gameState.players.end(); mi++)
     {
-        const Coord &coord = mi->second.coord;
-        sortedPlayers.insert(std::make_pair(Coord(-coord.x, -coord.y), &(*mi)));
+        const PlayerState &pl = mi->second;
+        for (std::map<int, CharacterState>::const_iterator mi2 = pl.characters.begin(); mi2 != pl.characters.end(); mi2++)
+        {
+            const CharacterState &characterState = mi2->second;
+            const Coord &coord = characterState.coord;
+            CharacterEntry entry;
+            CharacterID chid(mi->first, mi2->first);
+            entry.name = QString::fromStdString(chid.ToString());
+            if (mi2->first == 0) // Main character ("the general") has a star before the name
+                entry.name = QString::fromUtf8("\u2605") + entry.name;
+            if (chid == gameState.crownHolder)
+                entry.name += QString::fromUtf8(" \u265B");
+            entry.color = pl.color;
+            entry.state = &characterState;
+            sortedPlayers.insert(std::make_pair(Coord(-coord.x, -coord.y), entry));
+        }
     }
 
     Coord prev_coord;
     int offs = -1;
-    BOOST_FOREACH(const PAIRTYPE(Coord, PlayerEntryPtr) &data, sortedPlayers)
+    BOOST_FOREACH(const PAIRTYPE(Coord, CharacterEntry) &data, sortedPlayers)
     {
-        const PlayerID &playerName = data.second->first;
-        const PlayerState &playerState = data.second->second;
-        const Coord &coord = playerState.coord;
+        const QString &playerName = data.second.name;
+        const CharacterState &characterState = *data.second.state;
+        const Coord &coord = characterState.coord;
 
         if (offs >= 0 && coord == prev_coord)
             offs++;
@@ -452,58 +533,63 @@ void GameMapView::updateGameMap(const GameState &gameState)
         int x = coord.x * TILE_SIZE + offs;
         int y = coord.y * TILE_SIZE + offs * 2;
 
-        gameMapCache->AddPlayer(playerName, x, y, 1 + offs, playerState.color, playerState.dir, playerState.loot.nAmount);
+        gameMapCache->AddPlayer(playerName, x, y, 1 + offs, data.second.color, characterState.dir, characterState.loot.nAmount);
     }
     gameMapCache->EndCachedScene();
+
+    if (!gameState.crownHolder.player.empty())
+        crown->hide();
+    else
+    {
+        crown->show();
+        crown->setOffset(gameState.crownPos.x * TILE_SIZE, gameState.crownPos.y * TILE_SIZE);
+    }
 
     //scene->invalidate();
     repaint(rect());
 }
 
-void GameMapView::SelectPlayers(const QStringList &names, const GameState &state, const GamePathfinders &pathfinders)
+static void DrawPath(const std::vector<Coord> &coords, QPainterPath &path)
 {
-    // Clear old path
-    DeselectPlayers();
-    
-    if (names.isEmpty())
+    if (coords.empty())
         return;
 
-    QPainterPath path;
-
-    foreach (QString name, names)
+    for (int i = 0; i < coords.size(); i++)
     {
-        std::string pl = name.toStdString();
-        std::map<Game::PlayerID, Game::PlayerState>::const_iterator mi = state.players.find(pl);
-        if (mi == state.players.end())
-            continue;
+        QPointF p((coords[i].x + 0.5) * TILE_SIZE, (coords[i].y + 0.5) * TILE_SIZE);
+        if (i == 0)
+            path.moveTo(p);
+        else
+            path.lineTo(p);
+    }
+}
 
-        // Path till next waypoint
-        std::vector<Coord> coords = mi->second.DumpPath();
+void GameMapView::SelectPlayer(const QString &name, const GameState &state, QueuedMoves &queuedMoves)
+{
+    // Clear old path
+    DeselectPlayer();
 
-        // Remaining waypoints
-        GamePathfinders::const_iterator pf = pathfinders.find(pl);
-        if (pf != pathfinders.end() &&
-                // Make sure the path continues from current position or current waypoint
-                // (otherwise it's still pending or was broken by a concurrent transaction)
-                pf->second.GetCurWaypoint() == (coords.empty() ? mi->second.coord : coords.back())
-            )
+    if (name.isEmpty())
+        return;
+
+    QPainterPath path, queuedPath;
+
+    std::map<PlayerID, PlayerState>::const_iterator mi = state.players.find(name.toStdString());
+    if (mi == state.players.end())
+        return;
+
+    BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, mi->second.characters)
+    {
+        int i = pc.first;
+        const CharacterState &ch = pc.second;
+
+        DrawPath(ch.DumpPath(), path);
+
+        std::vector<Coord> *p = UpdateQueuedPath(ch, queuedMoves, CharacterID(mi->first, i));
+        if (p)
         {
-            if (coords.empty())
-                coords.push_back(mi->second.coord);
-            std::vector<Coord> coords2 = pf->second.DumpPath();
-            coords.insert(coords.end(), coords2.begin(), coords2.end());
-        }
-
-        if (!coords.empty())
-        {
-            for (int i = 0; i < coords.size(); i++)
-            {
-                QPointF p((coords[i].x + 0.5) * TILE_SIZE, (coords[i].y + 0.5) * TILE_SIZE);
-                if (i == 0)
-                    path.moveTo(p);
-                else
-                    path.lineTo(p);
-            }
+            std::vector<Coord> wp = PathToCharacterWaypoints(*p);
+            DrawPath(ch.DumpPath(&wp), queuedPath);
         }
     }
     if (!path.isEmpty())
@@ -511,28 +597,41 @@ void GameMapView::SelectPlayers(const QStringList &names, const GameState &state
         playerPath = scene->addPath(path, grobjs->magenta_pen);
         playerPath->setZValue(0.5);
     }
+    if (!queuedPath.isEmpty())
+    {
+        queuedPlayerPath = scene->addPath(queuedPath, grobjs->gray_pen);
+        queuedPlayerPath->setZValue(0.6);
+    }
 
     use_cross_cursor = true;
     if (!panning)
         setCursor(Qt::CrossCursor);
 }
 
-void GameMapView::CenterMapOnPlayer(const Game::PlayerState &state)
+void GameMapView::CenterMapOnCharacter(const Game::CharacterState &state)
 {
     centerOn((state.coord.x + 0.5) * TILE_SIZE, (state.coord.y + 0.5) * TILE_SIZE);
 }
 
-void GameMapView::DeselectPlayers()
+void GameMapView::DeselectPlayer()
 {
-    if (playerPath)
+    if (playerPath || queuedPlayerPath)
     {
-        scene->removeItem(playerPath);
-        delete playerPath;
-        playerPath = NULL;
+        if (playerPath)
+        {
+            scene->removeItem(playerPath);
+            delete playerPath;
+            playerPath = NULL;
+        }
+        if (queuedPlayerPath)
+        {
+            scene->removeItem(queuedPlayerPath);
+            delete queuedPlayerPath;
+            queuedPlayerPath = NULL;
+        }
         //scene->invalidate();
         repaint(rect());
     }
-
     use_cross_cursor = false;
     if (!panning)
         setCursor(Qt::ArrowCursor);

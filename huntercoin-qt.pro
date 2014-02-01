@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = huntercoin-qt
 macx:TARGET = "HunterCoin-Qt"
-VERSION = 0.1.00
+VERSION = 1.0.00
 INCLUDEPATH += src src/json src/qt
 QT += network
 DEFINES += GUI QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
@@ -118,12 +118,13 @@ QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra -Wformat -Wform
 # Input
 DEPENDPATH += src src/json src/cryptopp src/qt
 
-HUNTERCOIN_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
+HUNTERCOIN_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h scrypt.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h bitcoinrpc.h uibase.h ui.h noui.h init.h auxpow.h \
     gamestate.h gamemap.h gamedb.h gametx.h
 
 HUNTERCOIN_SOURCES = \
     auxpow.cpp \
+    scrypt.cpp \
     util.cpp \
     key.cpp \
     script.cpp \
@@ -156,7 +157,8 @@ HEADERS += \
     src/qt/optionsdialog.h \
     src/qt/sendcoinsdialog.h \
     src/qt/managenamespage.h \
-    src/qt/configurenamedialog.h \
+    src/qt/configurenamedialog1.h \
+    src/qt/configurenamedialog2.h \
     src/qt/nametablemodel.h \
     src/qt/addressbookpage.h \
     src/qt/signverifymessagedialog.h \
@@ -187,7 +189,7 @@ HEADERS += \
     src/qt/ui_interface.h \
     src/qt/gamemapview.h \
     src/qt/gamechatview.h \
-    src/qt/gamepathfinder.h \
+    src/qt/gamemovecreator.h \
     src/qt/rpcconsole.h \
     src/json/json_spirit_writer_template.h \
     src/json/json_spirit_writer.h \
@@ -208,7 +210,8 @@ SOURCES += \
     src/qt/optionsdialog.cpp \
     src/qt/sendcoinsdialog.cpp \
     src/qt/managenamespage.cpp \
-    src/qt/configurenamedialog.cpp \
+    src/qt/configurenamedialog1.cpp \
+    src/qt/configurenamedialog2.cpp \
     src/qt/nametablemodel.cpp \
     src/qt/addressbookpage.cpp \
     src/qt/signverifymessagedialog.cpp \
@@ -238,7 +241,7 @@ SOURCES += \
     src/qt/paymentserver.cpp \
     src/qt/gamemapview.cpp \
     src/qt/gamechatview.cpp \
-    src/qt/gamepathfinder.cpp \
+    src/qt/gamemovecreator.cpp \
     src/qt/rpcconsole.cpp
 
 RESOURCES += src/qt/bitcoin.qrc src/qt/gamemap.qrc
@@ -246,7 +249,8 @@ RESOURCES += src/qt/bitcoin.qrc src/qt/gamemap.qrc
 FORMS += \
     src/qt/forms/sendcoinsdialog.ui \
     src/qt/forms/managenamespage.ui \
-    src/qt/forms/configurenamedialog.ui \
+    src/qt/forms/configurenamedialog1.ui \
+    src/qt/forms/configurenamedialog2.ui \
     src/qt/forms/addressbookpage.ui \
     src/qt/forms/signverifymessagedialog.ui \
     src/qt/forms/aboutdialog.ui \
@@ -275,11 +279,20 @@ DEFINES += BITCOIN_QT_TEST
   macx: CONFIG -= app_bundle
 }
 
+contains(USE_SSE2, 1) {
+DEFINES += USE_SSE2
+gccsse2.input  = SOURCES_SSE2
+gccsse2.output = $$PWD/build/${QMAKE_FILE_BASE}.o
+gccsse2.commands = $(CXX) -c $(CXXFLAGS) $(INCPATH) -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME} -msse2 -mstackrealign
+QMAKE_EXTRA_COMPILERS += gccsse2
+SOURCES_SSE2 += src/scrypt-sse2.cpp
+}
+
 CODECFORTR = UTF-8
 
 # for lrelease/lupdate
 # also add new translations to src/qt/bitcoin.qrc under translations/
-TRANSLATIONS = $$files(src/qt/locale/bitcoin_*.ts)
+TRANSLATIONS = $$files(src/qt/locale/huntercoin_*.ts)
 
 isEmpty(QMAKE_LRELEASE) {
     win32:QMAKE_LRELEASE = $$[QT_INSTALL_BINS]\\lrelease.exe

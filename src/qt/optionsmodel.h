@@ -51,7 +51,7 @@ public:
     bool getDisplayAddresses() { return bDisplayAddresses; }
     QString getLanguage() { return language; }
     QString getDefaultRewardAddress() { return defaultRewardAddress; }
-    void setDefaultRewardAddress(const QString &addr) { setData(index(DefaultRewardAddress), QVariant(addr)); }
+    void setDefaultRewardAddress(const QString &addr) { defaultRewardAddress = addr; setData(index(DefaultRewardAddress), QVariant(addr)); }
 
 private:
     int nDisplayUnit;

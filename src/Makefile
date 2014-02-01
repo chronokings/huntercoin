@@ -55,11 +55,12 @@ huntercoind: USE_UPNP:=0
 
 CXXFLAGS=-O2 -Wno-invalid-offsetof -Wformat $(DEFS) $(INCLUDEPATHS)
 
-HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h \
+HEADERS=headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h scrypt.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h bitcoinrpc.h uibase.h ui.h noui.h init.h auxpow.h
 
 OBJS= \
     obj/auxpow.o \
+    obj/scrypt.o \
     obj/util.o \
     obj/key.o \
     obj/script.o \
@@ -80,6 +81,12 @@ OBJS= \
     obj/gametx.o \
     cryptopp/obj/sha.o \
     cryptopp/obj/cpu.o
+
+ifdef USE_SSE2
+DEFS += -DUSE_SSE2
+OBJS_SSE2= obj/scrypt-sse2.o
+OBJS += $(OBJS_SSE2)
+endif
 
 all: huntercoind
 

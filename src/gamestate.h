@@ -11,45 +11,54 @@
 namespace Game
 {
 
+static const int NUM_TEAM_COLORS = 4;
+static const int MAX_WAYPOINTS = 100;                      // Maximum number of waypoints per character
+static const unsigned char MAX_STAY_IN_SPAWN_AREA = 30;
+static const int DESTRUCT_RADIUS = 1;
+static const int DESTRUCT_RADIUS_MAIN = 2;                 // Destruction radius for main character
+static const int NUM_INITIAL_CHARACTERS = 3;               // Initial number of characters to spawn for new player (includes main character)
+static const int MAX_CHARACTERS_PER_PLAYER = 20;           // Maximum number of characters per player at the same time
+static const int MAX_CHARACTERS_PER_PLAYER_TOTAL = 1000;   // Maximum number of characters per player in the lifetime
+static const int HEART_EVERY_NTH_BLOCK = 10;               // Spawn rate of hearts
+
 // Unique player name
 typedef std::string PlayerID;
 
-static const int NUM_TEAM_COLORS = 4;
-
-class GameState;
-
-// MoveBase contains common data for each type of move.
-// Do not instantiate directly, use Move::Parse instead
-struct MoveBase
+// Player name + character index
+struct CharacterID
 {
     PlayerID player;
+    int index;
+    
+    CharacterID() : index(-1) { }
+    CharacterID(const PlayerID &player_, int index_)
+        : player(player_), index(index_)
+    {
+        if (index_ < 0)
+            throw std::runtime_error("Bad character index");
+    }
 
-    // Updates to the player state
-    boost::optional<std::string> message;
-    boost::optional<std::string> address;
-    boost::optional<std::string> addressLock;
+    std::string ToString() const;
 
-    void ApplyCommon(GameState &state) const;
+    static CharacterID Parse(const std::string &s)
+    {
+        size_t pos = s.find('.');
+        if (pos == std::string::npos)
+            return CharacterID(s, 0);
+        return CharacterID(s.substr(0, pos), atoi(s.substr(pos + 1).c_str()));
+    }
 
-    MoveBase() { }
-    MoveBase(const PlayerID &player_) : player(player_) { }
-
-    std::string AddressOperationPermission(const GameState &state) const;
+    bool operator==(const CharacterID &that) const { return player == that.player && index == that.index; }
+    bool operator!=(const CharacterID &that) const { return !(*this == that); }
+    // Lexicographical comparison
+    bool operator<(const CharacterID &that) const { return player < that.player || (player == that.player && index < that.index); }
+    bool operator>(const CharacterID &that) const { return that < *this; }
+    bool operator<=(const CharacterID &that) const { return !(*this > that); }
+    bool operator>=(const CharacterID &that) const { return !(*this < that); }
 };
 
-struct Move : public MoveBase
-{
-    virtual bool IsValid() const = 0;
-    virtual bool IsValid(const GameState &state) const = 0;
-
-    // Virtual functions for specific types of moves
-    // For a more general case, visitor pattern would be better
-    virtual void ApplySpawn(GameState &state, class RandomGenerator &rnd) const { }
-    virtual void ApplyStep(GameState &state) const { }
-    virtual bool IsAttack(const GameState &state, PlayerID &outVictim) const { return false; }
-
-    static Move *Parse(const PlayerID &player, const std::string &json);
-};
+class GameState;
+class RandomGenerator;
 
 struct Coord
 {
@@ -60,10 +69,7 @@ struct Coord
 
     unsigned int GetSerializeSize(int = 0, int = VERSION) const
     {
-        if (x >= 0 && x < 255 && y >= 0 && y < 255)
-            return sizeof(unsigned char) * 2;
-        else
-            return sizeof(unsigned char) + sizeof(int) * 2;
+        return sizeof(int) * 2;
     }
 
     template<typename Stream>
@@ -89,14 +95,45 @@ struct Coord
     bool operator>=(const Coord &that) const { return !(*this < that); }
 };
 
+struct Move
+{
+    PlayerID player;
+
+    // Updates to the player state
+    boost::optional<std::string> message;
+    boost::optional<std::string> address;
+    boost::optional<std::string> addressLock;
+
+    unsigned char color;   // For spawn move
+    std::map<int, std::vector<Coord> > waypoints;
+    std::set<int> destruct;
+
+    Move() : color(0xFF)
+    {
+    }
+
+    std::string AddressOperationPermission(const GameState &state) const;
+
+    bool IsSpawn() const { return color != 0xFF; }
+    bool IsValid(const GameState &state) const;
+    void ApplyCommon(GameState &state) const;
+    void ApplySpawn(GameState &state, RandomGenerator &rnd) const;
+    void ApplyWaypoints(GameState &state) const;
+    bool IsAttack(const GameState &state, int character_index) const;
+ 
+    // Move must be empty before Parse and cannot be reused after Parse
+    bool Parse(const PlayerID &player, const std::string &json);
+
+    // Returns true if move is initialized (i.e. was parsed successfully)
+    operator bool() { return !player.empty(); }
+};
+
 // Do not use for user-provided coordinates, as abs can overflow on INT_MIN.
 // Use for algorithmically-computed coordinates that guaranteedly lie within the game map.
 inline int distLInf(const Coord &c1, const Coord &c2)
 {
     return std::max(abs(c1.x - c2.x), abs(c1.y - c2.y));
 }
-
-static const unsigned char MAX_STAY_IN_SPAWN_AREA = 30;
 
 struct LootInfo
 {
@@ -149,14 +186,49 @@ struct CollectedLootInfo : public LootInfo
     )
 };
 
-struct PlayerState
+struct CharacterState
 {
-    unsigned char color;                // Color represents player team
     Coord coord;                        // Current coordinate
     unsigned char dir;                  // Direction of last move (for nice sprite orientation). Encoding: as on numeric keypad.
-    Coord from, target;                 // Straight-line pathfinding (waypoint)
+    Coord from;                         // Straight-line pathfinding for current waypoint
+    std::vector<Coord> waypoints;       // Waypoints (stored in reverse so removal of the first waypoint is fast)
     CollectedLootInfo loot;             // Loot collected by player but not banked yet
     unsigned char stay_in_spawn_area;   // Auto-kill players who stay in the spawn area too long
+    std::string attack;
+
+    CharacterState() : coord(0, 0), dir(0), from(0, 0), stay_in_spawn_area(0) { }
+
+    IMPLEMENT_SERIALIZE
+    (
+        READWRITE(coord);
+        READWRITE(dir);
+        READWRITE(from);
+        READWRITE(waypoints);
+        READWRITE(loot);
+        READWRITE(stay_in_spawn_area);
+        READWRITE(attack);
+    )
+
+    void Spawn(int color, RandomGenerator &rnd);
+
+    void StopMoving()
+    {
+        from = coord;
+        waypoints.clear();
+    }
+
+    void MoveTowardsWaypoint();
+    std::vector<Coord> DumpPath(const std::vector<Coord> *alternative_waypoints = NULL) const;
+
+    json_spirit::Value ToJsonValue(bool has_crown) const;
+};
+
+struct PlayerState
+{
+    unsigned char color;                        // Color represents player team
+
+    std::map<int, CharacterState> characters;   // Characters owned by the player (0 is the main character)
+    int next_character_index;                   // Index of the next spawned character
 
     std::string message;      // Last message, can be shown as speech bubble
     int message_block;        // Block number. Game visualizer can hide messages that are too old
@@ -166,23 +238,21 @@ struct PlayerState
     IMPLEMENT_SERIALIZE
     (
         READWRITE(color);
-        READWRITE(coord);
-        READWRITE(dir);
-        READWRITE(from);
-        READWRITE(target);
-        READWRITE(loot);
-        READWRITE(stay_in_spawn_area);
+        READWRITE(characters);
+        READWRITE(next_character_index);
         READWRITE(message);
         READWRITE(message_block);
         READWRITE(address);
         READWRITE(addressLock);
     )
 
-    PlayerState();
-    void StopMoving() { from = target = coord; }
-    void MoveTowardsWaypoint();
-    std::vector<Coord> DumpPath() const;
-    json_spirit::Value ToJsonValue() const;
+    PlayerState() : color(0xFF), message_block(0), next_character_index(0) { }
+    void SpawnCharacter(RandomGenerator &rnd);
+    bool CanSpawnCharacter()
+    {
+        return characters.size() < MAX_CHARACTERS_PER_PLAYER && next_character_index < MAX_CHARACTERS_PER_PLAYER_TOTAL;
+    }
+    json_spirit::Value ToJsonValue(int crown_index) const;
 };
 
 struct GameState
@@ -193,6 +263,9 @@ struct GameState
     std::map<PlayerID, PlayerState> players;
 
     std::map<Coord, LootInfo> loot;
+    std::set<Coord> hearts;
+    Coord crownPos;
+    CharacterID crownHolder;
 
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
@@ -210,6 +283,11 @@ struct GameState
     (
         READWRITE(players);
         READWRITE(loot);
+        READWRITE(hearts);
+        READWRITE(crownPos);
+        READWRITE(crownHolder.player);
+        if (!crownHolder.player.empty())
+            READWRITE(crownHolder.index);
         READWRITE(nHeight);
         READWRITE(hashBlock);
     )
@@ -219,25 +297,29 @@ struct GameState
     // Helper functions
     void AddLoot(Coord coord, int64 nAmount);
     void DivideLootAmongPlayers();
-    std::vector<PlayerID> ListPossibleAttacks(const PlayerID &player) const;
+    void CollectHearts(RandomGenerator &rnd);
+    void UpdateCrownState(bool &respawn_crown);
+    void CollectCrown(RandomGenerator &rnd, bool respawn_crown);
+    void CrownBonus(int64 nAmount);
 };
 
 struct StepData : boost::noncopyable
 {
     int64 nNameCoinAmount, nTreasureAmount;
     uint256 newHash;
-    std::vector<const Move*> vpMoves;
-
-    ~StepData();
+    std::vector<Move> vMoves;
 };
 
 struct StepResult
 {
     StepResult() : nTaxAmount(0) { }
 
-    std::map<PlayerID, CollectedLootInfo> bounties;
+    std::map<CharacterID, CollectedLootInfo> bounties;
+
+    // The following arrays only contain killed players (i.e. the main character)
     std::set<PlayerID> killedPlayers;
-    std::multimap<PlayerID, PlayerID> killedBy;
+    std::multimap<PlayerID, CharacterID> killedBy;
+
     int64 nTaxAmount;
 };
 

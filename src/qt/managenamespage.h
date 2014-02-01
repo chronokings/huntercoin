@@ -2,11 +2,9 @@
 #define MANAGENAMESPAGE_H
 
 #include "../gamestate.h"
-#include "gamepathfinder.h"
+#include "gamemovecreator.h"
 
-#include <QDialog>
-#include <QSortFilterProxyModel>
-#include <QLineEdit>
+#include <QWidget>
 
 #include "../json/json_spirit.h"
 
@@ -16,34 +14,19 @@ namespace Ui {
 
 class WalletModel;
 class NameTableModel;
+class CharacterTableModel;
 class GameMapView;
 class GameChatView;
 
 QT_BEGIN_NAMESPACE
 class QTableView;
 class QItemSelection;
-class QMenu;
 class QModelIndex;
+class QTimeLine;
 QT_END_NAMESPACE
 
-class NameFilterProxyModel : public QSortFilterProxyModel
-{
-    Q_OBJECT
-
-public:
-    explicit NameFilterProxyModel(QObject *parent = 0);
-
-    void setNameSearch(const QString &search);
-
-protected:
-    bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
-
-private:
-    QString nameSearch;
-};
-
 /** Page for managing names */
-class ManageNamesPage : public QDialog
+class ManageNamesPage : public QWidget
 {
     Q_OBJECT
 
@@ -57,51 +40,47 @@ private:
     Ui::ManageNamesPage *ui;
     NameTableModel *model;
     WalletModel *walletModel;
-    NameFilterProxyModel *proxyModel;
-    QMenu *contextMenu;
-    
+
     GameMapView *gameMapView;
     GameChatView *gameChatView;
 
     Game::GameState gameState;
-    QString attack;
-    QStringList selectedPlayers;
+    QTimeLine *chrononAnim;  // Flash block number when a new block arrives
 
-    void ClearSelectedPlayers();
-    void RefreshSelectedPlayers();
-    bool MakeMove(json_spirit::Object &json);
+    class CharacterTableModel *characterTableModel;
 
-    // Client-side path-finding
-    GamePathfinders pathfinders;
+    QString selectedPlayer;
+    QStringList selectedCharacters;
+
+    class NameTabs *tabsNames;
+    QString rewardAddr, transferTo;
+    bool rewardAddrChanged;
+    QueuedMoves queuedMoves;
+
+    void RefreshCharacterList();
+    void UpdateQueuedMoves();
+    void SetPlayerEnabled(bool enable);
+    void SetPlayerMoveEnabled(bool enable = true);
 
 public slots:
     void exportClicked();
-
-    void changedNameFilter(const QString &filter);
+    void PendingStatusChanged();
 
 private slots:
-    void on_submitNameButton_clicked();
-    void on_updateButton_clicked();
-    void on_attackButton_clicked();
+    void on_newButton_clicked();
+    void on_configButton_clicked();
+    void on_destructButton_clicked();
+    void on_goButton_clicked();
+    void on_cancelButton_clicked();
     void onTileClicked(int x, int y);
 
-    bool eventFilter(QObject *object, QEvent *event);
+    void onSelectName(const QString &name);
+    void onCharacterSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+    void onClickedCharacter(const QModelIndex &index);
 
-    /** Spawn contextual menu (right mouse menu) for name table entry */
-    void contextualMenu(const QPoint &point);
-    void onConfigureName(const QModelIndex &index);
-    void onClickedPlayer(const QModelIndex &index);
-    void onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+    void chrononAnimChanged(qreal t);
+    void chrononAnimFinished();
 
-    void onCopyNameAction();
-    void onCopyAddressAction();
-    
-    void on_addressBookButton_clicked();
-    void on_pasteButton_clicked();
-    void on_addressBookButton_2_clicked();
-    void on_pasteButton_2_clicked();
-
-    void on_comboBoxAttack_currentIndexChanged(int index);
     void updateGameState(const Game::GameState &gameState);
 };
 

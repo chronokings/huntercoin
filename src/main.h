@@ -10,6 +10,8 @@
 #include "script.h"
 #include "walletdb.h"
 
+#include "scrypt.h"
+
 #include <list>
 #include <boost/shared_ptr.hpp>
 
@@ -59,13 +61,15 @@ static const int fHaveUPnP = false;
 static const int GAME_TX_VERSION = 0x87100;
 
 
+enum { ALGO_SHA256D = 0, ALGO_SCRYPT = 1, NUM_ALGOS };
+extern int miningAlgo;
 
 
 extern CCriticalSection cs_main;
 extern CCriticalSection cs_AppendBlockFile;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
 extern uint256 hashGenesisBlock;
-extern CBigNum bnProofOfWorkLimit;
+extern CBigNum bnProofOfWorkLimit[NUM_ALGOS], bnInitialHashTarget[NUM_ALGOS];
 extern CBlockIndex* pindexGenesisBlock;
 extern int nBestHeight;
 extern CBigNum bnBestChainWork;
@@ -81,7 +85,7 @@ extern CCriticalSection cs_setpwalletRegistered;
 extern std::set<CWallet*> setpwalletRegistered;
 
 // Settings
-extern int fGenerateBitcoins;
+extern int fGenerateBitcoins, fGenerationAlgo;
 extern int64 nTransactionFee;
 extern int64 nMinimumInputValue;
 extern int fLimitProcessors;
@@ -113,12 +117,13 @@ CBlockIndex* FindBlockByHeight(int nHeight);
 bool ProcessMessages(CNode* pfrom);
 bool SendMessages(CNode* pto, bool fSendTrickle);
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
-CBlock* CreateNewBlock(CReserveKey& reservekey);
+CBlock* CreateNewBlock(CReserveKey& reservekey, int algo);
 void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce, int64& nPrevTime);
 void IncrementExtraNonceWithAux(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce, int64& nPrevTime, std::vector<unsigned char>& vchAux);
 void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash1);
+const CBlockIndex* GetLastBlockIndexForAlgo(const CBlockIndex* pindex, int algo);
 bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey);
-bool CheckProofOfWork(uint256 hash, unsigned int nBits);
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, int algo);
 int GetTotalBlocksEstimate();
 int GetNumBlocksOfPeers();
 bool IsInitialBlockDownload();
@@ -801,11 +806,17 @@ enum
 
     // modifiers
     BLOCK_VERSION_AUXPOW         = (1 << 8),
+    BLOCK_VERSION_SCRYPT         = (1 << 9),
 
     // bits allocated for chain ID
     BLOCK_VERSION_CHAIN_START    = (1 << 16),
     BLOCK_VERSION_CHAIN_END      = (1 << 30),
 };
+
+inline int GetAlgo(int nVersion)
+{
+    return nVersion & BLOCK_VERSION_SCRYPT ? ALGO_SCRYPT : ALGO_SHA256D;
+}
 
 
 //
@@ -848,6 +859,10 @@ public:
     {
         SetNull();
     }
+
+    // 0 - SHA-256d
+    // 1 - scrypt
+    int GetAlgo() const { return ::GetAlgo(nVersion); }
 
     IMPLEMENT_SERIALIZE
     (
@@ -913,6 +928,21 @@ public:
     uint256 GetHash() const
     {
         return Hash(BEGIN(nVersion), END(nNonce));
+    }
+
+    // Note: we use explicitly provided algo instead of the one returned by GetAlgo(), because this can be a block
+    // from foreign chain (parent block in merged mining) which does not encode algo in its nVersion field.
+    uint256 GetPoWHash(int algo) const
+    {
+        if (algo == ALGO_SHA256D)
+            return GetHash();
+        else
+        {
+            uint256 thash;
+            // Caution: scrypt_1024_1_1_256 assumes fixed length of 80 bytes
+            scrypt_1024_1_1_256(BEGIN(nVersion), BEGIN(thash));
+            return thash;
+        }
     }
 
     int64 GetBlockTime() const
@@ -1119,6 +1149,10 @@ public:
         block.auxpow         = auxpow;
         return block;
     }
+    
+    // 0 - SHA-256d
+    // 1 - scrypt
+    int GetAlgo() const { return ::GetAlgo(nVersion); }
 
     uint256 GetBlockHash() const
     {
@@ -1130,21 +1164,12 @@ public:
         return (int64)nTime;
     }
 
-    CBigNum GetBlockWork() const
-    {
-        CBigNum bnTarget;
-        bnTarget.SetCompact(nBits);
-        if (bnTarget <= 0)
-            return 0;
-        return (CBigNum(1)<<256) / (bnTarget+1);
-    }
+    CBigNum GetBlockWork() const;
 
     bool IsInMainChain() const
     {
         return (pnext || this == pindexBest);
     }
-
-    bool CheckIndex() const;
 
     enum { nMedianTimeSpan=11 };
 

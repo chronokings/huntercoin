@@ -100,8 +100,7 @@ public:
         READWRITE(FLATDATA(pchMessageStart));
         READWRITE(FLATDATA(pchCommand));
         READWRITE(nMessageSize);
-        if (nVersion >= 209)
-            READWRITE(nChecksum);
+        READWRITE(nChecksum);
     )
 
     std::string GetCommand()
@@ -225,7 +224,7 @@ public:
             const_cast<CAddress*>(this)->Init();
         if (nType & SER_DISK)
             READWRITE(nVersion);
-        if ((nType & SER_DISK) || (nVersion >= 31402 && !(nType & SER_GETHASH)))
+        if ((nType & SER_DISK) || !(nType & SER_GETHASH))
             READWRITE(nTime);
         READWRITE(nServices);
         READWRITE(FLATDATA(pchReserved)); // for IPv6
@@ -557,12 +556,6 @@ public:
         vSend.SetVersion(0);
         vRecv.SetType(SER_NETWORK);
         vRecv.SetVersion(0);
-        // Version 0.2 obsoletes 20 Feb 2012
-        if (GetTime() > 1329696000)
-        {
-            vSend.SetVersion(209);
-            vRecv.SetVersion(209);
-        }
         nLastSend = 0;
         nLastRecv = 0;
         nLastSendEmpty = GetTime();
@@ -715,14 +708,11 @@ public:
         memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize));
 
         // Set the checksum
-        if (vSend.GetVersion() >= 209)
-        {
-            uint256 hash = Hash(vSend.begin() + nMessageStart, vSend.end());
-            unsigned int nChecksum = 0;
-            memcpy(&nChecksum, &hash, sizeof(nChecksum));
-            assert(nMessageStart - nHeaderStart >= offsetof(CMessageHeader, nChecksum) + sizeof(nChecksum));
-            memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nChecksum), &nChecksum, sizeof(nChecksum));
-        }
+        uint256 hash = Hash(vSend.begin() + nMessageStart, vSend.end());
+        unsigned int nChecksum = 0;
+        memcpy(&nChecksum, &hash, sizeof(nChecksum));
+        assert(nMessageStart - nHeaderStart >= offsetof(CMessageHeader, nChecksum) + sizeof(nChecksum));
+        memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nChecksum), &nChecksum, sizeof(nChecksum));
 
         printf("(%d bytes) ", nSize);
         printf("\n");

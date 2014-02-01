@@ -15,7 +15,7 @@
 
 using namespace Game;
 
-QString GameChatView::ColorCSS[Game::NUM_TEAM_COLORS] = { "#f8e600", "red", "lime", "blue" };
+QString GameChatView::ColorCSS[Game::NUM_TEAM_COLORS] = { "#e8d800", "#e00000", "#00d000", "#0000ff" };
 
 GameChatView::GameChatView(QWidget *parent)
     : QObject(parent)
@@ -33,18 +33,21 @@ QString GameChatView::MessagesToHTML(const GameState &gameState)
         if (pl.message.empty() || pl.message_block < gameState.nHeight)
             continue;
 
-        if (!msgs.isEmpty())
+        bool first = msgs.isEmpty();
+        if (!first)
             msgs += "<br />";
         msgs += "<span class='C";
         msgs += char('0' + pl.color);
-        msgs += "'>" + GUIUtil::HtmlEscape(p.first) + ":</span> " + GUIUtil::HtmlEscape(pl.message);
+        msgs += "'>" + GUIUtil::HtmlEscape(p.first) + ":</span> ";
+        //if (first)
+        //    msgs += QString("<a name='block%1' />").arg(gameState.nHeight);
+        msgs += GUIUtil::HtmlEscape(pl.message);
     }
     return msgs;
 }
 
 void GameChatView::updateChat(const GameState &gameState)
 {
-
     // Detect chain rollback and delete messages from disconnected blocks
     for (int i = heights.size() - 1; i >= 0; i--)
     {
@@ -66,10 +69,10 @@ void GameChatView::updateChat(const GameState &gameState)
     }
 
     int s = 0;
-    for (int i = 0; i < html_msgs.size(); i++)
+    for (size_t i = 0, n = html_msgs.size(); i < n; i++)
         s += html_msgs[i].size();
     QString strHTML;
-    strHTML.reserve(1000 + s);
+    strHTML.reserve(1000 + s + s / 10);
 
     strHTML += "<html><font face='verdana, arial, helvetica, sans-serif'><style type='text/css'>"
         "p { margin: 1em inherit } ";
@@ -83,14 +86,17 @@ void GameChatView::updateChat(const GameState &gameState)
     }
     strHTML += "</style>";
 
-    for (int i = 0; i < html_msgs.size(); i++)
+    for (size_t i = 0, n = html_msgs.size(); i < n; i++)
     {
         if (i > 0 && !html_msgs[i - 1].isEmpty())
             strHTML += "\n<hr />\n";
         strHTML += html_msgs[i];
     }
 
-    strHTML += "</font></html>";
+    strHTML += "<a name='end' /></font></html>";
 
     emit chatUpdated(strHTML);
+    //if (!html_msgs.back().isEmpty())
+    //    emit chatScrollToAnchor(QString("block%1").arg(gameState.nHeight));
+    emit chatScrollToAnchor("end");
 }

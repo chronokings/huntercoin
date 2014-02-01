@@ -440,6 +440,8 @@ CBlockIndex static * InsertBlockIndex(uint256 hash)
     return pindexNew;
 }
 
+#include <fstream>
+
 bool CTxDB::LoadBlockIndex()
 {
     // Get database cursor
@@ -489,9 +491,6 @@ bool CTxDB::LoadBlockIndex()
             // Watch for genesis block
             if (pindexGenesisBlock == NULL && diskindex.GetBlockHash() == hashGenesisBlock)
                 pindexGenesisBlock = pindexNew;
-
-            if (!pindexNew->CheckIndex())
-                return error("LoadBlockIndex() : CheckIndex failed at %d", pindexNew->nHeight);
         }
         else
         {

@@ -49,6 +49,9 @@ bool CAuxPow::Check(uint256 hashAuxBlock, int nChainID)
     CScript::const_iterator pc =
         std::search(script.begin(), script.end(), vchRootHash.begin(), vchRootHash.end());
 
+    if (pcHead == script.end())
+        return error("MergedMiningHeader missing from parent coinbase");
+
     if (pc == script.end())
         return error("Aux POW missing chain merkle root in parent coinbase");
 
