@@ -1087,7 +1087,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
             COutPoint prevout = vin[i].prevout;
             CTransaction txPrev;
             CTxIndex txindex;
-            
+
             if (prevout.IsNull() && IsGameTx())
             {
                 vTxPrev.push_back(txPrev);
@@ -1365,7 +1365,7 @@ bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
     for (CBlockIndex* pindex = pindexNew; pindex != pfork; pindex = pindex->pprev)
         vConnect.push_back(pindex);
     reverse(vConnect.begin(), vConnect.end());
-    
+
     vector<CTransaction> vResurrect, vDelete;
     CRITICAL_BLOCK(cs_main)    // Lock to prevent concurrent game state reads on the non-main chain
     {
@@ -1591,7 +1591,7 @@ bool CBlock::CheckProofOfWork(int nHeight) const
     // - parent block must not have the same chain ID (see CAuxPow::Check)
     // - index of this chain in chain merkle tree must be pre-determined (see CAuxPow::Check)
     int algo = GetAlgo();
-    
+
     if (nHeight >= GetAuxPowStartBlock())
     {
         if (nHeight != INT_MAX && GetChainID() != GetOurChainID(algo))
@@ -3133,7 +3133,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
     auto_ptr<CBlock> pblock(new CBlock());
     if (!pblock.get())
         return NULL;
-        
+
     pblock->nVersion = BLOCK_VERSION_DEFAULT | (GetOurChainID(algo) * BLOCK_VERSION_CHAIN_START);
     switch (algo)
     {

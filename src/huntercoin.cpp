@@ -99,7 +99,7 @@ public:
     {
         if (tx.nVersion != NAMECOIN_TX_VERSION)
             return;
-            
+
         vector<vector<unsigned char> > vvch;
 
         int op;
@@ -488,7 +488,7 @@ bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchN
     if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
         return false;
     int i = vtxPos.size();
-    
+
     loop
     {
         // Find maximum height less or equal to nHeight
@@ -546,17 +546,17 @@ Value sendtoname(const Array& params, bool fHelp)
             "sendtoname <name> <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.01"
             + HelpRequiringPassphrase());
-    
+
     vector<unsigned char> vchName = vchFromValue(params[0]);
     CNameDB dbName("r");
     if (!dbName.ExistsName(vchName))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Name not found");
-    
+
     string strAddress;
     CTransaction tx;
     GetTxOfName(dbName, vchName, tx);
     GetNameAddress(tx, strAddress);
-    
+
     uint160 hash160;
     if (!AddressToHash160(strAddress, hash160))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No valid huntercoin address");
@@ -669,7 +669,7 @@ Value name_list(const Array& params, bool fHelp)
 
     BOOST_FOREACH(const PAIRTYPE(vector<unsigned char>, Object)& item, vNamesO)
         oRes.push_back(item.second);
-    
+
     return oRes;
 }
 
@@ -707,7 +707,7 @@ Value name_debug1(const Array& params, bool fHelp)
         throw runtime_error(
             "name_debug1 <name>\n"
             "Dump name blocks number and transactions id in the debug file.\n");
-    
+
     vector<unsigned char> vchName = vchFromValue(params[0]);
     printf("Dump name:\n");
     CRITICAL_BLOCK(cs_main)
@@ -744,7 +744,7 @@ Value name_show(const Array& params, bool fHelp)
             "name_show <name>\n"
             "Show values of a name.\n"
             );
-    
+
     Object oLastName;
     vector<unsigned char> vchName = vchFromValue(params[0]);
     string name = stringFromVch(vchName);
@@ -755,7 +755,7 @@ Value name_show(const Array& params, bool fHelp)
         CNameDB dbName("r");
         if (!dbName.ReadName(vchName, vtxPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
-       
+
         if (vtxPos.size() < 1)
             throw JSONRPCError(RPC_WALLET_ERROR, "no result returned");
 
@@ -798,7 +798,7 @@ Value name_history(const Array& params, bool fHelp)
         throw runtime_error(
             "name_history <name>\n"
             "List all name values of a name.\n");
-    
+
     Array oRes;
     vector<unsigned char> vchName = vchFromValue(params[0]);
     string name = stringFromVch(vchName);
@@ -809,7 +809,7 @@ Value name_history(const Array& params, bool fHelp)
         CNameDB dbName("r");
         if (!dbName.ReadName(vchName, vtxPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
-        
+
         CNameIndex txPos2;
         CDiskTxPos txPos;
         BOOST_FOREACH(txPos2, vtxPos)
@@ -826,7 +826,7 @@ Value name_history(const Array& params, bool fHelp)
             vector<unsigned char> vchValue;
             int nHeight;
             uint256 hash;
-            
+
             if (!txPos.IsNull() && GetValueOfTxPos(txPos, vchValue, hash, nHeight))
             {
                 oName.push_back(Pair("name", name));
@@ -1036,7 +1036,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
-    
+
     CRITICAL_BLOCK(cs_main)
     {
         if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
@@ -1101,7 +1101,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
                 if (op != OP_NAME_NEW)
                     throw runtime_error("previous transaction wasn't a name_new");
                 vchHash = vvch[0];
-                
+
                 scriptPubKeyOrig = RemoveNameScriptPrefix(out.scriptPubKey);
                 found = true;
             }
@@ -1159,7 +1159,7 @@ Value name_update(const Array& params, bool fHelp)
                     mapNamePending[vchName].begin()->GetHex().c_str());
             throw runtime_error("there are pending operations on that name");
         }
-        
+
         EnsureWalletIsUnlocked();
 
         CNameDB dbName("r");
@@ -1177,7 +1177,7 @@ Value name_update(const Array& params, bool fHelp)
                     wtxInHash.GetHex().c_str());
             throw runtime_error("this coin is not in your wallet");
         }
-        
+
         CScript scriptPubKeyOrig;
 
         if (params.size() == 3)
@@ -1265,7 +1265,6 @@ Value game_getstate(const Array& params, bool fHelp)
     else if (IsInitialBlockDownload())
             throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "huntercoin is downloading blocks...");
 
-
     if (height < -1 || height > nBestHeight)
         throw JSONRPCError(RPC_INVALID_PARAMS, "Invalid height specified");
 
@@ -1284,7 +1283,7 @@ Value game_getstate(const Array& params, bool fHelp)
             if (!pindex || pindex->nHeight != height)
                 throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot find block at specified height");
         }
-            
+
         CTxDB txdb("r");
         if (!GetGameState(txdb, pindex, state))
             throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot compute game state at specified height");
@@ -1329,7 +1328,7 @@ Value game_getplayerstate(const Array& params, bool fHelp)
             if (!pindex || pindex->nHeight != height)
                 throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot find block at specified height");
         }
-            
+
         CTxDB txdb("r");
         if (!GetGameState(txdb, pindex, state))
             throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot compute game state at specified height");
@@ -1619,8 +1618,12 @@ bool CNameDB::ReconstructNameIndex()
                 if(!GetValueOfNameTx(tx, vchValue))
                     continue;
 
-                if(!txdb.ReadDiskTx(tx.GetHash(), tx, txindex))
+                uint256 hash = tx.GetHash();
+                if (!txdb.ReadDiskTx(hash, tx, txindex))
+                {
+                    printf("Rescanfornames() : ReadDiskTx failed for tx %s\n", hash.ToString().c_str());
                     continue;
+                }
 
                 vector<CNameIndex> vtxPos;
                 if (ExistsName(vchName))
@@ -1632,21 +1635,23 @@ bool CNameDB::ReconstructNameIndex()
                 txPos2.txPos = txindex.pos;
                 vtxPos.push_back(txPos2);
                 if (!WriteName(vchName, vtxPos))
-                {   
                     return error("Rescanfornames() : failed to write to name DB");
-                }
             }
             BOOST_FOREACH(CTransaction& tx, block.vgametx)
             {
+                uint256 hash = tx.GetHash();
+                if (!txdb.ReadDiskTx(hash, tx, txindex))
+                {
+                    printf("Rescanfornames() : ReadDiskTx failed for tx %s\n", hash.ToString().c_str());
+                    continue;
+                }
+
                 for (int i = 0; i < tx.vin.size(); i++)
                 {
                     if (tx.vin[i].prevout.IsNull())
                         continue;
 
                     int nout = tx.vin[i].prevout.n;
-
-                    if (!txdb.ReadDiskTx(tx.GetHash(), tx, txindex))
-                        continue;
 
                     CTransaction txPrev;
                     uint256 hashBlock = 0;
@@ -1879,7 +1884,7 @@ bool CHuntercoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool 
  
     if (!DecodeNameScript(txout.scriptPubKey, op, vvch))
         return false;
-        
+
     if (ignore_name_new && op == OP_NAME_NEW)
         return false;
 
@@ -2067,7 +2072,54 @@ bool ConnectInputsGameTx(CTxDB& txdb,
             return error("ConnectInputsGameTx() : failed to write to name DB");
 
         dbName.TxnCommit();
-        mapNamePending[vvchPrevArgs[0]].erase(tx.GetHash());
+    }
+    return true;
+}
+
+bool DisconnectInputsGameTx(CTxDB& txdb, const CTransaction& tx, CBlockIndex* pindexBlock)
+{
+    if (!tx.IsGameTx())
+        return error("DisconnectInputsGameTx called for non-game tx");
+    // Update name records for killed players
+    CNameDB dbName("r+", txdb);
+
+    for (int i = 0; i < tx.vin.size(); i++)
+    {
+        if (tx.vin[i].prevout.IsNull())
+            continue;
+        CTransaction txPrev;
+        CTxIndex txindex;
+        if (!txdb.ReadTxIndex(tx.vin[i].prevout.hash, txindex) || txindex.pos == CDiskTxPos(1,1,1))
+            continue;
+        else if (!txPrev.ReadFromDisk(txindex.pos))
+            continue;
+        int nout = tx.vin[i].prevout.n;
+        if (nout >= txPrev.vout.size())
+            continue;
+        CTxOut prevout = txPrev.vout[nout];
+
+        int prevOp;
+        vector<vector<unsigned char> > vvchPrevArgs;
+
+        if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
+            continue;
+
+        dbName.TxnBegin();
+
+        vector<CNameIndex> vtxPos;
+        if (dbName.ExistsName(vvchPrevArgs[0]))
+        {
+            if (!dbName.ReadName(vvchPrevArgs[0], vtxPos))
+                return error("DisconnectInputsGameTx() : failed to read from name DB");
+        }
+        if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight || vtxPos.back().vValue != vchFromString(VALUE_DEAD))
+            printf("DisconnectInputsGameTx() : Warning: game transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
+        while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
+            vtxPos.pop_back();
+        if (!dbName.WriteName(vvchPrevArgs[0], vtxPos))
+            return error("DisconnectInputsGameTx() : failed to write to name DB");
+
+        dbName.TxnCommit();
     }
     return true;
 }
@@ -2253,6 +2305,9 @@ bool CHuntercoinHooks::DisconnectInputs(CTxDB& txdb,
         const CTransaction& tx,
         CBlockIndex* pindexBlock)
 {
+    if (tx.nVersion == GAME_TX_VERSION)
+        return DisconnectInputsGameTx(txdb, tx, pindexBlock);
+
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;
 
@@ -2273,13 +2328,14 @@ bool CHuntercoinHooks::DisconnectInputs(CTxDB& txdb,
         vector<CNameIndex> vtxPos;
         if (!dbName.ReadName(vvchArgs[0], vtxPos))
             return error("DisconnectInputsHook() : failed to read from name DB");
+
         // vtxPos might be empty if we pruned expired transactions.  However, it should normally still not
         // be empty, since a reorg cannot go that far back.  Be safe anyway and do not try to pop if empty.
-        if (vtxPos.size())
-        {
+        if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight)
+            printf("DisconnectInputsHook() : Warning: name transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
+        while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
             vtxPos.pop_back();
-            // TODO validate that the first pos is the current tx pos
-        }
+
         if (!dbName.WriteName(vvchArgs[0], vtxPos))
             return error("DisconnectInputsHook() : failed to write to name DB");
 
@@ -2390,62 +2446,63 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
     {
         block.vgametx.clear();
         block.vGameMerkleTree.clear();
-        printf("ConnectBlock hook : non-empty vgametx, clearing and re-creating");
+        printf("ConnectBlock hook : non-empty vgametx, clearing and re-creating\n");
     }
 
     if (!AdvanceGameState(txdb, pindex, &block, nFees))
         return error("Connect block hook : AdvanceGameState failed");
 
-    // No game transactions or already written (e.g. if block was disconnected then reconnected)
-    // The last check (hashGameMerkleRoot) can probably be omitted
-    if ((block.vgametx.empty() || block.nGameTxFile != -1) && pindex->hashGameMerkleRoot == block.hashGameMerkleRoot)
-        return true;
-
-    block.hashGameMerkleRoot = block.BuildMerkleTree(true);
-    if (pindex->hashGameMerkleRoot != block.hashGameMerkleRoot)
+    // If no game transactions or already written (e.g. if block was disconnected then reconnected),
+    // skip tx generation and proceed to connecting them
+    // The last check (hashGameMerkleRoot) can probably be omitted.
+    if ((!block.vgametx.empty() && block.nGameTxFile == -1) || pindex->hashGameMerkleRoot != block.hashGameMerkleRoot)
     {
-        pindex->hashGameMerkleRoot = block.hashGameMerkleRoot;
-        CDiskBlockIndex blockindex(pindex);
-        if (!txdb.WriteBlockIndex(blockindex))
-            return error("ConnectBlock hook : WriteBlockIndex failed");
-    }
+        block.hashGameMerkleRoot = block.BuildMerkleTree(true);
+        if (pindex->hashGameMerkleRoot != block.hashGameMerkleRoot)
+        {
+            pindex->hashGameMerkleRoot = block.hashGameMerkleRoot;
+            CDiskBlockIndex blockindex(pindex);
+            if (!txdb.WriteBlockIndex(blockindex))
+                return error("ConnectBlock hook : WriteBlockIndex failed");
+        }
 
-    // Write game transactions to disk. They are written outside of the block - just appended to the block file.
-    CRITICAL_BLOCK(cs_AppendBlockFile)
-    {
-        char pchMessageVGameTx[8] = { 'v', 'g', 'a', 'm', 'e', 't', 'x', ':' };
-        unsigned int nSize = GetSerializeSize(block.vgametx, SER_DISK) + sizeof(pchMessageVGameTx);
+        // Write game transactions to disk. They are written outside of the block - just appended to the block file.
+        CRITICAL_BLOCK(cs_AppendBlockFile)
+        {
+            char pchMessageVGameTx[8] = { 'v', 'g', 'a', 'm', 'e', 't', 'x', ':' };
+            unsigned int nSize = GetSerializeSize(block.vgametx, SER_DISK) + sizeof(pchMessageVGameTx);
 
-        if (!CheckDiskSpace(sizeof(pchMessageStart) + sizeof(nSize) + nSize))
-            return error("ConnectBlock hook : out of disk space when writing game transactions");
+            if (!CheckDiskSpace(sizeof(pchMessageStart) + sizeof(nSize) + nSize))
+                return error("ConnectBlock hook : out of disk space when writing game transactions");
 
-        CAutoFile fileout = AppendBlockFile(block.nGameTxFile);
-        if (!fileout)
-            return error("ConnectBlock hook : AppendBlockFile failed");
-        fileout << FLATDATA(pchMessageStart) << nSize << FLATDATA(pchMessageVGameTx);
+            CAutoFile fileout = AppendBlockFile(block.nGameTxFile);
+            if (!fileout)
+                return error("ConnectBlock hook : AppendBlockFile failed");
+            fileout << FLATDATA(pchMessageStart) << nSize << FLATDATA(pchMessageVGameTx);
 
-        block.nGameTxPos = ftell(fileout);
-        if (block.nGameTxPos == -1)
-            return error("ConnectBlock hook : ftell failed");
-        fileout << block.vgametx;
-        FlushBlockFile(fileout);
-    }
+            block.nGameTxPos = ftell(fileout);
+            if (block.nGameTxPos == -1)
+                return error("ConnectBlock hook : ftell failed");
+            fileout << block.vgametx;
+            FlushBlockFile(fileout);
+        }
 
-    // Update block fields that were changed (because they depend on the game transactions, which were just computed)
-    {
-        unsigned int nGameMerkleRootPos = pindex->nBlockPos + ::GetSerializeSize(block, SER_NETWORK | SER_BLOCKHEADERONLY);
-        CAutoFile fileout = OpenBlockFile(pindex->nFile, nGameMerkleRootPos, "rb+");
-        if (!fileout)
-            return error("ConnectBlock hook : OpenBlockFile failed");
+        // Update block fields that were changed (because they depend on the game transactions, which were just computed)
+        {
+            unsigned int nGameMerkleRootPos = pindex->nBlockPos + ::GetSerializeSize(block, SER_NETWORK | SER_BLOCKHEADERONLY);
+            CAutoFile fileout = OpenBlockFile(pindex->nFile, nGameMerkleRootPos, "rb+");
+            if (!fileout)
+                return error("ConnectBlock hook : OpenBlockFile failed");
 
-        fileout << block.hashGameMerkleRoot;
+            fileout << block.hashGameMerkleRoot;
 
-        if (fseek(fileout, nPosAfterTx, SEEK_SET) != 0)
-            return error("ConnectBlock hook : fseek failed");
+            if (fseek(fileout, nPosAfterTx, SEEK_SET) != 0)
+                return error("ConnectBlock hook : fseek failed");
 
-        fileout << block.nGameTxFile << block.nGameTxPos;
+            fileout << block.nGameTxFile << block.nGameTxPos;
 
-        FlushBlockFile(fileout);
+            FlushBlockFile(fileout);
+        }
     }
 
     map<uint256, CTxIndex> mapUnused;
@@ -2459,7 +2516,7 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
         if (!tx.ConnectInputs(txdb, mapUnused, posThisTx, pindex, nFees, true, false))
             return error("ConnectBlock hook : ConnectInputs failed for game tx");
     }
-    
+
     return true;
 }
 
