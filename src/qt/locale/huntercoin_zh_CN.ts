@@ -910,8 +910,8 @@ If empty, player&apos;s own address will be used.</source>
     </message>
     <message>
         <location line="+10"/>
-        <location line="+84"/>
-        <location line="+86"/>
+        <location line="+81"/>
+        <location line="+89"/>
         <source>Alt+P</source>
         <translation>Alt+P</translation>
     </message>
@@ -921,39 +921,25 @@ If empty, player&apos;s own address will be used.</source>
         <translation>&amp;奖励地址：</translation>
     </message>
     <message>
-        <location line="+18"/>
-        <source>The Huntercoin address to transfer
-the domain to, e.g.
-HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ
-
-Leave empty, if not needed.</source>
-        <translation>转让域名至某个Huntercoin地址
-如
-HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ
-
-如不需要，请留空。
-</translation>
-    </message>
-    <message>
-        <location line="+17"/>
-        <location line="+86"/>
+        <location line="+32"/>
+        <location line="+89"/>
         <source>Choose address from address book</source>
         <translation>从地址簿选择地址</translation>
     </message>
     <message>
-        <location line="-76"/>
-        <location line="+86"/>
+        <location line="-79"/>
+        <location line="+89"/>
         <source>Alt+A</source>
         <translation>Alt+A</translation>
     </message>
     <message>
-        <location line="-79"/>
-        <location line="+86"/>
+        <location line="-82"/>
+        <location line="+89"/>
         <source>Paste address from clipboard</source>
         <translation>从剪贴板粘贴地址</translation>
     </message>
     <message>
-        <location line="-65"/>
+        <location line="-68"/>
         <source>(if empty, the player address will be used)</source>
         <translation>（若空白，将使用玩家地址）</translation>
     </message>
@@ -968,14 +954,23 @@ HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ
         <translation>&amp;转账至：</translation>
     </message>
     <message>
-        <location line="+18"/>
+        <location line="-68"/>
         <source>The Huntercoin address that will receive rewards for this player.
 If empty, player&apos;s own address will be used.</source>
         <translation>该玩家收取奖励的Huntercoin地址。
 如果为空，玩家自己的地址将被使用。</translation>
     </message>
     <message>
-        <location line="+50"/>
+        <location line="+86"/>
+        <source>The Huntercoin address to transfer
+the player to, e.g.
+HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ
+
+Leave empty, if not needed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+53"/>
         <source>(can be left empty)</source>
         <translation>(可留空)</translation>
     </message>
@@ -1104,7 +1099,7 @@ If empty, player&apos;s own address will be used.</source>
 <context>
     <name>ManageNamesPage</name>
     <message>
-        <location filename="../managenamespage.cpp" line="+246"/>
+        <location filename="../managenamespage.cpp" line="+249"/>
         <source>Name registration</source>
         <translation>注册名称</translation>
     </message>
@@ -1139,18 +1134,28 @@ If empty, player&apos;s own address will be used.</source>
         <translation>名称注册失败</translation>
     </message>
     <message>
-        <location line="+116"/>
+        <location line="+16"/>
+        <source>Self-destruction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Crown holder cannot self-destruct</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+107"/>
         <source>Name update error</source>
         <translation>名称更新错误</translation>
     </message>
     <message>
-        <location line="+234"/>
+        <location line="+248"/>
         <location line="+7"/>
         <source>Chronon: %1</source>
         <translation>计时单位：%1</translation>
     </message>
     <message>
-        <location line="+38"/>
+        <location line="+39"/>
         <source>Name configured</source>
         <translation>已配置好的名称</translation>
     </message>
@@ -1191,6 +1196,17 @@ If empty, player&apos;s own address will be used.</source>
     </message>
     <message>
         <location line="+18"/>
+        <source>New player cost: 1 HUC + fee (0.005)
+Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>New player cost: 1 HUC + fee (0.005)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
         <source>&amp;New...</source>
         <translation>&amp;新...</translation>
     </message>

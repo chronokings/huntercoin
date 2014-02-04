@@ -132,11 +132,8 @@
        <item>
         <widget class="QValidatedLineEdit" name="rewardAddr">
          <property name="toolTip">
-          <string>The Huntercoin address to transfer
-the domain to, e.g.
-HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ
-
-Leave empty, if not needed.</string>
+          <string>The Huntercoin address that will receive rewards for this player.
+If empty, player's own address will be used.</string>
          </property>
          <property name="text">
           <string notr="true"/>
@@ -221,8 +218,11 @@ Leave empty, if not needed.</string>
        <item>
         <widget class="QValidatedLineEdit" name="transferTo">
          <property name="toolTip">
-          <string>The Huntercoin address that will receive rewards for this player.
-If empty, player's own address will be used.</string>
+          <string>The Huntercoin address to transfer
+the player to, e.g.
+HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ
+
+Leave empty, if not needed.</string>
          </property>
          <property name="text">
           <string notr="true"/>
