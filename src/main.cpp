@@ -693,7 +693,8 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
 
         CTxDB txdb("r");
         CTxIndex txindex;
-        if (txOut.ReadFromDisk(txdb, COutPoint(hash, 0), txindex))
+
+        if (txdb.ReadTxIndex(hash, txindex) && txOut.ReadFromDisk(txindex.pos))
         {
             if (txOut.GetHash() != hash)
                 return error("%s() : txid mismatch", __PRETTY_FUNCTION__);
