@@ -102,14 +102,14 @@ public:
 
     // Create pending name update
     // Requires unlocked wallet; can throw exception instead of returning error
-    QString nameFirstUpdatePrepare(const QString &name, const QString &data, bool fPostponed = false);
+    QString nameFirstUpdatePrepare(const QString &name, const std::string &data, bool fPostponed = false);
 
     // Send pending name updates, if they are 2 blocks old
     void sendPendingNameFirstUpdates();
     
     // Update name
     // Requires unlocked wallet; can throw exception instead of returning error
-    QString nameUpdate(const QString &name, const QString &data, const QString &transferToAddress);
+    QString nameUpdate(const QString &name, const std::string &data, const QString &transferToAddress);
 
     // Wallet encryption
     bool setWalletEncrypted(bool encrypted, const SecureString &passphrase);

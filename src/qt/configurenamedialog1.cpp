@@ -22,7 +22,7 @@
 #include <QPushButton>
 #include <QClipboard>
 
-ConfigureNameDialog1::ConfigureNameDialog1(const QString &name_, const QString &data, const QString &address_, QWidget *parent) :
+ConfigureNameDialog1::ConfigureNameDialog1(const QString &name_, const std::string &data, const QString &address_, QWidget *parent) :
     QDialog(parent, Qt::WindowSystemMenuHint | Qt::WindowTitleHint),
     name(name_),
     address(address_),
@@ -43,11 +43,11 @@ ConfigureNameDialog1::ConfigureNameDialog1(const QString &name_, const QString &
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 
     returnData = data;
-    if (data.isEmpty())
+    if (data.empty())
         reward_set = false;
     else
     {
-        LoadJSON(data.toStdString());
+        LoadJSON(data);
         reward_set = true;
     }
 
@@ -141,13 +141,11 @@ void ConfigureNameDialog1::accept()
     obj.push_back(json_spirit::Pair("color", color));
 
     json_spirit::Value val(obj);
-    std::string jsonStr = json_spirit::write_string(val, false);
+    returnData = json_spirit::write_string(val, false);
 
     WalletModel::UnlockContext ctx(walletModel->requestUnlock());
     if (!ctx.isValid())
         return;
-
-    returnData = QString::fromStdString(jsonStr);
 
     QString err_msg;
     try

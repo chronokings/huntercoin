@@ -715,7 +715,7 @@ Address: %4
 <context>
     <name>CharacterTableModel</name>
     <message>
-        <location filename="../managenamespage.cpp" line="+119"/>
+        <location filename="../managenamespage.cpp" line="+120"/>
         <source>Pending</source>
         <translation>等待中</translation>
     </message>
@@ -876,7 +876,7 @@ If empty, player&apos;s own address will be used.</source>
         <translation>玩家复活</translation>
     </message>
     <message>
-        <location line="+29"/>
+        <location line="+27"/>
         <source>Name update error</source>
         <translation>名称更新错误</translation>
     </message>
@@ -1089,17 +1089,9 @@ Leave empty, if not needed.</source>
     </message>
 </context>
 <context>
-    <name>GameMapView</name>
-    <message>
-        <location filename="../gamemapview.cpp" line="+405"/>
-        <source>Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom.</source>
-        <translation>左键点击-移动。右键-滚动地图。鼠标滚轮-缩放地图。点击中间-重置缩放。</translation>
-    </message>
-</context>
-<context>
     <name>ManageNamesPage</name>
     <message>
-        <location filename="../managenamespage.cpp" line="+249"/>
+        <location filename="../managenamespage.cpp" line="+260"/>
         <source>Name registration</source>
         <translation>注册名称</translation>
     </message>
@@ -1114,7 +1106,12 @@ Leave empty, if not needed.</source>
         <translation>新建名称</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="-66"/>
+        <source>Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom. Ctrl + +,-,0 - zoom in/out/reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+66"/>
         <source>Player name:</source>
         <translation>玩家名称：</translation>
     </message>
@@ -1155,7 +1152,7 @@ Leave empty, if not needed.</source>
         <translation>计时单位：%1</translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+40"/>
         <source>Name configured</source>
         <translation>已配置好的名称</translation>
     </message>
@@ -1197,11 +1194,12 @@ Leave empty, if not needed.</source>
     <message>
         <location line="+18"/>
         <source>New player cost: 1 HUC + fee (0.005)
-Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</source>
+Player starts with 3 characters (general + two hunters),
+collect hearts for more characters (up to 20).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+5"/>
         <source>New player cost: 1 HUC + fee (0.005)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1314,7 +1312,7 @@ Player starts with 3 characters (general + two hunters), collect hearts for more
         <translation>确定</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+47"/>
         <source>Player name for Huntercoin</source>
         <translation>Huntercoin的玩家名称</translation>
     </message>
@@ -1343,7 +1341,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation>该玩家最近动作交易的状态</translation>
     </message>
     <message>
-        <location line="-160"/>
+        <location line="-165"/>
         <source>Address</source>
         <translation>地址</translation>
     </message>
@@ -2718,7 +2716,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation>错误: 交易被拒绝。如果您使用的是备份钱包，可能存在两个钱包不同步的情况，一个钱包中的Huntercoin已经被使用，但另一个钱包未标记出来。</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+35"/>
         <source>Cannot find stored tx hash for name</source>
         <translation>用名称无法找到存储的交易散列</translation>
     </message>
@@ -2728,7 +2726,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation>用名称无法找到存储的rand值</translation>
     </message>
     <message>
-        <location line="+70"/>
+        <location line="+69"/>
         <source>Invalid Huntercoin address</source>
         <translation>无效的Huntercoin地址</translation>
     </message>

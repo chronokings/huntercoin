@@ -233,7 +233,7 @@ public:
                 std::string strAddress = "";
                 GetNameAddress(tx, strAddress);
 
-                nameObj.value = QString::fromStdString(stringFromVch(vchValue));
+                nameObj.value = stringFromVch(vchValue);
                 nameObj.address = QString::fromStdString(strAddress);
                 nameObj.nHeight = nHeight;
                 nameObj.transferred = fTransferred;
@@ -274,7 +274,7 @@ public:
         updateEntry(nameObj.name, nameObj.value, nameObj.address, nameObj.nHeight, status, outNewRowIndex);
     }
 
-    void updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex = NULL)
+    void updateEntry(const QString &name, const std::string &value, const QString &address, int nHeight, int status, int *outNewRowIndex = NULL)
     {
         // Find name in model
         QList<NameTableEntry>::iterator lower = qLowerBound(
@@ -488,14 +488,14 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
 
     if (role == Qt::DisplayRole || role == Qt::EditRole)
     {
-        switch(index.column())
+        switch (index.column())
         {
         case Name:
             return rec->name;
         case Value:
             if (rec->nHeight == NameTableEntry::NAME_NEW_POSTPONED)
                 return QString("");
-            return rec->value;
+            return QString::fromStdString(rec->value);
         case Address:
             if (rec->fRewardAddressDifferent)
                 return NON_REWARD_ADDRESS_PREFIX + rec->address;
@@ -513,6 +513,11 @@ QVariant NameTableModel::data(const QModelIndex &index, int role) const
             }
             return tr("OK");
         }
+    }
+    else if (role == RawStringData)
+    {
+        if (index.column() == Value)
+            return QByteArray(rec->value.c_str(), rec->value.size());
     }
     else if (role == Qt::TextAlignmentRole)
         return QVariant(int(Qt::AlignLeft|Qt::AlignVCenter));
@@ -591,7 +596,7 @@ QModelIndex NameTableModel::index(int row, int column, const QModelIndex &parent
     }
 }
 
-void NameTableModel::updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex /* = NULL*/)
+void NameTableModel::updateEntry(const QString &name, const std::string &value, const QString &address, int nHeight, int status, int *outNewRowIndex /* = NULL*/)
 {
     priv->updateEntry(name, value, address, nHeight, status, outNewRowIndex);
 }

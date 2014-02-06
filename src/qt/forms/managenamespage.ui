@@ -50,7 +50,7 @@
           </sizepolicy>
          </property>
          <property name="toolTip">
-          <string>New player cost: 1 HUC + fee (0.005)
+          <string>New player cost: 1 HUC + fee (0.005).
 Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</string>
          </property>
          <property name="statusTip">

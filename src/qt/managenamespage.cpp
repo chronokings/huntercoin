@@ -23,6 +23,7 @@
 #include <QScrollBar>
 #include <QTimeLine>
 #include <QInputDialog>
+#include <QShortcut>
 
 #include "../json/json_spirit.h"
 #include "../json/json_spirit_utils.h"
@@ -347,8 +348,19 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
 
     gameMapView = new GameMapView(this);
     ui->verticalLayoutGameMap->addWidget(gameMapView);
+    gameMapView->setAttribute(Qt::WA_NoMousePropagation, true);
+    gameMapView->setStatusTip(tr("Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom. Ctrl + +,-,0 - zoom in/out/reset"));
 
     connect(gameMapView, SIGNAL(tileClicked(int, int)), this, SLOT(onTileClicked(int, int)));
+
+    QShortcut *zoomInKey = new QShortcut(QKeySequence::ZoomIn, this);
+    QShortcut *zoomInKey2 = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_Equal), this);
+    QShortcut *zoomOutKey = new QShortcut(QKeySequence::ZoomOut, this);
+    QShortcut *zoomResetKey = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_0), this);
+    connect(zoomInKey, SIGNAL(activated()), gameMapView, SLOT(zoomIn()));
+    connect(zoomInKey2, SIGNAL(activated()), gameMapView, SLOT(zoomIn()));
+    connect(zoomOutKey, SIGNAL(activated()), gameMapView, SLOT(zoomOut()));
+    connect(zoomResetKey, SIGNAL(activated()), gameMapView, SLOT(zoomReset()));
 
     gameChatView = new GameChatView(this);
     connect(gameChatView, SIGNAL(chatUpdated(const QString &)), ui->textChat, SLOT(setHtml(const QString &)));
@@ -440,7 +452,7 @@ void ManageNamesPage::on_newButton_clicked()
             tabsNames->setCurrentIndex(newRowIndex);
             onSelectName(name);
 
-            ConfigureNameDialog1 dlg(name, "", res.address, this);
+            ConfigureNameDialog1 dlg(name, std::string(), res.address, this);
             dlg.setModel(walletModel);
             if (dlg.exec() == QDialog::Accepted)
             {
@@ -569,7 +581,7 @@ void ManageNamesPage::on_goButton_clicked()
         json.push_back(json_spirit::Pair(strprintf("%d", item.first), obj));
     }
 
-    QString data = QString::fromStdString(json_spirit::write_string(json_spirit::Value(json), false));
+    std::string data = json_spirit::write_string(json_spirit::Value(json), false);
 
     QString err_msg;
     try
@@ -590,7 +602,7 @@ void ManageNamesPage::on_goButton_clicked()
         if (err_msg == "ABORTED")
             return;
 
-        printf("Name update error for player %s: %s\n\tMove: %s\n", qPrintable(selectedPlayer), qPrintable(err_msg), qPrintable(data));
+        printf("Name update error for player %s: %s\n\tMove: %s\n", qPrintable(selectedPlayer), qPrintable(err_msg), data.c_str());
         QMessageBox::critical(this, tr("Name update error"), err_msg);
         return;
     }
@@ -856,8 +868,9 @@ void ManageNamesPage::on_configButton_clicked()
         return;
 
     QString name = model->index(row, NameTableModel::Name).data(Qt::EditRole).toString();
-    QString value = model->index(row, NameTableModel::Value).data(Qt::EditRole).toString();
     QString address = model->index(row, NameTableModel::Address).data(Qt::EditRole).toString();
+    QByteArray raw_value = model->index(row, NameTableModel::Value).data(NameTableModel::RawStringData).toByteArray();
+    std::string value(raw_value.constData(), raw_value.length());
 
     if (address.startsWith(NON_REWARD_ADDRESS_PREFIX))
         address = address.mid(NON_REWARD_ADDRESS_PREFIX.size());

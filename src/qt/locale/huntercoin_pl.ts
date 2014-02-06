@@ -723,7 +723,7 @@ Adres: %4
 <context>
     <name>CharacterTableModel</name>
     <message>
-        <location filename="../managenamespage.cpp" line="+119"/>
+        <location filename="../managenamespage.cpp" line="+120"/>
         <source>Pending</source>
         <translation type="unfinished"></translation>
     </message>
@@ -883,7 +883,7 @@ If empty, player&apos;s own address will be used.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+29"/>
+        <location line="+27"/>
         <source>Name update error</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1094,17 +1094,9 @@ Leave empty, if not needed.</source>
     </message>
 </context>
 <context>
-    <name>GameMapView</name>
-    <message>
-        <location filename="../gamemapview.cpp" line="+405"/>
-        <source>Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>ManageNamesPage</name>
     <message>
-        <location filename="../managenamespage.cpp" line="+249"/>
+        <location filename="../managenamespage.cpp" line="+260"/>
         <source>Name registration</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1119,7 +1111,12 @@ Leave empty, if not needed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="-66"/>
+        <source>Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom. Ctrl + +,-,0 - zoom in/out/reset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+66"/>
         <source>Player name:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1160,7 +1157,7 @@ Leave empty, if not needed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+40"/>
         <source>Name configured</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1202,11 +1199,12 @@ Leave empty, if not needed.</source>
     <message>
         <location line="+18"/>
         <source>New player cost: 1 HUC + fee (0.005)
-Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</source>
+Player starts with 3 characters (general + two hunters),
+collect hearts for more characters (up to 20).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+5"/>
         <source>New player cost: 1 HUC + fee (0.005)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1319,7 +1317,7 @@ Player starts with 3 characters (general + two hunters), collect hearts for more
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+47"/>
         <source>Player name for Huntercoin</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1346,7 +1344,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-160"/>
+        <location line="-165"/>
         <source>Address</source>
         <translation type="unfinished">Adres</translation>
     </message>
@@ -2731,7 +2729,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+35"/>
         <source>Cannot find stored tx hash for name</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2741,7 +2739,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+70"/>
+        <location line="+69"/>
         <source>Invalid Huntercoin address</source>
         <translation type="unfinished"></translation>
     </message>

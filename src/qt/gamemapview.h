@@ -39,6 +39,9 @@ public:
 public slots:
 
     void updateGameMap(const Game::GameState &gameState);
+    void zoomIn();
+    void zoomOut();
+    void zoomReset();
 
 signals:
 
