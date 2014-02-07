@@ -4,6 +4,8 @@
 #include "../gamemap.h"
 #include "../util.h"
 
+#include "../gamedb.h"
+
 #include <QImage>
 #include <QGraphicsItem>
 #include <QGraphicsSimpleTextItem>
@@ -15,6 +17,8 @@
 
 #include <boost/foreach.hpp>
 #include <cmath>
+
+#include <QMessageBox>
 
 using namespace Game;
 
@@ -455,6 +459,13 @@ GameMapView::GameMapView(QWidget *parent)
     crown->hide();
     crown->setOffset(CROWN_START_X * TILE_SIZE, CROWN_START_Y * TILE_SIZE);
     crown->setZValue(0.3);
+
+    mouseCoordsText = new QGraphicsTextItem();
+    mouseCoordsText->setPos(0,0);
+    mouseCoordsText->setPlainText(QString("%1,%2").arg(0).arg(0));
+    scene->addItem(mouseCoordsText);
+
+    crownShown = false;
 }
 
 GameMapView::~GameMapView()
@@ -543,6 +554,23 @@ void GameMapView::updateGameMap(const GameState &gameState)
     {
         crown->show();
         crown->setOffset(gameState.crownPos.x * TILE_SIZE, gameState.crownPos.y * TILE_SIZE);
+    }
+
+
+    if(crownShown == true)
+    {
+      Game::GameState gameState = GetCurrentGameState();
+      std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
+      if(mi != gameState.players.end())
+      {
+        const PlayerState &pl = mi->second;
+        std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(gameState.crownHolder.index);
+        const CharacterState &characterState = mi2->second;
+        const Coord &coord = characterState.coord;
+        crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
+        crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+        //scene->addItem(crownMarker);
+      }
     }
 
     //scene->invalidate();
@@ -637,6 +665,53 @@ void GameMapView::DeselectPlayer()
         setCursor(Qt::ArrowCursor);
 }
 
+void GameMapView::showCrown()
+{
+    Game::GameState state = GetCurrentGameState();
+
+    crownShown = !crownShown;
+    QMessageBox msgBox;
+    QString markerString = "";
+
+    if(crownShown == true)
+    {
+        markerString = tr("Marker ON");
+        crownPixmapObject = new QPixmap(":/gamemap/sprites/crown");
+        crownMarker = new QGraphicsPixmapItem();
+        Game::GameState gameState = GetCurrentGameState();
+        std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
+        if(mi != gameState.players.end())
+        {
+          const PlayerState &pl = mi->second;
+          std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(gameState.crownHolder.index);
+          const CharacterState &characterState = mi2->second;
+          const Coord &coord = characterState.coord;
+          crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
+          crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+          scene->addItem(crownMarker);
+        }
+    }
+    else
+    {
+        scene->removeItem(crownMarker);
+        markerString = tr("Marker OFF");
+    }
+
+    if(state.crownHolder.index == -1)
+    {
+        msgBox.setText(tr("Nobody is wearing the crown\n%1").arg(markerString));
+    }
+    else
+    {
+        QString showCrownText = tr("Crown Holder: ");
+        msgBox.setText(QString("%1%2%3 \n    x:%4,y:%5\n%6").arg(showCrownText).arg(QString::fromStdString(state.crownHolder.player+".")).arg(state.crownHolder.index).arg(state.crownPos.x).arg(state.crownPos.y).arg(markerString));
+    }
+
+    msgBox.exec();
+
+}
+
+
 const static double MIN_ZOOM = 0.1;
 const static double MAX_ZOOM = 2.0;
 
@@ -682,6 +757,25 @@ void GameMapView::mouseReleaseEvent(QMouseEvent *event)
 
 void GameMapView::mouseMoveEvent(QMouseEvent *event)
 {
+    QPoint p = mapToScene(event->pos()).toPoint();
+    int x = p.x() / TILE_SIZE;
+    int y = p.y() / TILE_SIZE;
+
+    if (IsInsideMap(x, y))
+    {
+      scene->removeItem(mouseCoordsText);
+      mouseCoordsText = new QGraphicsTextItem();
+      QFont font;
+      font.setPixelSize(20/zoomFactor);
+      font.setBold(false);
+      font.setFamily("Calibri");
+      mouseCoordsText->setFont(font);
+      mouseCoordsText->setPos(p.x(),p.y());
+      mouseCoordsText->setZValue(1e13);
+      mouseCoordsText->setPlainText(QString("%1,%2").arg(x).arg(y));
+      scene->addItem(mouseCoordsText);
+    }
+
     if (panning)
     {
         horizontalScrollBar()->setValue(horizontalScrollBar()->value() + pan_pos.x() - event->pos().x());
@@ -707,6 +801,24 @@ void GameMapView::wheelEvent(QWheelEvent *event)
         animZoom->start();
 
     event->accept();
+
+    if(crownShown == true)
+    {
+      Game::GameState gameState = GetCurrentGameState();
+      std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
+      if(mi != gameState.players.end())
+      {
+        const PlayerState &pl = mi->second;
+        std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(gameState.crownHolder.index);
+        const CharacterState &characterState = mi2->second;
+        const Coord &coord = characterState.coord;
+        crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
+        crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+        //scene->addItem(crownMarker);
+      }
+
+
+    }
 }
 
 void GameMapView::scalingTime(qreal t)

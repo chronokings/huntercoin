@@ -36,6 +36,8 @@ public:
 
     void setModel(WalletModel *walletModel);
 
+    void showCrown();
+
 private:
     Ui::ManageNamesPage *ui;
     NameTableModel *model;

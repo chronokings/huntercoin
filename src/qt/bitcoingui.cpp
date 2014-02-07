@@ -58,6 +58,7 @@
 
 #include <iostream>
 
+
 BitcoinGUI::BitcoinGUI(QWidget *parent):
     QMainWindow(parent),
     clientModel(0),
@@ -301,6 +302,10 @@ void BitcoinGUI::createActions()
     openRPCConsoleAction = new QAction(QIcon(":/icons/debugwindow"), tr("&Debug window"), this);
     openRPCConsoleAction->setStatusTip(tr("Open debugging and diagnostic console"));
 
+    showCrownAction = new QAction(QIcon(":/gamemap/sprites/crown"), tr("&Crown Marker"), this);
+    showCrownAction->setStatusTip(tr("Show or unshow the crown holder marker"));
+    showCrownAction->setToolTip(showCrownAction->statusTip());
+
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
@@ -311,6 +316,8 @@ void BitcoinGUI::createActions()
     connect(changePassphraseAction, SIGNAL(triggered()), this, SLOT(changePassphrase()));
     connect(signMessageAction, SIGNAL(triggered()), this, SLOT(gotoSignMessageTab()));
     connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
+
+    connect(showCrownAction, SIGNAL(triggered()), this, SLOT(showCrown()));
 }
 
 void BitcoinGUI::createMenuBar()
@@ -356,9 +363,14 @@ void BitcoinGUI::createToolBars()
     toolbar->addAction(addressBookAction);
     toolbar->addAction(manageNamesAction);
 
+
     QToolBar *toolbar2 = addToolBar(tr("Actions toolbar"));
     toolbar2->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     toolbar2->addAction(exportAction);
+
+    QToolBar *toolbar3 = addToolBar(tr("Game toolbar"));
+    toolbar3->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    toolbar3->addAction(showCrownAction);
 }
 
 void BitcoinGUI::setClientModel(ClientModel *clientModel)
@@ -774,6 +786,20 @@ void BitcoinGUI::gotoOverviewPage()
 
     exportAction->setEnabled(false);
     disconnect(exportAction, SIGNAL(triggered()), 0, 0);
+}
+
+void BitcoinGUI::showCrown()
+{
+
+
+  manageNamesPage->showCrown();
+
+
+//  QMessageBox msgBox;
+//  msgBox.setText(QString("crown holder: %1").arg(QString::fromStdString(state.crownHolder.player)));
+//  msgBox.exec();
+
+
 }
 
 void BitcoinGUI::gotoHistoryPage()

@@ -34,6 +34,8 @@ public:
     void CenterMapOnCharacter(const Game::CharacterState &state);
     void DeselectPlayer();
 
+    void showCrown();
+
     const GameGraphicsObjects *grobjs;
 
 public slots:
@@ -49,6 +51,11 @@ protected:
     QGraphicsScene *scene;
     QGraphicsPixmapItem *crown;
     double zoomFactor;
+
+    QGraphicsTextItem * mouseCoordsText;
+    bool crownShown;
+    QPixmap* crownPixmapObject;
+    QGraphicsPixmapItem *crownMarker;
 
     virtual void mousePressEvent(QMouseEvent *event);
     virtual void mouseReleaseEvent(QMouseEvent *event);

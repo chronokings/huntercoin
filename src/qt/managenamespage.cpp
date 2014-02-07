@@ -368,6 +368,11 @@ ManageNamesPage::~ManageNamesPage()
     delete characterTableModel;
 }
 
+void ManageNamesPage::showCrown()
+{
+    this->gameMapView->showCrown();
+}
+
 void ManageNamesPage::setModel(WalletModel *walletModel)
 {
     this->walletModel = walletModel;
