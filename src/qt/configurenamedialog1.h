@@ -20,11 +20,11 @@ class ConfigureNameDialog1 : public QDialog
 
 public:
 
-    explicit ConfigureNameDialog1(const QString &name_, const QString &data, const QString &address_, QWidget *parent = 0);
+    explicit ConfigureNameDialog1(const QString &name_, const std::string &data, const QString &address_, QWidget *parent = 0);
     ~ConfigureNameDialog1();
 
     void setModel(WalletModel *walletModel);
-    const QString &getReturnData() const { return returnData; }
+    const std::string &getReturnData() const { return returnData; }
 
 public slots:
     void accept();
@@ -36,7 +36,7 @@ public slots:
     void on_rewardAddr_textChanged(const QString &address);
 
 private:
-    QString returnData;
+    std::string returnData;
     Ui::ConfigureNameDialog1 *ui;
     WalletModel *walletModel;
     QString name, address;

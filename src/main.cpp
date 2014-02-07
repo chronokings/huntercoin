@@ -693,7 +693,8 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
 
         CTxDB txdb("r");
         CTxIndex txindex;
-        if (txOut.ReadFromDisk(txdb, COutPoint(hash, 0), txindex))
+
+        if (txdb.ReadTxIndex(hash, txindex) && txOut.ReadFromDisk(txindex.pos))
         {
             if (txOut.GetHash() != hash)
                 return error("%s() : txid mismatch", __PRETTY_FUNCTION__);
@@ -3362,7 +3363,7 @@ void FormatHashBuffers(CBlock* pblock, char* pmidstate, char* pdata, char* phash
 bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 {
     int algo = pblock->GetAlgo();
-    uint256 hash = pblock->GetPoWHash(algo);
+    uint256 hashBlock = pblock->GetHash();
     uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
 
     CAuxPow *auxpow = pblock->auxpow.get();
@@ -3372,30 +3373,32 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
         if (auxpow->algo != algo)
             return error("CheckWork() : AUX POW uses different algorithm");
 
-        if (!auxpow->Check(hash, pblock->GetChainID()))
+        if (!auxpow->Check(hashBlock, pblock->GetChainID()))
             return error("AUX POW is not valid");
 
-        if (auxpow->GetParentBlockHash() > hashTarget)
+        uint256 hashParent = auxpow->GetParentBlockHash();
+        if (hashParent > hashTarget)
             return error("AUX POW parent hash %s is not under target %s", auxpow->GetParentBlockHash().GetHex().c_str(), hashTarget.GetHex().c_str());
 
         //// debug print
         printf("BitcoinMiner:\n");
-        printf("AUX proof-of-work found  \n  block-hash: %s       our hash: %s   \n  parent hash: %s  \n       target: %s\n",
-                pblock->GetHash().GetHex().c_str(),
-                hash.GetHex().c_str(),
-                auxpow->GetParentBlockHash().GetHex().c_str(),
+        printf("AUX proof-of-work found  \n  block-hash: %s  \n  parent hash: %s  \ntarget: %s\n",
+                hashBlock.GetHex().c_str(),
+                hashParent.GetHex().c_str(),
                 hashTarget.GetHex().c_str());
     }
     else
     {
-        if (hash > hashTarget)
+        uint256 hashPoW = pblock->GetPoWHash(algo);
+
+        if (hashPoW > hashTarget)
             return false;
 
         //// debug print
         printf("BitcoinMiner:\n");
-        printf("proof-of-work found  \n  block-hash: %s  \n  hash: %s  \ntarget: %s\n",
-                pblock->GetHash().GetHex().c_str(),
-                hash.GetHex().c_str(),
+        printf("proof-of-work found  \n  block-hash: %s  \n  pow-hash: %s  \ntarget: %s\n",
+                hashBlock.GetHex().c_str(),
+                hashPoW.GetHex().c_str(),
                 hashTarget.GetHex().c_str());
     }
 

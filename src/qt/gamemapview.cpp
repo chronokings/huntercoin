@@ -405,8 +405,6 @@ GameMapView::GameMapView(QWidget *parent)
     setBackgroundBrush(QColor(128, 128, 128));
 
     defaultRenderHints = renderHints();
-    
-    setStatusTip(tr("Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom."));
 
     animZoom = new QTimeLine(350, this);
     animZoom->setUpdateInterval(20);
@@ -735,11 +733,7 @@ void GameMapView::mousePressEvent(QMouseEvent *event)
     {
         QPoint p = mapToScene(event->pos()).toPoint();
 
-        animZoom->stop();
-        oldZoom = zoomFactor = scheduledZoom = 1.0;
-
-        resetTransform();
-        setRenderHints(defaultRenderHints);
+        zoomReset();
         centerOn(p);
     }
     event->accept();
@@ -819,6 +813,39 @@ void GameMapView::wheelEvent(QWheelEvent *event)
 
 
     }
+}
+
+void GameMapView::zoomIn()
+{
+    if (scheduledZoom < zoomFactor)
+        scheduledZoom = zoomFactor;
+    scheduledZoom *= 1.2;
+    oldZoom = zoomFactor;
+
+    animZoom->stop();
+    if (scheduledZoom != zoomFactor)
+        animZoom->start();
+}
+
+void GameMapView::zoomOut()
+{
+    if (scheduledZoom > zoomFactor)
+        scheduledZoom = zoomFactor;
+    scheduledZoom /= 1.2;
+    oldZoom = zoomFactor;
+
+    animZoom->stop();
+    if (scheduledZoom != zoomFactor)
+        animZoom->start();
+}
+
+void GameMapView::zoomReset()
+{
+    animZoom->stop();
+    oldZoom = zoomFactor = scheduledZoom = 1.0;
+
+    resetTransform();
+    setRenderHints(defaultRenderHints);
 }
 
 void GameMapView::scalingTime(qreal t)

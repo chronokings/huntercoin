@@ -577,13 +577,12 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
     return ret;
 }
 
-QString WalletModel::nameFirstUpdatePrepare(const QString &name, const QString &data, bool fPostponed)
+QString WalletModel::nameFirstUpdatePrepare(const QString &name, const std::string &data, bool fPostponed)
 {
     std::string strName = name.toStdString();
     std::vector<unsigned char> vchName(strName.begin(), strName.end());
 
-    std::string strData = data.toStdString();
-    std::vector<unsigned char> vchValue(strData.begin(), strData.end());
+    std::vector<unsigned char> vchValue(data.begin(), data.end());
 
     CRITICAL_BLOCK(cs_main)
     {
@@ -614,13 +613,12 @@ QString WalletModel::nameFirstUpdatePrepare(const QString &name, const QString &
     return "";
 }
 
-QString WalletModel::nameUpdate(const QString &name, const QString &data, const QString &transferToAddress)
+QString WalletModel::nameUpdate(const QString &name, const std::string &data, const QString &transferToAddress)
 {
     std::string strName = name.toStdString();
     std::vector<unsigned char> vchName(strName.begin(), strName.end());
 
-    std::string strData = data.toStdString();
-    std::vector<unsigned char> vchValue(strData.begin(), strData.end());
+    std::vector<unsigned char> vchValue(data.begin(), data.end());
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;

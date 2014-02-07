@@ -34,6 +34,12 @@ public:
         Status = 4
     };
 
+    enum RoleIndex {
+        // Role for returning data (JSON string) as QByteArray to preserve Unicode characters
+        // for chat messages (conversion from std::string to QString and back distorts them)
+        RawStringData = Qt::UserRole
+    };
+
     /** @name Methods overridden from QAbstractTableModel
         @{*/
     int rowCount(const QModelIndex &parent = QModelIndex()) const;
@@ -61,7 +67,7 @@ signals:
     void gameStateChanged(const Game::GameState &gameState);
 
 public slots:
-    void updateEntry(const QString &name, const QString &value, const QString &address, int nHeight, int status, int *outNewRowIndex = NULL);
+    void updateEntry(const QString &name, const std::string &value, const QString &address, int nHeight, int status, int *outNewRowIndex = NULL);
     void updateGameState();
     void updateTransaction(const QString &hash, int status);
     friend class NameTablePriv;
@@ -70,7 +76,7 @@ public slots:
 struct NameTableEntry
 {
     QString name;
-    QString value;
+    std::string value;
     QString address;
     bool fRewardAddressDifferent;
     QString state;
@@ -87,14 +93,14 @@ struct NameTableEntry
     static bool CompareHeight(int nOldHeight, int nNewHeight);    // Returns true if new height is better
 
     NameTableEntry() : nHeight(NAME_NON_EXISTING), transferred(false) {}
-    NameTableEntry(const QString &name, const QString &value, const QString &address, int nHeight, bool transferred = false) :
+    NameTableEntry(const QString &name, const std::string &value, const QString &address, int nHeight, bool transferred = false) :
         name(name), value(value), address(address),
         fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1)
     {
     }
 
     NameTableEntry(const std::string &name, const std::string &value, const std::string &address, int nHeight, bool transferred = false) :
-        name(QString::fromStdString(name)), value(QString::fromStdString(value)), address(QString::fromStdString(address)),
+        name(QString::fromStdString(name)), value(value), address(QString::fromStdString(address)),
         fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1)
     {
     }
