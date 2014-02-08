@@ -21,8 +21,8 @@ enum
 
     // Syntax (scriptSig):
     //     player GAMEOP_COLLECTED_BOUNTY characterIndex firstBlock lastBlock collectedFirstBlock collectedLastBlock
-    // vin.size() == vout.size(), they correspond to each other, i.e. a null input is used
-    // to hold info about the output in its scriptSig
+    // vin.size() == vout.size(), they correspond to each other, i.e. a dummy input is used
+    // to hold info about the corresponding output in its scriptSig
     // (alternatively we could add vout index to the scriptSig, to allow more complex transactions
     // with arbitrary input assignments, or store it in scriptPubKey of the tx-out instead)
     GAMEOP_COLLECTED_BOUNTY = 2,

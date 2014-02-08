@@ -8,6 +8,7 @@
 #include "bitcoinunits.h"
 #include "csvmodelwriter.h"
 #include "transactiondescdialog.h"
+#include "transactionrecord.h"
 #include "editaddressdialog.h"
 #include "optionsmodel.h"
 #include "guiutil.h"
@@ -128,6 +129,8 @@ TransactionView::TransactionView(QWidget *parent) :
     QAction *copyAmountAction = new QAction(tr("Copy amount"), this);
     QAction *editLabelAction = new QAction(tr("Edit label"), this);
     QAction *showDetailsAction = new QAction(tr("Show transaction details"), this);
+    QAction *deleteTxAction = new QAction(tr("Delete transaction"), this);
+    QAction *rebroadcastTxAction = new QAction(tr("Rebroadcast transaction"), this);
 
     contextMenu = new QMenu();
     contextMenu->addAction(copyAddressAction);
@@ -135,6 +138,9 @@ TransactionView::TransactionView(QWidget *parent) :
     contextMenu->addAction(copyAmountAction);
     contextMenu->addAction(editLabelAction);
     contextMenu->addAction(showDetailsAction);
+    contextMenu->addSeparator();
+    contextMenu->addAction(deleteTxAction);
+    contextMenu->addAction(rebroadcastTxAction);
 
     // Connect actions
     connect(dateWidget, SIGNAL(activated(int)), this, SLOT(chooseDate(int)));
@@ -150,6 +156,8 @@ TransactionView::TransactionView(QWidget *parent) :
     connect(copyAmountAction, SIGNAL(triggered()), this, SLOT(copyAmount()));
     connect(editLabelAction, SIGNAL(triggered()), this, SLOT(editLabel()));
     connect(showDetailsAction, SIGNAL(triggered()), this, SLOT(showDetails()));
+    connect(deleteTxAction, SIGNAL(triggered()), this, SLOT(deleteTx()));
+    connect(rebroadcastTxAction, SIGNAL(triggered()), this, SLOT(rebroadcastTx()));
 }
 
 void TransactionView::setModel(WalletModel *model)
@@ -423,4 +431,54 @@ void TransactionView::focusTransaction(const QModelIndex &idx)
     transactionView->scrollTo(targetIdx);
     transactionView->setCurrentIndex(targetIdx);
     transactionView->setFocus();
+}
+
+void TransactionView::deleteTx()
+{
+    if (!transactionView->selectionModel())
+        return;
+    QModelIndexList selection = transactionView->selectionModel()->selectedRows();
+    if (selection.isEmpty())
+        return;
+
+    QString msg;
+    bool any_succeeded = false;
+
+    foreach (QModelIndex index, selection)
+    {
+        QString id = index.data(TransactionTableModel::TxIDRole).toString();
+        QString strHash = id.section('-', 0, 0);
+        msg += strHash + ":\n";
+        QString msgRet;
+        if (model->DeleteTransaction(strHash, msgRet))
+            any_succeeded = true;
+        msg += msgRet;
+        msg += "\n\n";
+    }
+    if (any_succeeded)
+        msg += tr("Program restart is recommended (to clear memory pool).");
+    QMessageBox::information(this, tr("Delete transaction(s)"), msg);
+}
+
+void TransactionView::rebroadcastTx()
+{
+    if (!transactionView->selectionModel())
+        return;
+    QModelIndexList selection = transactionView->selectionModel()->selectedRows();
+    if (selection.isEmpty())
+        return;
+
+    QString msg;
+
+    foreach (QModelIndex index, selection)
+    {
+        QString id = index.data(TransactionTableModel::TxIDRole).toString();
+        QString strHash = id.section('-', 0, 0);
+        msg += strHash + ":\n";
+        QString msgRet;
+        model->RebroadcastTransaction(strHash, msgRet);
+        msg += msgRet;
+        msg += "\n\n";
+    }
+    QMessageBox::information(this, tr("Rebroadcast transaction(s)"), msg);
 }

@@ -4,6 +4,8 @@
 #include <QAbstractTableModel>
 #include <QStringList>
 
+#include <vector>
+
 class NameTablePriv;
 class CWallet;
 class WalletModel;
@@ -52,6 +54,7 @@ public:
 
     // Ensures that all listeners update game state to the one returned by GetCurrentGameState()
     void emitGameStateChanged();
+    void refreshName(const std::vector<unsigned char> &vchName);
 
 private:
     WalletModel *walletModel;
