@@ -179,7 +179,7 @@ public:
 
     CDiskTxPos(unsigned int nBlockFileIn, unsigned int nBlockPosIn, unsigned int nTxFileIn, unsigned int nTxPosIn)
     {
-        nBlockFile = nBlockFile;
+        nBlockFile = nBlockFileIn;
         nBlockPos = nBlockPosIn;
         nTxFile = nTxFileIn;
         nTxPos = nTxPosIn;

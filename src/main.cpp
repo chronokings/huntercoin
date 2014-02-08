@@ -1926,6 +1926,8 @@ bool LoadBlockIndex(bool fAllowNew)
 
     hooks->MessageStart(pchMessageStart);
 
+    int nTxDbVersion = VERSION;
+
     //
     // Load block index
     //
@@ -1933,7 +1935,16 @@ bool LoadBlockIndex(bool fAllowNew)
         CTxDB txdb("cr");
         if (!txdb.LoadBlockIndex())
             return false;
+        txdb.ReadVersion(nTxDbVersion);
         txdb.Close();
+    }
+
+    if (nTxDbVersion < 1000400)
+    {
+        CTxDB txdb("r+");
+        printf("FixTxIndexBug...\n");
+        if (!txdb.FixTxIndexBug())
+            printf("FixTxIndexBug failed\n");
     }
 
     //
