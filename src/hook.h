@@ -48,7 +48,7 @@ public:
     virtual std::string GetAlertPubkey2() { return GetAlertPubkey1(); }
 };
 
-// A simple wrapper (pImpl patter) to remove dependency on the game-related headers when miner just wants to check transactions
+// A simple wrapper (pImpl pattern) to remove dependency on the game-related headers when miner just wants to check transactions
 class GameStepMiner
 {
     class GameStepMinerImpl *pImpl;

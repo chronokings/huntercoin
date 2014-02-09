@@ -840,7 +840,7 @@ bool WalletModel::DeleteTransaction(const QString &strHash, QString &retMsg)
 {
     uint256 hash;
     hash.SetHex(strHash.toStdString());
-    
+
     CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(wallet->cs_mapWallet)
     {

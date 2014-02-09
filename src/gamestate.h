@@ -252,15 +252,23 @@ struct PlayerState
     {
         return characters.size() < MAX_CHARACTERS_PER_PLAYER && next_character_index < MAX_CHARACTERS_PER_PLAYER_TOTAL;
     }
-    json_spirit::Value ToJsonValue(int crown_index) const;
+    json_spirit::Value ToJsonValue(int crown_index, bool dead = false) const;
 };
 
 struct GameState
 {
     GameState();
 
+    // Memory-only version. Is not read/written. Used by UpgradeGameDB.
+    int nVersion;
+
     // Player states
     std::map<PlayerID, PlayerState> players;
+
+    // Last chat messages of dead players (only in the current block)
+    // Minimum info is stored: color, message, message_block.
+    // When converting to JSON, this array is concatenated with normal players.
+    std::map<PlayerID, PlayerState> dead_players_chat;
 
     std::map<Coord, LootInfo> loot;
     std::set<Coord> hearts;
@@ -282,6 +290,10 @@ struct GameState
     IMPLEMENT_SERIALIZE
     (
         READWRITE(players);
+        if (this->nVersion >= 1000500)
+            READWRITE(dead_players_chat);
+        else if (fRead)
+            (const_cast<std::map<PlayerID, PlayerState>&>(dead_players_chat)).clear();
         READWRITE(loot);
         READWRITE(hearts);
         READWRITE(crownPos);
@@ -291,6 +303,8 @@ struct GameState
         READWRITE(nHeight);
         READWRITE(hashBlock);
     )
+
+    void UpdateVersion();
 
     json_spirit::Value ToJsonValue() const;
 

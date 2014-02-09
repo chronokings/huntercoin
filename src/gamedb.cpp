@@ -482,3 +482,40 @@ void EraseBadMoveTransactions()
         }
     }
 }
+
+bool UpgradeGameDB()
+{
+    int nGameDbVersion = VERSION;
+
+    {
+        CGameDB gameDb("cr");
+        gameDb.ReadVersion(nGameDbVersion);
+        gameDb.Close();
+    }
+
+    if (nGameDbVersion < 1000500)
+    {
+        printf("Updating GameDB...\n");
+
+        CGameDB gameDb("r+");
+
+        GameState state;
+        state.nVersion = nGameDbVersion;
+        for (unsigned int i = 0; i <= nBestHeight; i++)
+        {
+            if (gameDb.Read(i, state))
+            {
+                state.UpdateVersion();
+                if (!gameDb.Write(i, state))
+                    return false;
+                state.nVersion = nGameDbVersion;
+            }
+        }
+
+        if (!gameDb.WriteVersion(VERSION))
+            return false;
+        printf("GameDB updated\n");
+    }
+
+    return true;
+}

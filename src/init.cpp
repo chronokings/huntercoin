@@ -89,8 +89,8 @@ void HandleSIGTERM(int)
 
 
 
-
-
+// A declaration to avoid including full gamedb.h
+bool UpgradeGameDB();
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -378,6 +378,9 @@ bool AppInit2(int argc, char* argv[])
         strErrors += _("Error loading blkindex.dat      \n");
     printf(" block index %15"PRI64d"ms\n", GetTimeMillis() - nStart);
 
+    if (!UpgradeGameDB())
+        printf("ERROR: GameDB update failed\n");
+
     printf("Loading wallet...\n");
     nStart = GetTimeMillis();
     bool fFirstRun;
@@ -398,7 +401,6 @@ bool AppInit2(int argc, char* argv[])
             return false;
         }
     }
-
 
     CBlockIndex *pindexRescan = pindexBest;
     if (GetBoolArg("-rescan"))

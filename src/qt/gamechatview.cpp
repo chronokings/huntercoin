@@ -22,15 +22,13 @@ GameChatView::GameChatView(QWidget *parent)
 {
 }
 
-QString GameChatView::MessagesToHTML(const GameState &gameState)
-{
-    QString msgs;
-    msgs.reserve(4000);
 
-    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, gameState.players)
+void MessagesToHTML_Helper(QString &msgs, int nHeight, const std::map<PlayerID, PlayerState> &players)
+{
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
     {
         const PlayerState &pl = p.second;
-        if (pl.message.empty() || pl.message_block < gameState.nHeight)
+        if (pl.message.empty() || pl.message_block < nHeight)
             continue;
 
         bool first = msgs.isEmpty();
@@ -43,6 +41,16 @@ QString GameChatView::MessagesToHTML(const GameState &gameState)
         //    msgs += QString("<a name='block%1' />").arg(gameState.nHeight);
         msgs += GUIUtil::HtmlEscape(pl.message);
     }
+}
+
+
+QString GameChatView::MessagesToHTML(const GameState &gameState)
+{
+    QString msgs;
+    msgs.reserve(4000);
+    MessagesToHTML_Helper(msgs, gameState.nHeight, gameState.players);
+    // TODO: add some marker to dead players, e.g. strike-through or non-bold font or "[dead]" suffix
+    MessagesToHTML_Helper(msgs, gameState.nHeight, gameState.dead_players_chat);
     return msgs;
 }
 
