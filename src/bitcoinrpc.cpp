@@ -330,7 +330,7 @@ Value TxToValue(const CTransaction &tx)
     return txobj;
 }
 
-Value BlockToValue(CBlock &block)
+Value BlockToValue(CBlock &block, const CBlockIndex* blockindex)
 {
     Object obj;
     obj.push_back(Pair("hash", block.GetHash().ToString().c_str()));
@@ -345,6 +345,10 @@ Value BlockToValue(CBlock &block)
     obj.push_back(Pair("nonce", (uint64_t)block.nNonce));
     obj.push_back(Pair("n_tx", (int)block.vtx.size()));
     obj.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK)));
+    obj.push_back(Pair("height", blockindex->nHeight));
+    if (blockindex->pnext && blockindex->pnext->phashBlock)
+        obj.push_back(Pair("nextblockhash", blockindex->pnext->phashBlock->GetHex()));
+    obj.push_back(Pair("chainwork", blockindex->bnChainWork.GetHex()));
     obj.push_back(Pair("n_gametx", (int)block.vgametx.size()));
     obj.push_back(Pair("game_merkleroot", block.hashGameMerkleRoot.ToString().c_str()));
 
@@ -412,7 +416,7 @@ Value getblockbycount(const Array& params, bool fHelp)
     block.BuildMerkleTree(false); // Normal tree
     block.BuildMerkleTree(true);  // Game tree
 
-    return BlockToValue(block);
+    return BlockToValue(block, pindex);
 }
 
 
@@ -437,7 +441,7 @@ Value getblock(const Array& params, bool fHelp)
     block.BuildMerkleTree(false); // Normal tree
     block.BuildMerkleTree(true);  // Game tree
 
-    return BlockToValue(block);
+    return BlockToValue(block, pindex);
 }
 
 
