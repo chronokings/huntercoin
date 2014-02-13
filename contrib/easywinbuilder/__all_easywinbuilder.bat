@@ -1,4 +1,4 @@
-@echo EasyWinBuilder v0.3
+@echo EasyWinBuilder v0.5
 @echo.
 @set RUNALL=1
 @echo.

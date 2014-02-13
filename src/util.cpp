@@ -955,8 +955,9 @@ int GetFilesize(FILE* file)
 void ShrinkDebugFile()
 {
     // Scroll debug.log if it's getting too big
-    string strFile = GetDataDir() + "/debug.log";
-    FILE* file = fopen(strFile.c_str(), "r");
+    boost::filesystem::path pathLog(GetDataDir());
+    pathLog /= "debug.log";
+    FILE* file = fopen(pathLog.string().c_str(), "r");
     if (file && GetFilesize(file) > 10 * 1000000)
     {
         // Restart the file with some of the end
@@ -964,14 +965,17 @@ void ShrinkDebugFile()
         fseek(file, -sizeof(pch), SEEK_END);
         int nBytes = fread(pch, 1, sizeof(pch), file);
         fclose(file);
-        if (file = fopen(strFile.c_str(), "w"))
+
+        file = fopen(pathLog.string().c_str(), "w");
+        if (file)
         {
             fwrite(pch, 1, nBytes, file);
             fclose(file);
         }
     }
+    else if (file != NULL)
+        fclose(file);
 }
-
 
 
 

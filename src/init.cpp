@@ -279,7 +279,7 @@ bool AppInit2(int argc, char* argv[])
     }
 #endif
 
-    if (!fDebug && !pszSetDataDir[0])
+    if (GetBoolArg("-shrinkdebugfile", !fDebug))
         ShrinkDebugFile();
     printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     printf("huntercoin version %s\n", FormatFullVersion().c_str());
@@ -604,6 +604,9 @@ std::string HelpMessage()
         "  -daemon          \t\t  " + _("Run in the background as a daemon and accept commands\n") +
 #endif
         "  -testnet         \t\t  " + _("Use the test network\n") +
+        "  -debug           \t\t  " + _("Output extra debugging information\n") +
+        "  -shrinkdebugfile \t\t  " + _("Shrink debug.log file on client startup (default: 1 when no -debug)\n") +
+        "  -printtoconsole  \t\t  " + _("Send trace/debug info to console instead of debug.log file\n") +
         "  -rpcuser=<user>  \t  "   + _("Username for JSON-RPC connections\n") +
         "  -rpcpassword=<pw>\t  "   + _("Password for JSON-RPC connections\n") +
         "  -rpcport=<port>  \t\t  " + _("Listen for JSON-RPC connections on <port> (default: 8399)\n") +
