@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Satoshi Nakamoto
+
 // Distributed under the MIT/X11 software license, see the accompanying
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
@@ -160,13 +160,34 @@ Value ValueFromAmount(int64 amount)
 
 void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
 {
+    int confirms = wtx.GetDepthInMainChain();
+    entry.push_back(Pair("confirmations", confirms));
+    if (wtx.IsCoinBase())
+        entry.push_back(Pair("generated", true));
+    if (confirms)
+    {
+        entry.push_back(Pair("blockhash", wtx.hashBlock.GetHex()));
+        entry.push_back(Pair("blockindex", wtx.nIndex));
+        entry.push_back(Pair("blocktime", (boost::int64_t)(mapBlockIndex[wtx.hashBlock]->nTime)));
+    }
+    entry.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    entry.push_back(Pair("time", (boost::int64_t)wtx.GetTxTime()));
+    entry.push_back(Pair("timereceived", (boost::int64_t)wtx.nTimeReceived));
+    BOOST_FOREACH(const PAIRTYPE(string,string)& item, wtx.mapValue)
+        entry.push_back(Pair(item.first, item.second));
+
+
+}
+/*
+void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
+{
     entry.push_back(Pair("confirmations", wtx.GetDepthInMainChain()));
     entry.push_back(Pair("txid", wtx.GetHash().GetHex()));
     entry.push_back(Pair("time", (boost::int64_t)wtx.GetTxTime()));
     BOOST_FOREACH(const PAIRTYPE(string,string)& item, wtx.mapValue)
         entry.push_back(Pair(item.first, item.second));
 }
-
+*/
 string AccountFromValue(const Value& value)
 {
     string strAccount = value.get_str();
@@ -1376,8 +1397,11 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
             if (wtx.IsGameTx())
                 entry.push_back(Pair("category", "game_reward"));
             else
-                entry.push_back(Pair("category", "generate"));
+            entry.push_back(Pair("category", "generate"));
             entry.push_back(Pair("amount", ValueFromAmount(nGeneratedMature)));
+//            entry.push_back(Pair("blockhash", wtx->GetBlockHash.GetHex()));
+//            entry.push_back(Pair("height",nHeight));
+
         }
         if (fLong)
             WalletTxToJSON(wtx, entry);
@@ -1472,6 +1496,71 @@ void AcentryToJSON(const CAccountingEntry& acentry, const string& strAccount, Ar
         ret.push_back(entry);
     }
 }
+
+
+Value listsinceblock(const Array& params, bool fHelp)
+{
+    if (fHelp)
+        throw runtime_error(
+            "listsinceblock [blockhash] [target-confirmations]\n"
+            "Get all transactions in blocks since block [blockhash], or all transactions if omitted");
+
+    CBlockIndex *pindex = NULL;
+    int target_confirms = 1;
+
+    if (params.size() > 0)
+    {
+        uint256 blockId = 0;
+
+        blockId.SetHex(params[0].get_str());
+        pindex = CBlockLocator(blockId).GetBlockIndex();
+    }
+
+    if (params.size() > 1)
+    {
+        target_confirms = params[1].get_int();
+
+        if (target_confirms < 1)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter");
+    }
+
+    int depth = pindex ? (1 + nBestHeight - pindex->nHeight) : -1;
+
+    Array transactions;
+
+    for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); it++)
+    {
+        CWalletTx tx = (*it).second;
+
+        if (depth == -1 || tx.GetDepthInMainChain() < depth)
+            ListTransactions(tx, "*", 0, true, transactions);
+    }
+
+    uint256 lastblock;
+    uint256 blockhash;
+
+    if (target_confirms == 1)
+    {
+        lastblock = hashBestChain;
+    }
+    else
+    {
+        int target_height = pindexBest->nHeight + 1 - target_confirms;
+
+        CBlockIndex *block;
+        for (block = pindexBest;
+             block && block->nHeight > target_height;
+             block = block->pprev)  { }
+
+        lastblock = block ? block->GetBlockHash() : 0;
+    }
+     
+    Object ret;
+    ret.push_back(Pair("transactions", transactions));
+    ret.push_back(Pair("lastblock", lastblock.GetHex()));
+    return ret;
+}
+
 
 Value listtransactions(const Array& params, bool fHelp)
 {
@@ -3161,6 +3250,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("sendmany",              &sendmany),
     make_pair("gettransaction",        &gettransaction),
     make_pair("listtransactions",      &listtransactions),
+    make_pair("listsinceblock",        &listsinceblock),
     make_pair("getwork",               &getwork),
     make_pair("getworkaux",            &getworkaux),
     make_pair("getauxblock",           &getauxblock),
@@ -3847,6 +3937,7 @@ void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
     if (strMethod == "sendfrom"               && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "sendfrom"               && n > 3) ConvertTo<boost::int64_t>(params[3]);
     if (strMethod == "listtransactions"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "listsinceblock"         && n > 1) ConvertTo<boost::int64_t>(params[1]);    
     if (strMethod == "listtransactions"       && n > 2) ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "walletpassphrase"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getworkaux"             && n > 2) ConvertTo<boost::int64_t>(params[2]);
