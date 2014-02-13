@@ -426,6 +426,9 @@ void NameTableModel::updateGameState()
         emit dataChanged(index(0, Address), index(priv->size() - 1, Address));
 }
 
+// Caution: this won't work with deleted transactions as it's impossible to get name from them.
+// You must save name before deletion, then call refreshName instead.
+//
 void NameTableModel::updateTransaction(const QString &hash, int status)
 {
     uint256 hash256;
@@ -433,7 +436,7 @@ void NameTableModel::updateTransaction(const QString &hash, int status)
 
     CTransaction tx;
     std::vector<unsigned char> vchName;
-
+    
     {
         LOCK(wallet->cs_wallet);
 
@@ -464,6 +467,12 @@ void NameTableModel::updateTransaction(const QString &hash, int status)
     if (!GetNameOfTx(tx, vchName))
         return;   // Non-name transaction
 
+    priv->refreshName(vchName);
+}
+
+// Alternative for updateTransaction that accepts a name instead of tx-hash
+void NameTableModel::refreshName(const std::vector<unsigned char> &vchName)
+{
     priv->refreshName(vchName);
 }
 
@@ -577,7 +586,6 @@ Qt::ItemFlags NameTableModel::flags(const QModelIndex &index) const
 {
     if (!index.isValid())
         return 0;
-    //NameTableEntry *rec = static_cast<NameTableEntry*>(index.internalPointer());
 
     return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 }

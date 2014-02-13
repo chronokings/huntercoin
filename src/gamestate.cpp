@@ -232,15 +232,29 @@ bool Move::Parse(const PlayerID &player, const std::string &json)
 
 void Move::ApplyCommon(GameState &state) const
 {
+    std::map<PlayerID, PlayerState>::iterator mi = state.players.find(player);
+
+    if (mi == state.players.end())
+    {
+        if (message)
+        {
+            PlayerState &pl = state.dead_players_chat[player];
+            pl.message = *message;
+            pl.message_block = state.nHeight;
+        }
+        return;
+    }
+
+    PlayerState &pl = mi->second;
     if (message)
     {
-        state.players[player].message = *message;
-        state.players[player].message_block = state.nHeight;
+        pl.message = *message;
+        pl.message_block = state.nHeight;
     }
     if (address)
-        state.players[player].address = *address;
+        pl.address = *address;
     if (addressLock)
-        state.players[player].addressLock = *addressLock;
+        pl.addressLock = *addressLock;
 }
 
 std::string Move::AddressOperationPermission(const GameState &state) const
@@ -472,7 +486,7 @@ void PlayerState::SpawnCharacter(RandomGenerator &rnd)
     characters[next_character_index++].Spawn(color, rnd);
 }
 
-json_spirit::Value PlayerState::ToJsonValue(int crown_index) const
+json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = false*/) const
 {
     using namespace json_spirit;
 
@@ -483,10 +497,20 @@ json_spirit::Value PlayerState::ToJsonValue(int crown_index) const
         obj.push_back(Pair("msg", message));
         obj.push_back(Pair("msg_block", message_block));
     }
-    if (!address.empty())
-        obj.push_back(Pair("address", address));
-    if (!addressLock.empty())
-        obj.push_back(Pair("addressLock", address));
+
+    if (!dead)
+    {
+        if (!address.empty())
+            obj.push_back(Pair("address", address));
+        if (!addressLock.empty())
+            obj.push_back(Pair("addressLock", address));
+    }
+    else
+    {
+        // Note: not all dead players are listed - only those who sent chat messages in their last move
+        assert(characters.empty());
+        obj.push_back(Pair("dead", 1));
+    }
 
     BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, characters)
     {
@@ -528,10 +552,27 @@ json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
 
 GameState::GameState()
 {
+    nVersion = VERSION;
     crownPos.x = CROWN_START_X;
     crownPos.y = CROWN_START_Y;
     nHeight = -1;
     hashBlock = 0;
+}
+
+void GameState::UpdateVersion()
+{
+    if (nVersion < 1000500)
+    {
+        std::set<PlayerID> toErase;
+
+        // Erase dead players (note: during upgrade their chat messages are lost, need to delete&rescan game.dat to recover them)
+        BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
+            if (p.second.characters.empty())
+                toErase.insert(p.first);
+        BOOST_FOREACH(const PlayerID &p, toErase)
+            players.erase(p);
+    }
+    nVersion = VERSION;
 }
 
 json_spirit::Value GameState::ToJsonValue() const
@@ -546,6 +587,11 @@ json_spirit::Value GameState::ToJsonValue() const
         int crown_index = p.first == crownHolder.player ? crownHolder.index : -1;
         subobj.push_back(Pair(p.first, p.second.ToJsonValue(crown_index)));
     }
+
+    // Save chat messages of dead players
+    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, dead_players_chat)
+        subobj.push_back(Pair(p.first, p.second.ToJsonValue(-1, true)));
+
     obj.push_back(Pair("players", subobj));
 
     Array arr;
@@ -840,6 +886,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     outState.nHeight = inState.nHeight + 1;
     outState.hashBlock = stepData.newHash;
+    outState.dead_players_chat.clear();
 
     stepResult = StepResult();
 
@@ -1038,6 +1085,15 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     // Apply address & message updates
     BOOST_FOREACH(const Move &m, stepData.vMoves)
         m.ApplyCommon(outState);
+
+    // Set colors for dead players, so their messages can be shown in the chat window
+    BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.dead_players_chat)
+    {
+        std::map<PlayerID, PlayerState>::const_iterator mi = inState.players.find(p.first);
+        assert(mi != inState.players.end());
+        const PlayerState &pl = mi->second;
+        p.second.color = pl.color;
+    }
 
     int64 nCrownBonus = CROWN_BONUS * stepData.nTreasureAmount / TOTAL_HARVEST;
 

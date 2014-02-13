@@ -31,4 +31,6 @@ const Game::GameState &GetCurrentGameState();
 // no longer valid for the current game state
 void EraseBadMoveTransactions();
 
+bool UpgradeGameDB();
+
 #endif // GAMEDB_H

@@ -835,3 +835,74 @@ void WalletModel::UnlockContext::CopyFrom(const UnlockContext& rhs)
     *this = rhs;
     rhs.relock = false;
 }
+
+bool WalletModel::DeleteTransaction(const QString &strHash, QString &retMsg)
+{
+    uint256 hash;
+    hash.SetHex(strHash.toStdString());
+
+    CRITICAL_BLOCK(cs_main)
+    CRITICAL_BLOCK(wallet->cs_mapWallet)
+    {
+        if (!wallet->mapWallet.count(hash))
+        {
+            retMsg = tr("FAILED: transaction not in wallet");
+            return false;
+        }
+
+        if (!mapTransactions.count(hash))
+        {
+            CTransaction tx;
+            uint256 hashBlock = 0;
+            if (GetTransaction(hash, tx, hashBlock /*, true*/) && hashBlock != 0)
+            {
+                retMsg = tr("FAILED: transaction is already in block (%1)").arg(QString::fromStdString(hashBlock.GetHex()));
+                return false;
+            }
+        }
+        CWalletTx wtx = wallet->mapWallet[hash];
+        UnspendInputs(wtx);
+
+        // We are not removing from mapTransactions because this can cause memory corruption
+        // during mining. The user should restart to clear the tx from memory.
+        wtx.RemoveFromMemoryPool();
+        wallet->EraseFromWallet(wtx.GetHash());
+
+        std::vector<unsigned char> vchName;
+        if (GetNameOfTx(wtx, vchName) && mapNamePending.count(vchName))
+        {
+            mapNamePending[vchName].erase(wtx.GetHash());
+
+            if (nameTableModel)
+                nameTableModel->refreshName(vchName);
+
+            retMsg = tr("Success, removed from pending");
+        }
+        else
+            retMsg = tr("Success");
+
+        return true;
+    }
+}
+
+bool WalletModel::RebroadcastTransaction(const QString &strHash, QString &retMsg)
+{
+    uint256 hash;
+    hash.SetHex(strHash.toStdString());
+
+    CTransaction tx;
+    uint256 hashBlock = 0;
+    if (!GetTransaction(hash, tx, hashBlock /*, true*/))
+    {
+        retMsg = tr("FAILED: no information available about transaction");
+        return false;
+    }
+    if (hashBlock != 0)
+    {
+        retMsg = tr("FAILED: transaction is already in block (%1)").arg(QString::fromStdString(hashBlock.GetHex()));
+        return false;
+    }
+    RelayMessage(CInv(MSG_TX, hash), tx);
+    retMsg = tr("Success");
+    return true;
+}

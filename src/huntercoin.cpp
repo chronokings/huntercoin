@@ -1367,12 +1367,10 @@ void UnspendInputs(CWalletTx& wtx)
             prev.fAvailableCreditCached = false;
             prev.WriteToDisk();
         }
-#ifdef GUI
-        //pwalletMain->vWalletUpdated.push_back(prev.GetHash());
-        pwalletMain->NotifyTransactionChanged(pwalletMain, prev.GetHash(), CT_DELETED);
-
-#endif
     }
+#ifdef GUI
+    pwalletMain->NotifyTransactionChanged(pwalletMain, wtx.GetHash(), CT_DELETED);
+#endif
 }
 
 Value deletetransaction(const Array& params, bool fHelp)

@@ -141,6 +141,9 @@ public:
 
     UnlockContext requestUnlock();
 
+    bool DeleteTransaction(const QString &strHash, QString &retMsg);
+    bool RebroadcastTransaction(const QString &strHash, QString &retMsg);
+
 private:
     CWallet *wallet;
 

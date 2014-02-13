@@ -560,6 +560,64 @@ bool CTxDB::LoadBlockIndex()
     return true;
 }
 
+// Fix a bug in CDiskTxPos where nBlockFile was uninitialized. As of now we can safely set nBlockFile = 1.
+bool CTxDB::FixTxIndexBug()
+{
+    // Get database cursor
+    Dbc* pcursor = GetCursor();
+    if (!pcursor)
+        return false;
+
+    // All updates are saved to map, because the db cursor implementation here is read-only
+    std::map<uint256, CTxIndex> mapUpdate;
+
+    unsigned int fFlags = DB_SET_RANGE;
+    loop
+    {
+        // Read next record
+        CDataStream ssKey;
+        if (fFlags == DB_SET_RANGE)
+            ssKey << make_pair(string("tx"), uint256(0));
+        CDataStream ssValue;
+        int ret = ReadAtCursor(pcursor, ssKey, ssValue, fFlags);
+        fFlags = DB_NEXT;
+        if (ret == DB_NOTFOUND)
+            break;
+        else if (ret != 0)
+            return false;
+
+        // Deserialize
+        string strType;
+        ssKey >> strType;
+        if (strType == "tx")
+        {
+            uint256 hash;
+            ssKey >> hash;
+            CTxIndex txindex;
+            ssValue >> txindex;
+            if (txindex.pos.nBlockFile != 1 && txindex.pos.nTxFile == 1)
+            {
+                // Fix. Will become invalid when blk0001.dat comes to an end and blk0002.dat takes over.
+                txindex.pos.nBlockFile = 1;
+                mapUpdate[hash] = txindex;
+            }
+        }
+        else
+            break;
+    }
+    pcursor->close();
+
+    BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& item, mapUpdate)
+        if (!UpdateTxIndex(item.first, item.second))
+            return error("FixTxIndexBug: UpdateTxIndex failed");
+
+    if (!mapUpdate.empty())
+        printf("FixTxIndexBug updated %d transactions\n", mapUpdate.size());
+
+    if (!WriteVersion(VERSION))
+        return error("FixTxIndexBug: WriteVersion failed");
+}
+
 
 
 

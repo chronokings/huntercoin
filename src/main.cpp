@@ -854,7 +854,7 @@ const CBlockIndex* GetLastBlockIndexForAlgo(const CBlockIndex* pindex, int algo)
 unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast, int algo)
 {
     if (pindexLast == NULL)
-        return bnProofOfWorkLimit[algo].GetCompact(); // genesis block
+        return bnInitialHashTarget[algo].GetCompact(); // genesis block
 
     const CBlockIndex* pindexPrev = GetLastBlockIndex(pindexLast, algo);
     if (pindexPrev->pprev == NULL)
@@ -1192,7 +1192,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
             if (nTxFee < 0)
                 return error("ConnectInputs() : %s nTxFee < 0", GetHash().ToString().substr(0,10).c_str());
             if (nTxFee < nMinFee)
-                return false;
+                return error("ConnectInputs() : %s nTxFee < nMinFee", GetHash().ToString().substr(0,10).c_str());;
             nFees += nTxFee;
             if (!MoneyRange(nFees))
                 return error("ConnectInputs() : nFees out of range");
@@ -1270,6 +1270,11 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     for (int i = vgametx.size()-1; i >= 0; i--)
         if (!vgametx[i].DisconnectInputs(txdb, pindex))
             return false;
+
+    // FIXME: if in the same block a player made a move and died, the vgametx.DisconnectInputs call above
+    // will delete both entries from the name index (because it scans by block height).
+    // The call to vtx.DisconnectInputs below will print a warning to debug.log then.
+
     for (int i = vtx.size()-1; i >= 0; i--)
         if (!vtx[i].DisconnectInputs(txdb, pindex))
             return false;
@@ -1310,6 +1315,8 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
             return false;
     }
 
+    int64 nFeesBeforeTax = nFees;
+
     // This call updates the game state and creates vgametx
     if (!hooks->ConnectBlock(*this, txdb, pindex, nFees, nTxPos))
         return error("ConnectBlock() : hook failed");
@@ -1317,7 +1324,14 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     // nFees may include taxes from the game, so we check it after creating game transactions
 
     if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
+    {
+	printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
+        printf("  vtx[0].GetValueOut() = %s\n", FormatMoney(vtx[0].GetValueOut()).c_str());
+        printf("  GetBlockValue(pindex->nHeight, nFees) = %s\n", FormatMoney(GetBlockValue(pindex->nHeight, nFees)).c_str());
+        printf("  nFees = %s\n", FormatMoney(nFees).c_str());
+        printf("  nFeesBeforeTax = %s\n", FormatMoney(nFeesBeforeTax).c_str());
         return false;
+    }
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -1926,6 +1940,8 @@ bool LoadBlockIndex(bool fAllowNew)
 
     hooks->MessageStart(pchMessageStart);
 
+    int nTxDbVersion = VERSION;
+
     //
     // Load block index
     //
@@ -1933,7 +1949,16 @@ bool LoadBlockIndex(bool fAllowNew)
         CTxDB txdb("cr");
         if (!txdb.LoadBlockIndex())
             return false;
+        txdb.ReadVersion(nTxDbVersion);
         txdb.Close();
+    }
+
+    if (nTxDbVersion < 1000400)
+    {
+        CTxDB txdb("r+");
+        printf("FixTxIndexBug...\n");
+        if (!txdb.FixTxIndexBug())
+            printf("FixTxIndexBug failed\n");
     }
 
     //

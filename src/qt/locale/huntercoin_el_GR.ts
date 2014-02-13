@@ -1194,13 +1194,12 @@ Leave empty, if not needed.</source>
     </message>
     <message>
         <location line="+18"/>
-        <source>New player cost: 1 HUC + fee (0.005)
-Player starts with 3 characters (general + two hunters),
-collect hearts for more characters (up to 20).</source>
+        <source>New player cost: 1 HUC + fee (0.005).
+Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+4"/>
         <source>New player cost: 1 HUC + fee (0.005)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1293,7 +1292,7 @@ collect hearts for more characters (up to 20).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+105"/>
+        <location line="+114"/>
         <source>Pending (new)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1340,7 +1339,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-165"/>
+        <location line="-174"/>
         <source>Address</source>
         <translation type="unfinished">Διεύθυνση</translation>
     </message>
@@ -2536,7 +2535,7 @@ Note: rewards can go to another address, if specified in the player profile</sou
 <context>
     <name>TransactionView</name>
     <message>
-        <location filename="../transactionview.cpp" line="+52"/>
+        <location filename="../transactionview.cpp" line="+53"/>
         <location line="+16"/>
         <source>All</source>
         <translation>Όλα</translation>
@@ -2647,7 +2646,17 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation>Εμφάνιση λεπτομερειών συναλλαγής</translation>
     </message>
     <message>
-        <location line="+137"/>
+        <location line="+1"/>
+        <source>Delete transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Rebroadcast transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+142"/>
         <source>Export Transaction Data</source>
         <translation>Εξαγωγή Στοιχείων Συναλλαγών</translation>
     </message>
@@ -2711,6 +2720,21 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <source>to</source>
         <translation>έως</translation>
     </message>
+    <message>
+        <location line="+62"/>
+        <source>Program restart is recommended (to clear memory pool).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Delete transaction(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+23"/>
+        <source>Rebroadcast transaction(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>WalletModel</name>
@@ -2735,7 +2759,34 @@ Note: rewards can go to another address, if specified in the player profile</sou
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-27"/>
+        <location line="+185"/>
+        <source>FAILED: transaction not in wallet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <location line="+43"/>
+        <source>FAILED: transaction is already in block (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="-23"/>
+        <source>Success, removed from pending</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <location line="+24"/>
+        <source>Success</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="-9"/>
+        <source>FAILED: no information available about transaction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="-260"/>
         <source>There are pending operations on that name</source>
         <translation type="unfinished"></translation>
     </message>

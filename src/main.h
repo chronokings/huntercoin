@@ -179,7 +179,7 @@ public:
 
     CDiskTxPos(unsigned int nBlockFileIn, unsigned int nBlockPosIn, unsigned int nTxFileIn, unsigned int nTxPosIn)
     {
-        nBlockFile = nBlockFile;
+        nBlockFile = nBlockFileIn;
         nBlockPos = nBlockPosIn;
         nTxFile = nTxFileIn;
         nTxPos = nTxPosIn;
@@ -1038,13 +1038,13 @@ public:
             printf("%s ", vMerkleTree[i].ToString().substr(0,10).c_str());
         if (!vgametx.empty())
         {
-            printf("  vgametx: ");
+            printf("\n  vgametx: ");
             for (int i = 0; i < vgametx.size(); i++)
             {
                 printf("  ");
                 vgametx[i].print();
             }
-            printf("\n  vGameMerkleTree (hashGameMerkleRoot=%s): ", hashGameMerkleRoot.ToString().substr(0,10).c_str());
+            printf("  vGameMerkleTree (hashGameMerkleRoot=%s): ", hashGameMerkleRoot.ToString().substr(0,10).c_str());
             for (int i = 0; i < vGameMerkleTree.size(); i++)
                 printf("%s ", vGameMerkleTree[i].ToString().substr(0,10).c_str());
         }
