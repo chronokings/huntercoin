@@ -19,6 +19,9 @@
 #include <cmath>
 
 #include <QMessageBox>
+//      QMessageBox msgBox;
+//       msgBox.setText("The document has been modified.");
+//       msgBox.exec();
 
 using namespace Game;
 
@@ -463,7 +466,15 @@ GameMapView::GameMapView(QWidget *parent)
     mouseCoordsText->setPlainText(QString("%1,%2").arg(0).arg(0));
     scene->addItem(mouseCoordsText);
 
+
+//    mousePos = new QGraphicsTextItem;
+//    mousePos->setPos(0,0);
+//    mousePos->setPlainText(QString("%1,%2").arg(0,0));
+//    scene->addItem(mousePos);
+
     crownShown = false;
+    myPgShown = false;
+
 }
 
 GameMapView::~GameMapView()
@@ -555,7 +566,7 @@ void GameMapView::updateGameMap(const GameState &gameState)
     }
 
 
-    if(crownShown == true)
+	if(crownShown == true)
     {
       Game::GameState gameState = GetCurrentGameState();
       std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
@@ -570,6 +581,9 @@ void GameMapView::updateGameMap(const GameState &gameState)
         //scene->addItem(crownMarker);
       }
     }
+
+
+    updateMyPg();
 
     //scene->invalidate();
     repaint(rect());
@@ -709,6 +723,73 @@ void GameMapView::showCrown()
 
 }
 
+void GameMapView::showMyPg(std::vector<std::string> mpgn)
+{
+    if(this->myPgNames.size() > 0)
+        myPgNames.clear();
+    myPgNames.reserve(mpgn.size());
+    myPgNames.insert(myPgNames.end(), mpgn.begin(), mpgn.end());
+    myPgShown = !myPgShown;
+
+    for(int i = 0; i<this->myPgRects.size(); i++)
+    {
+      scene->removeItem(this->myPgRects[i]);
+    }
+    if(this->myPgRects.size() > 0)
+      this->myPgRects.clear();
+
+    updateMyPg();
+
+
+}
+
+void GameMapView::updateMyPg()
+{
+
+    Game::GameState gameState = GetCurrentGameState();
+
+    if(myPgShown == true)
+    {
+        for(int i = 0; i<this->myPgRects.size(); i++)
+        {
+            scene->removeItem(this->myPgRects[i]);
+        }
+        if(this->myPgRects.size() > 0)
+            this->myPgRects.clear();
+
+        for(int i = 0; i<myPgNames.size(); i++)
+        {
+          std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(myPgNames[i]);
+          if(mi != gameState.players.end())
+          {
+                const PlayerState &pl = mi->second;
+                for (std::map<int, CharacterState>::const_iterator mi2 = pl.characters.begin(); mi2 != pl.characters.end(); mi2++)
+                {
+
+                    const CharacterState &characterState = mi2->second;
+                    const Coord &coord = characterState.coord;
+                    CharacterID chid(mi->first, mi2->first);
+
+                    int x = coord.x;
+                    int y = coord.y;
+                    QGraphicsRectItem * rect = new QGraphicsRectItem(x*TILE_SIZE,y*TILE_SIZE+4,20/zoomFactor,20/zoomFactor);
+                    if (pl.color == 0)
+                        rect->setBrush(QBrush(Qt::darkYellow));
+                    else if (pl.color == 1)
+                        rect->setBrush(QBrush(Qt::darkRed));
+                    else if (pl.color == 2)
+                        rect->setBrush(QBrush(Qt::darkGreen));
+                    else if (pl.color == 3)
+                        rect->setBrush(QBrush(Qt::darkBlue));
+
+                    rect->setZValue(1e12);
+                    scene->addItem(rect);
+                    this->myPgRects.push_back(rect);
+                }
+            }
+        }
+    }
+}
 
 const static double MIN_ZOOM = 0.1;
 const static double MAX_ZOOM = 2.0;

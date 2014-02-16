@@ -306,6 +306,10 @@ void BitcoinGUI::createActions()
     showCrownAction->setStatusTip(tr("Show or unshow the crown holder marker"));
     showCrownAction->setToolTip(showCrownAction->statusTip());
 
+    showMyPgAction = new QAction(QIcon(":/gamemap/sprites/2_1"), tr("&My Chars"), this);
+    showMyPgAction->setStatusTip(tr("Show or unshow own PG positions"));
+    showMyPgAction->setToolTip(showMyPgAction->statusTip());
+
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
@@ -318,6 +322,7 @@ void BitcoinGUI::createActions()
     connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
 
     connect(showCrownAction, SIGNAL(triggered()), this, SLOT(showCrown()));
+    connect(showMyPgAction, SIGNAL(triggered()), this, SLOT(showMyPg()));
 }
 
 void BitcoinGUI::createMenuBar()
@@ -371,6 +376,7 @@ void BitcoinGUI::createToolBars()
     QToolBar *toolbar3 = addToolBar(tr("Game toolbar"));
     toolbar3->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     toolbar3->addAction(showCrownAction);
+    toolbar3->addAction(showMyPgAction);
 }
 
 void BitcoinGUI::setClientModel(ClientModel *clientModel)
@@ -799,6 +805,12 @@ void BitcoinGUI::showCrown()
 //  msgBox.setText(QString("crown holder: %1").arg(QString::fromStdString(state.crownHolder.player)));
 //  msgBox.exec();
 
+
+}
+
+void BitcoinGUI::showMyPg()
+{
+  manageNamesPage->showMyPg();
 
 }
 

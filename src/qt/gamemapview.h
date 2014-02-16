@@ -35,6 +35,8 @@ public:
     void DeselectPlayer();
 
     void showCrown();
+    void showMyPg(std::vector<std::string>);
+    void updateMyPg();
 
     const GameGraphicsObjects *grobjs;
 
@@ -59,6 +61,10 @@ protected:
     bool crownShown;
     QPixmap* crownPixmapObject;
     QGraphicsPixmapItem *crownMarker;
+    bool myPgShown;
+    std::vector<std::string> myPgNames;
+    std::vector<QGraphicsRectItem * > myPgRects;
+
 
     virtual void mousePressEvent(QMouseEvent *event);
     virtual void mouseReleaseEvent(QMouseEvent *event);

@@ -37,6 +37,7 @@ public:
     void setModel(WalletModel *walletModel);
 
     void showCrown();
+    void showMyPg();
 
 private:
     Ui::ManageNamesPage *ui;

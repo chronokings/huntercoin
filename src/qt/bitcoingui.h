@@ -81,6 +81,7 @@ private:
     QAction *addressBookAction;
 
     QAction *showCrownAction;
+    QAction *showMyPgAction;
 
     QAction *signMessageAction;
     QAction *verifyMessageAction;
@@ -161,6 +162,8 @@ private slots:
 
     /**Show crown position */
     void showCrown();
+    /**Show own Pg positions */
+    void showMyPg();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");
