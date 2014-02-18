@@ -382,7 +382,7 @@ ManageNamesPage::~ManageNamesPage()
 
 void ManageNamesPage::showCrown()
 {
-    this->gameMapView->showCrown();
+    this->gameMapView->showCrown(gameState);
 }
 
 void ManageNamesPage::showMyPg()
@@ -393,7 +393,7 @@ void ManageNamesPage::showMyPg()
         QModelIndex index = model->index(i, NameTableModel::Name);
         myPgNames.push_back(index.data(Qt::DisplayRole).toString().toStdString());
     }
-    this->gameMapView->showMyPg(myPgNames);
+    this->gameMapView->showMyPg(myPgNames, gameState);
 }
 
 void ManageNamesPage::setModel(WalletModel *walletModel)

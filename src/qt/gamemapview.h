@@ -34,9 +34,9 @@ public:
     void CenterMapOnCharacter(const Game::CharacterState &state);
     void DeselectPlayer();
 
-    void showCrown();
-    void showMyPg(std::vector<std::string>);
-    void updateMyPg();
+    void showCrown(Game::GameState state);
+    void showMyPg(std::vector<std::string>mpng, Game::GameState state);
+    void updateMyPg(Game::GameState state);
 
     const GameGraphicsObjects *grobjs;
 
