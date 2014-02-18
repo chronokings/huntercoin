@@ -583,7 +583,7 @@ void GameMapView::updateGameMap(const GameState &gameState)
     }
 
 
-    updateMyPg();
+    updateMyPg(gameState);
 
     //scene->invalidate();
     repaint(rect());
@@ -677,9 +677,8 @@ void GameMapView::DeselectPlayer()
         setCursor(Qt::ArrowCursor);
 }
 
-void GameMapView::showCrown()
+void GameMapView::showCrown(Game::GameState gameState)
 {
-    Game::GameState state = GetCurrentGameState();
 
     crownShown = !crownShown;
     QMessageBox msgBox;
@@ -690,7 +689,6 @@ void GameMapView::showCrown()
         markerString = tr("Marker ON");
         crownPixmapObject = new QPixmap(":/gamemap/sprites/crown");
         crownMarker = new QGraphicsPixmapItem();
-        Game::GameState gameState = GetCurrentGameState();
         std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
         if(mi != gameState.players.end())
         {
@@ -700,6 +698,7 @@ void GameMapView::showCrown()
           const Coord &coord = characterState.coord;
           crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
           crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+          crownMarker->setZValue(1e11);
           scene->addItem(crownMarker);
         }
     }
@@ -707,23 +706,24 @@ void GameMapView::showCrown()
     {
         scene->removeItem(crownMarker);
         markerString = tr("Marker OFF");
+		delete crownMarker;
     }
 
-    if(state.crownHolder.index == -1)
+    if(gameState.crownHolder.index == -1)
     {
         msgBox.setText(tr("Nobody is wearing the crown\n%1").arg(markerString));
     }
     else
     {
         QString showCrownText = tr("Crown Holder: ");
-        msgBox.setText(QString("%1%2%3 \n    x:%4,y:%5\n%6").arg(showCrownText).arg(QString::fromStdString(state.crownHolder.player+".")).arg(state.crownHolder.index).arg(state.crownPos.x).arg(state.crownPos.y).arg(markerString));
+        msgBox.setText(QString("%1%2%3 \n    x:%4,y:%5\n%6").arg(showCrownText).arg(QString::fromStdString(gameState.crownHolder.player+".")).arg(gameState.crownHolder.index).arg(gameState.crownPos.x).arg(gameState.crownPos.y).arg(markerString));
     }
 
     msgBox.exec();
 
 }
 
-void GameMapView::showMyPg(std::vector<std::string> mpgn)
+void GameMapView::showMyPg(std::vector<std::string> mpgn, Game::GameState gameState)
 {
     if(this->myPgNames.size() > 0)
         myPgNames.clear();
@@ -731,31 +731,23 @@ void GameMapView::showMyPg(std::vector<std::string> mpgn)
     myPgNames.insert(myPgNames.end(), mpgn.begin(), mpgn.end());
     myPgShown = !myPgShown;
 
-    for(int i = 0; i<this->myPgRects.size(); i++)
-    {
-      scene->removeItem(this->myPgRects[i]);
-    }
-    if(this->myPgRects.size() > 0)
-      this->myPgRects.clear();
-
-    updateMyPg();
-
+    updateMyPg(gameState);
 
 }
 
-void GameMapView::updateMyPg()
+void GameMapView::updateMyPg(Game::GameState gameState)
 {
-
-    Game::GameState gameState = GetCurrentGameState();
+	for(int i = 0; i<this->myPgRects.size(); i++)
+	{
+		scene->removeItem(this->myPgRects[i]);
+		delete this->myPgRects[i];
+	}
+	if(this->myPgRects.size() > 0)
+		this->myPgRects.clear();
 
     if(myPgShown == true)
     {
-        for(int i = 0; i<this->myPgRects.size(); i++)
-        {
-            scene->removeItem(this->myPgRects[i]);
-        }
-        if(this->myPgRects.size() > 0)
-            this->myPgRects.clear();
+        
 
         for(int i = 0; i<myPgNames.size(); i++)
         {
@@ -839,6 +831,7 @@ void GameMapView::mouseMoveEvent(QMouseEvent *event)
     if (IsInsideMap(x, y))
     {
       scene->removeItem(mouseCoordsText);
+      delete mouseCoordsText;
       mouseCoordsText = new QGraphicsTextItem();
       QFont font;
       font.setPixelSize(20/zoomFactor);
