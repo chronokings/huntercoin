@@ -34,6 +34,10 @@ public:
     void CenterMapOnCharacter(const Game::CharacterState &state);
     void DeselectPlayer();
 
+    void showCrown(Game::GameState state);
+    void showMyPg(std::vector<std::string>mpng, Game::GameState state);
+    void updateMyPg(Game::GameState state);
+
     const GameGraphicsObjects *grobjs;
 
 public slots:
@@ -52,6 +56,15 @@ protected:
     QGraphicsScene *scene;
     QGraphicsPixmapItem *crown;
     double zoomFactor;
+
+    QGraphicsTextItem * mouseCoordsText;
+    bool crownShown;
+    QPixmap* crownPixmapObject;
+    QGraphicsPixmapItem *crownMarker;
+    bool myPgShown;
+    std::vector<std::string> myPgNames;
+    std::vector<QGraphicsRectItem * > myPgRects;
+
 
     virtual void mousePressEvent(QMouseEvent *event);
     virtual void mouseReleaseEvent(QMouseEvent *event);

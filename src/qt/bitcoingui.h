@@ -79,6 +79,10 @@ private:
     QAction *sendCoinsAction;
     QAction *manageNamesAction;
     QAction *addressBookAction;
+
+    QAction *showCrownAction;
+    QAction *showMyPgAction;
+
     QAction *signMessageAction;
     QAction *verifyMessageAction;
     QAction *aboutAction;
@@ -155,6 +159,11 @@ private slots:
     void gotoSendCoinsPage(QString addr = "");
     /** Switch to manage names page */
     void gotoManageNamesPage();
+
+    /**Show crown position */
+    void showCrown();
+    /**Show own Pg positions */
+    void showMyPg();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

@@ -229,6 +229,8 @@ public:
         setStyleSheet("QTabBar { font-weight: bold }");
 
         CreateTabs();
+        
+        this->setMaximumSize(500, 100);
     }
 
     void EmitSelect()
@@ -378,6 +380,22 @@ ManageNamesPage::~ManageNamesPage()
 {
     delete ui;
     delete characterTableModel;
+}
+
+void ManageNamesPage::showCrown()
+{
+    this->gameMapView->showCrown(gameState);
+}
+
+void ManageNamesPage::showMyPg()
+{
+    std::vector<std::string> myPgNames;
+    for (int i = 0, n = model->rowCount(); i < n; i++)
+    {
+        QModelIndex index = model->index(i, NameTableModel::Name);
+        myPgNames.push_back(index.data(Qt::DisplayRole).toString().toStdString());
+    }
+    this->gameMapView->showMyPg(myPgNames, gameState);
 }
 
 void ManageNamesPage::setModel(WalletModel *walletModel)

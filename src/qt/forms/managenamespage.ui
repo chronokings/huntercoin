@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>688</width>
-    <height>432</height>
+    <width>500</width>
+    <height>425</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Game</string>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,0">
+  <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,0">
    <property name="sizeConstraint">
     <enum>QLayout::SetDefaultConstraint</enum>
    </property>

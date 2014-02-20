@@ -4,6 +4,8 @@
 #include "../gamemap.h"
 #include "../util.h"
 
+#include "../gamedb.h"
+
 #include <QImage>
 #include <QGraphicsItem>
 #include <QGraphicsSimpleTextItem>
@@ -15,6 +17,11 @@
 
 #include <boost/foreach.hpp>
 #include <cmath>
+
+#include <QMessageBox>
+//      QMessageBox msgBox;
+//       msgBox.setText("The document has been modified.");
+//       msgBox.exec();
 
 using namespace Game;
 
@@ -453,6 +460,21 @@ GameMapView::GameMapView(QWidget *parent)
     crown->hide();
     crown->setOffset(CROWN_START_X * TILE_SIZE, CROWN_START_Y * TILE_SIZE);
     crown->setZValue(0.3);
+
+    mouseCoordsText = new QGraphicsTextItem();
+    mouseCoordsText->setPos(0,0);
+    mouseCoordsText->setPlainText(QString("%1,%2").arg(0).arg(0));
+    scene->addItem(mouseCoordsText);
+
+
+//    mousePos = new QGraphicsTextItem;
+//    mousePos->setPos(0,0);
+//    mousePos->setPlainText(QString("%1,%2").arg(0,0));
+//    scene->addItem(mousePos);
+
+    crownShown = false;
+    myPgShown = false;
+
 }
 
 GameMapView::~GameMapView()
@@ -542,6 +564,26 @@ void GameMapView::updateGameMap(const GameState &gameState)
         crown->show();
         crown->setOffset(gameState.crownPos.x * TILE_SIZE, gameState.crownPos.y * TILE_SIZE);
     }
+
+
+	if(crownShown == true)
+    {
+      Game::GameState gameState = GetCurrentGameState();
+      std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
+      if(mi != gameState.players.end())
+      {
+        const PlayerState &pl = mi->second;
+        std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(gameState.crownHolder.index);
+        const CharacterState &characterState = mi2->second;
+        const Coord &coord = characterState.coord;
+        crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
+        crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+        //scene->addItem(crownMarker);
+      }
+    }
+
+
+    updateMyPg(gameState);
 
     //scene->invalidate();
     repaint(rect());
@@ -635,6 +677,112 @@ void GameMapView::DeselectPlayer()
         setCursor(Qt::ArrowCursor);
 }
 
+void GameMapView::showCrown(Game::GameState gameState)
+{
+
+    crownShown = !crownShown;
+    QMessageBox msgBox;
+    QString markerString = "";
+
+    if(crownShown == true)
+    {
+        markerString = tr("Marker ON");
+        crownPixmapObject = new QPixmap(":/gamemap/sprites/crown");
+        crownMarker = new QGraphicsPixmapItem();
+        std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
+        if(mi != gameState.players.end())
+        {
+          const PlayerState &pl = mi->second;
+          std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(gameState.crownHolder.index);
+          const CharacterState &characterState = mi2->second;
+          const Coord &coord = characterState.coord;
+          crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
+          crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+          crownMarker->setZValue(1e11);
+          scene->addItem(crownMarker);
+        }
+    }
+    else
+    {
+        scene->removeItem(crownMarker);
+        markerString = tr("Marker OFF");
+		delete crownMarker;
+    }
+
+    if(gameState.crownHolder.index == -1)
+    {
+        msgBox.setText(tr("Nobody is wearing the crown\n%1").arg(markerString));
+    }
+    else
+    {
+        QString showCrownText = tr("Crown Holder: ");
+        msgBox.setText(QString("%1%2%3 \n    x:%4,y:%5\n%6").arg(showCrownText).arg(QString::fromStdString(gameState.crownHolder.player+".")).arg(gameState.crownHolder.index).arg(gameState.crownPos.x).arg(gameState.crownPos.y).arg(markerString));
+    }
+
+    msgBox.exec();
+
+}
+
+void GameMapView::showMyPg(std::vector<std::string> mpgn, Game::GameState gameState)
+{
+    if(this->myPgNames.size() > 0)
+        myPgNames.clear();
+    myPgNames.reserve(mpgn.size());
+    myPgNames.insert(myPgNames.end(), mpgn.begin(), mpgn.end());
+    myPgShown = !myPgShown;
+
+    updateMyPg(gameState);
+
+}
+
+void GameMapView::updateMyPg(Game::GameState gameState)
+{
+	for(int i = 0; i<this->myPgRects.size(); i++)
+	{
+		scene->removeItem(this->myPgRects[i]);
+		delete this->myPgRects[i];
+	}
+	if(this->myPgRects.size() > 0)
+		this->myPgRects.clear();
+
+    if(myPgShown == true)
+    {
+        
+
+        for(int i = 0; i<myPgNames.size(); i++)
+        {
+          std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(myPgNames[i]);
+          if(mi != gameState.players.end())
+          {
+                const PlayerState &pl = mi->second;
+                for (std::map<int, CharacterState>::const_iterator mi2 = pl.characters.begin(); mi2 != pl.characters.end(); mi2++)
+                {
+
+                    const CharacterState &characterState = mi2->second;
+                    const Coord &coord = characterState.coord;
+                    CharacterID chid(mi->first, mi2->first);
+
+                    int x = coord.x;
+                    int y = coord.y;
+                    QGraphicsRectItem * rect = new QGraphicsRectItem(x*TILE_SIZE,y*TILE_SIZE+4,20/zoomFactor,20/zoomFactor);
+                    if (pl.color == 0)
+                        rect->setBrush(QBrush(Qt::darkYellow));
+                    else if (pl.color == 1)
+                        rect->setBrush(QBrush(Qt::darkRed));
+                    else if (pl.color == 2)
+                        rect->setBrush(QBrush(Qt::darkGreen));
+                    else if (pl.color == 3)
+                        rect->setBrush(QBrush(Qt::darkBlue));
+
+                    rect->setZValue(1e12);
+                    scene->addItem(rect);
+                    this->myPgRects.push_back(rect);
+                }
+            }
+        }
+    }
+}
+
 const static double MIN_ZOOM = 0.1;
 const static double MAX_ZOOM = 2.0;
 
@@ -676,6 +824,26 @@ void GameMapView::mouseReleaseEvent(QMouseEvent *event)
 
 void GameMapView::mouseMoveEvent(QMouseEvent *event)
 {
+    QPoint p = mapToScene(event->pos()).toPoint();
+    int x = p.x() / TILE_SIZE;
+    int y = p.y() / TILE_SIZE;
+
+    if (IsInsideMap(x, y))
+    {
+      scene->removeItem(mouseCoordsText);
+      delete mouseCoordsText;
+      mouseCoordsText = new QGraphicsTextItem();
+      QFont font;
+      font.setPixelSize(20/zoomFactor);
+      font.setBold(false);
+      font.setFamily("Calibri");
+      mouseCoordsText->setFont(font);
+      mouseCoordsText->setPos(p.x(),p.y());
+      mouseCoordsText->setZValue(1e13);
+      mouseCoordsText->setPlainText(QString("%1,%2").arg(x).arg(y));
+      scene->addItem(mouseCoordsText);
+    }
+
     if (panning)
     {
         horizontalScrollBar()->setValue(horizontalScrollBar()->value() + pan_pos.x() - event->pos().x());
@@ -701,6 +869,24 @@ void GameMapView::wheelEvent(QWheelEvent *event)
         animZoom->start();
 
     event->accept();
+
+    if(crownShown == true)
+    {
+      Game::GameState gameState = GetCurrentGameState();
+      std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(gameState.crownHolder.player);
+      if(mi != gameState.players.end())
+      {
+        const PlayerState &pl = mi->second;
+        std::map<int, CharacterState>::const_iterator mi2 = pl.characters.find(gameState.crownHolder.index);
+        const CharacterState &characterState = mi2->second;
+        const Coord &coord = characterState.coord;
+        crownMarker->setOffset(coord.x*TILE_SIZE,coord.y*TILE_SIZE);
+        crownMarker->setPixmap(crownPixmapObject->scaledToHeight(50/zoomFactor,Qt::SmoothTransformation));
+        //scene->addItem(crownMarker);
+      }
+
+
+    }
 }
 
 void GameMapView::zoomIn()
