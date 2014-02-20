@@ -229,6 +229,8 @@ public:
         setStyleSheet("QTabBar { font-weight: bold }");
 
         CreateTabs();
+        
+        this->setMaximumSize(500, 100);
     }
 
     void EmitSelect()
