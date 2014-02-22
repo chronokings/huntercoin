@@ -2,3 +2,8 @@ src/*.exe
 .*.swp
 *.*~*
 src/chronokingsd
+Makefile
+build
+huntercoin-qt
+qrc_*.cpp
+src/huntercoind
