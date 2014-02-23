@@ -13,223 +13,245 @@
   <property name="windowTitle">
    <string>Game</string>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,0">
-   <property name="sizeConstraint">
-    <enum>QLayout::SetDefaultConstraint</enum>
-   </property>
+  <layout class="QVBoxLayout" stretch="1">
    <item>
-    <layout class="QVBoxLayout" name="verticalLayoutGameMap">
-     <property name="sizeConstraint">
-      <enum>QLayout::SetDefaultConstraint</enum>
+    <widget class="QSplitter" name="horizontalLayout">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
      </property>
-    </layout>
-   </item>
-   <item>
-    <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,1,0,0,0,0,0,1">
-     <property name="spacing">
-      <number>0</number>
+     <property name="childrenCollapsible">
+      <bool>false</bool>
      </property>
-     <item>
-      <widget class="QLabel" name="chrononLabel">
-       <property name="toolTip">
-        <string>Time moment of the game (equals the block number)</string>
+     <widget class="QWidget" name="layoutWidget">
+      <layout class="QVBoxLayout" name="verticalLayoutGameMap">
+       <property name="sizeConstraint">
+        <enum>QLayout::SetDefaultConstraint</enum>
        </property>
-       <property name="text">
-        <string notr="true">Chronon: 0</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayoutTop">
-       <item>
-        <widget class="QPushButton" name="newButton">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="toolTip">
-          <string>New player cost: 1 HUC + fee (0.005).
-Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</string>
-         </property>
-         <property name="statusTip">
-          <string>New player cost: 1 HUC + fee (0.005)</string>
-         </property>
-         <property name="text">
-          <string>&amp;New...</string>
-         </property>
-        </widget>
-       </item>
       </layout>
-     </item>
-     <item>
-      <widget class="QTableView" name="tableCharacters">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>70</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>500</height>
-        </size>
-       </property>
-       <property name="toolTip">
-        <string>Select character(s) and click on the map to set destination. Move will be queued. Press Go to send all queued moves (for all characters of the selected player). Double-click character to center the map on him.</string>
-       </property>
-       <property name="verticalScrollBarPolicy">
-        <enum>Qt::ScrollBarAlwaysOn</enum>
-       </property>
-       <property name="tabKeyNavigation">
-        <bool>false</bool>
-       </property>
-       <property name="selectionMode">
-        <enum>QAbstractItemView::ExtendedSelection</enum>
-       </property>
-       <property name="selectionBehavior">
-        <enum>QAbstractItemView::SelectRows</enum>
-       </property>
-       <attribute name="verticalHeaderVisible">
-        <bool>false</bool>
-       </attribute>
+     </widget>
+     <widget class="QSplitter" name="layoutWidget">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
+      </property>
+      <widget class="QWidget">
+       <layout class="QVBoxLayout" name="verticalLayoutTop" stretch="0,0,1">
+        <property name="spacing">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="chrononLabel">
+          <property name="toolTip">
+           <string>Time moment of the game (equals the block number)</string>
+          </property>
+          <property name="text">
+           <string notr="true">Chronon: 0</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayoutTop">
+          <item>
+           <widget class="QPushButton" name="newButton">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>New player cost: 1 HUC + fee (0.005).
+   Player starts with 3 characters (general + two hunters), collect hearts for more characters (up to 20).</string>
+            </property>
+            <property name="statusTip">
+             <string>New player cost: 1 HUC + fee (0.005)</string>
+            </property>
+            <property name="text">
+             <string>&amp;New...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QTableView" name="tableCharacters">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>70</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>500</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Select character(s) and click on the map to set destination. Move will be queued. Press Go to send all queued moves (for all characters of the selected player). Double-click character to center the map on him.</string>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOn</enum>
+          </property>
+          <property name="tabKeyNavigation">
+           <bool>false</bool>
+          </property>
+          <property name="selectionMode">
+           <enum>QAbstractItemView::ExtendedSelection</enum>
+          </property>
+          <property name="selectionBehavior">
+           <enum>QAbstractItemView::SelectRows</enum>
+          </property>
+          <attribute name="verticalHeaderVisible">
+           <bool>false</bool>
+          </attribute>
+         </widget>
+        </item>
+       </layout>
       </widget>
-     </item>
-     <item>
-      <widget class="QLabel" name="label_8">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="text">
-        <string>C&amp;hat message:</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-       <property name="buddy">
-        <cstring>messageEdit</cstring>
-       </property>
+      <widget class="QWidget">
+       <layout class="QVBoxLayout" name="verticalLayoutBottom" stretch="0,0,0,0,0,1">
+        <property name="spacing">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_8">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>C&amp;hat message:</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+          </property>
+          <property name="buddy">
+           <cstring>messageEdit</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="messageEdit">
+          <property name="maxLength">
+           <number>1000</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item>
+           <widget class="QPushButton" name="configButton">
+            <property name="toolTip">
+             <string>Change reward address for current player.</string>
+            </property>
+            <property name="text">
+             <string>&amp;Config...</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="destructButton">
+            <property name="toolTip">
+             <string>Queue self-destruction for current character (also kills nearby enemies).</string>
+            </property>
+            <property name="text">
+             <string>&amp;Destruct</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="goButton">
+            <property name="toolTip">
+             <string>Send move for all characters of the player (and chat message).</string>
+            </property>
+            <property name="text">
+             <string>&amp;Go</string>
+            </property>
+            <property name="icon">
+             <iconset resource="../bitcoin.qrc">
+              <normaloff>:/icons/send</normaloff>:/icons/send</iconset>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="cancelButton">
+            <property name="toolTip">
+             <string>Cancel queued moves for selected characters.</string>
+            </property>
+            <property name="text">
+             <string>Cance&amp;l</string>
+            </property>
+            <property name="icon">
+             <iconset resource="../bitcoin.qrc">
+              <normaloff>:/icons/quit</normaloff>:/icons/quit</iconset>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeType">
+           <enum>QSizePolicy::Maximum</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>12</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_7">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Ch&amp;at messages:</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+          </property>
+          <property name="buddy">
+           <cstring>textChat</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTextEdit" name="textChat">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="statusTip">
+           <string>Chat window shows messages from up to 5 last blocks. Blocks are separated with horizontal lines.</string>
+          </property>
+          <property name="tabChangesFocus">
+           <bool>true</bool>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </widget>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="messageEdit">
-       <property name="maxLength">
-        <number>1000</number>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <item>
-        <widget class="QPushButton" name="configButton">
-         <property name="toolTip">
-          <string>Change reward address for current player.</string>
-         </property>
-         <property name="text">
-          <string>&amp;Config...</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="destructButton">
-         <property name="toolTip">
-          <string>Queue self-destruction for current character (also kills nearby enemies).</string>
-         </property>
-         <property name="text">
-          <string>&amp;Destruct</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="goButton">
-         <property name="toolTip">
-          <string>Send move for all characters of the player (and chat message).</string>
-         </property>
-         <property name="text">
-          <string>&amp;Go</string>
-         </property>
-         <property name="icon">
-          <iconset resource="../bitcoin.qrc">
-           <normaloff>:/icons/send</normaloff>:/icons/send</iconset>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="cancelButton">
-         <property name="toolTip">
-          <string>Cancel queued moves for selected characters.</string>
-         </property>
-         <property name="text">
-          <string>Cance&amp;l</string>
-         </property>
-         <property name="icon">
-          <iconset resource="../bitcoin.qrc">
-           <normaloff>:/icons/quit</normaloff>:/icons/quit</iconset>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <spacer name="verticalSpacer">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeType">
-        <enum>QSizePolicy::Maximum</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>20</width>
-         <height>12</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QLabel" name="label_7">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="text">
-        <string>Ch&amp;at messages:</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-       <property name="buddy">
-        <cstring>textChat</cstring>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QTextEdit" name="textChat">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="statusTip">
-        <string>Chat window shows messages from up to 5 last blocks. Blocks are separated with horizontal lines.</string>
-       </property>
-       <property name="tabChangesFocus">
-        <bool>true</bool>
-       </property>
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-    </layout>
+     </widget>
+    </widget>
    </item>
   </layout>
  </widget>
