@@ -95,6 +95,8 @@ struct Coord
     bool operator>=(const Coord &that) const { return !(*this < that); }
 };
 
+typedef std::vector<Coord> WaypointVector;
+
 struct Move
 {
     PlayerID player;
@@ -105,7 +107,7 @@ struct Move
     boost::optional<std::string> addressLock;
 
     unsigned char color;   // For spawn move
-    std::map<int, std::vector<Coord> > waypoints;
+    std::map<int, WaypointVector> waypoints;
     std::set<int> destruct;
 
     Move() : color(0xFF)
@@ -191,7 +193,7 @@ struct CharacterState
     Coord coord;                        // Current coordinate
     unsigned char dir;                  // Direction of last move (for nice sprite orientation). Encoding: as on numeric keypad.
     Coord from;                         // Straight-line pathfinding for current waypoint
-    std::vector<Coord> waypoints;       // Waypoints (stored in reverse so removal of the first waypoint is fast)
+    WaypointVector waypoints;           // Waypoints (stored in reverse so removal of the first waypoint is fast)
     CollectedLootInfo loot;             // Loot collected by player but not banked yet
     unsigned char stay_in_spawn_area;   // Auto-kill players who stay in the spawn area too long
     std::string attack;
@@ -218,7 +220,15 @@ struct CharacterState
     }
 
     void MoveTowardsWaypoint();
-    std::vector<Coord> DumpPath(const std::vector<Coord> *alternative_waypoints = NULL) const;
+    WaypointVector DumpPath(const WaypointVector *alternative_waypoints = NULL) const;
+
+    /**
+     * Calculate total length (in the same L-infinity sense that gives the
+     * actual movement time) of the outstanding path.
+     * @param altWP Optionally provide alternative waypoints (for queued moves).
+     * @return Time necessary to finish current path in blocks.
+     */
+    unsigned TimeToDestination(const WaypointVector *altWP = NULL) const;
 
     json_spirit::Value ToJsonValue(bool has_crown) const;
 };

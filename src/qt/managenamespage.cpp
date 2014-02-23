@@ -136,7 +136,17 @@ public:
                             return tr("Moving");
                     }
                 case Time:
-                    return tr("Unknown");
+                    unsigned val = 0;
+                    mi = queuedMoves.find(i);
+                    mi2 = state.characters.find(i);
+                    const Game::WaypointVector* wp = NULL;
+                    if (mi != queuedMoves.end())
+                        wp = &mi->second.waypoints;
+                    if (mi2 != state.characters.end())
+                        val = mi2->second.TimeToDestination(wp);
+                    if (val > 0)
+                        return QString("%1").arg(val);
+                    return "";
             }
         }
         else if (role == Qt::TextAlignmentRole)

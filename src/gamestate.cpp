@@ -481,6 +481,46 @@ std::vector<Coord> CharacterState::DumpPath(const std::vector<Coord> *alternativ
     return ret;
 }
 
+/**
+ * Calculate total length (in the same L-infinity sense that gives the
+ * actual movement time) of the outstanding path.
+ * @param altWP Optionally provide alternative waypoints (for queued moves).
+ * @return Time necessary to finish current path in blocks.
+ */
+unsigned
+CharacterState::TimeToDestination (const WaypointVector* altWP) const
+{
+  bool reverse = false;
+  if (!altWP)
+    {
+      altWP = &waypoints;
+      reverse = true;
+    }
+
+  /* In order to handle both reverse and non-reverse correctly, calculate
+     first the length of the path alone and only later take the initial
+     piece from coord on into account.  */
+
+  if (altWP->empty ())
+    return 0;
+
+  unsigned res = 0;
+  WaypointVector::const_iterator i = altWP->begin ();
+  Coord last = *i;
+  for (++i; i != altWP->end (); ++i)
+    {
+      res += distLInf (last, *i);
+      last = *i;
+    }
+
+  if (reverse)
+    res += distLInf (coord, altWP->back ());
+  else
+    res += distLInf (coord, altWP->front ());
+
+  return res;
+}
+
 void PlayerState::SpawnCharacter(RandomGenerator &rnd)
 {
     characters[next_character_index++].Spawn(color, rnd);
