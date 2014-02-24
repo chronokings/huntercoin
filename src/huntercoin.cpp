@@ -24,8 +24,6 @@ using namespace std;
 using namespace json_spirit;
 
 static const bool NAME_DEBUG = false;
-typedef Value(*rpcfn_type)(const Array& params, bool fHelp);
-extern map<string, rpcfn_type> mapCallTable;
 extern int64 AmountFromValue(const Value& value);
 extern Object JSONRPCError(int code, const string& message);
 template<typename T> void ConvertTo(Value& value, bool fAllowNull=false);
@@ -1292,6 +1290,22 @@ Value game_getstate(const Array& params, bool fHelp)
     return state.ToJsonValue();
 }
 
+/* Wait for the next block to be found and processed (blocking in a waiting
+   thread) and return the new state when it is done.  */
+Value game_waitforblock (const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 0)
+        throw runtime_error(
+                "game_waitforblock\n"
+                "Wait for a new block to be found and processed (and thus"
+                " for a change in the game state) and return the new"
+                " game state when one is found\n");
+
+    Sleep (5000);
+
+    return Value::null;
+}
+
 Value game_getplayerstate(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
@@ -1703,8 +1717,10 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_clean", &name_clean));
     mapCallTable.insert(make_pair("sendtoname", &sendtoname));
     mapCallTable.insert(make_pair("game_getstate", &game_getstate));
+    mapCallTable.insert(make_pair("game_waitforblock", &game_waitforblock));
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
+    setCallAsync.insert("game_waitforblock");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];
     printf("Setup huntercoin genesis block %s\n", hashGenesisBlock.GetHex().c_str());
     return new CHuntercoinHooks();
