@@ -20,6 +20,8 @@
 #include "json/json_spirit_utils.h"
 #include <boost/xpressive/xpressive_dynamic.hpp>
 
+#include <boost/thread/thread.hpp>
+
 using namespace std;
 using namespace json_spirit;
 
@@ -1294,16 +1296,17 @@ Value game_getstate(const Array& params, bool fHelp)
    thread) and return the new state when it is done.  */
 Value game_waitforblock (const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() > 0)
-        throw runtime_error(
-                "game_waitforblock\n"
-                "Wait for a new block to be found and processed (and thus"
-                " for a change in the game state) and return the new"
-                " game state when one is found\n");
+  if (fHelp || params.size() > 0)
+    throw runtime_error(
+            "game_waitforblock\n"
+            "Wait for a new block to be found and processed (and thus"
+            " for a change in the game state) and return the new"
+            " game state when one is found\n");
 
-    Sleep (5000);
+  while (true)
+    boost::this_thread::interruption_point ();
 
-    return Value::null;
+  return Value::null;
 }
 
 Value game_getplayerstate(const Array& params, bool fHelp)
