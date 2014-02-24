@@ -10,7 +10,7 @@ std::vector<Game::Coord> FindPath(const Game::Coord &start, const Game::Coord &g
 
 struct QueuedMove
 {
-    std::vector<Game::Coord> waypoints;
+    Game::WaypointVector waypoints;
     bool destruct;
 
     QueuedMove() : destruct(false) { }

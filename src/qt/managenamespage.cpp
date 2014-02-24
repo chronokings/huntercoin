@@ -53,6 +53,7 @@ public:
         Name = 0,
         Coins = 1,
         Status = 2,
+        Time = 3,
         NUM_COLUMNS
     };
 
@@ -134,6 +135,18 @@ public:
                         else
                             return tr("Moving");
                     }
+                case Time:
+                    unsigned val = 0;
+                    mi = queuedMoves.find(i);
+                    mi2 = state.characters.find(i);
+                    const Game::WaypointVector* wp = NULL;
+                    if (mi != queuedMoves.end())
+                        wp = &mi->second.waypoints;
+                    if (mi2 != state.characters.end())
+                        val = mi2->second.TimeToDestination(wp);
+                    if (val > 0)
+                        return QString("%1").arg(val);
+                    return "";
             }
         }
         else if (role == Qt::TextAlignmentRole)
@@ -156,6 +169,8 @@ public:
                         return tr("Coins");
                     case Status:
                         return tr("Status");
+                    case Time:
+                        return tr("Time");
                 }
             }
             else if (role == Qt::TextAlignmentRole)
@@ -170,6 +185,8 @@ public:
                         return tr("Amount of collected loot (return the character to spawn area to cash out)");
                     case Status:
                         return tr("Character status");
+                    case Time:
+                        return tr("Time until destination is reached (in blocks)");
                 }
             }
         }
@@ -328,8 +345,9 @@ const QString NON_REWARD_ADDRESS_PREFIX = "-";
 // ManageNamesPage
 //
 
-const static int COLUMN_WIDTH_NAME = 120;
-const static int COLUMN_WIDTH_COINS = 90;
+const static int COLUMN_WIDTH_COINS = 70;
+const static int COLUMN_WIDTH_STATE = 50;
+const static int COLUMN_WIDTH_TIME = 50;
 
 ManageNamesPage::ManageNamesPage(QWidget *parent) :
     QWidget(parent),
@@ -713,11 +731,13 @@ void ManageNamesPage::RefreshCharacterList()
     connect(ui->tableCharacters->selectionModel(), SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this, SLOT(onCharacterSelectionChanged(QItemSelection, QItemSelection)));
 
     // Set column widths
-    ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Name, COLUMN_WIDTH_NAME);
     ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Coins, COLUMN_WIDTH_COINS);
-    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Name, QHeaderView::Fixed);
+    ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Status, COLUMN_WIDTH_STATE);
+    ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Time, COLUMN_WIDTH_TIME);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Name, QHeaderView::Stretch);
     ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Coins, QHeaderView::Fixed);
-    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Status, QHeaderView::Stretch);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Status, QHeaderView::Fixed);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Time, QHeaderView::Fixed);
     QItemSelection sel;
     foreach (QString character, selectedCharacters)
     {
