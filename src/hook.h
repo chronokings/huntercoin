@@ -24,6 +24,7 @@ public:
             const CTransaction& tx,
             CBlockIndex* pindexBlock) = 0;
     virtual bool ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex, int64 &nFees, unsigned int nPosAfterTx) = 0;
+    virtual void NewBlockAdded() = 0;
     virtual bool DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex) = 0;
     virtual bool ExtractAddress(const CScript& script, std::string& address) = 0;
     virtual bool GenesisBlock(CBlock& block) = 0;

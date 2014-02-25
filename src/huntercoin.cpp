@@ -24,14 +24,15 @@ using namespace std;
 using namespace json_spirit;
 
 static const bool NAME_DEBUG = false;
-typedef Value(*rpcfn_type)(const Array& params, bool fHelp);
-extern map<string, rpcfn_type> mapCallTable;
 extern int64 AmountFromValue(const Value& value);
 extern Object JSONRPCError(int code, const string& message);
 template<typename T> void ConvertTo(Value& value, bool fAllowNull=false);
 
 map<vector<unsigned char>, uint256> mapMyNames;
 map<vector<unsigned char>, set<uint256> > mapNamePending;
+
+boost::mutex mut_currentState;
+boost::condition_variable cv_stateChange;
 
 #ifdef GUI
 extern std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;
@@ -76,6 +77,7 @@ public:
             const CTransaction& tx,
             CBlockIndex* pindexBlock);
     virtual bool ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex, int64 &nFees, unsigned int nPosAfterTx);
+    virtual void NewBlockAdded();
     virtual bool DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex);
     virtual bool ExtractAddress(const CScript& script, string& address);
     virtual bool GenesisBlock(CBlock& block);
@@ -1292,6 +1294,47 @@ Value game_getstate(const Array& params, bool fHelp)
     return state.ToJsonValue();
 }
 
+/* Wait for the next block to be found and processed (blocking in a waiting
+   thread) and return the new state when it is done.  */
+Value game_waitforchange (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () > 1)
+    throw runtime_error (
+            "game_waitforchange [blockHash]\n"
+            "Wait for a change in the best chain (a new block being found)"
+            " and return the new game state.  If blockHash is given, wait"
+            " until a block with different hash is found.\n");
+
+  if (IsInitialBlockDownload ())
+    throw JSONRPCError (RPC_CLIENT_IN_INITIAL_DOWNLOAD,
+                        "huntercoin is downloading blocks...");
+
+  uint256 lastHash;
+  if (params.size () > 0)
+    lastHash = ParseHashV (params[0], "blockHash");
+  else
+    lastHash = hashBestChain;
+
+  boost::unique_lock<boost::mutex> lock(mut_currentState);
+  while (true)
+    {
+      /* Atomically check whether we have found a new best block and return
+         it if that's the case.  We use a lock on cs_main in order to
+         prevent race conditions.  */
+      CRITICAL_BLOCK(cs_main)
+        {
+          if (lastHash != hashBestChain)
+            {
+              const Game::GameState& state = GetCurrentGameState ();
+              return state.ToJsonValue();
+            }
+        }
+
+      /* Wait on the condition variable.  */
+      cv_stateChange.wait (lock);
+    }
+}
+
 Value game_getplayerstate(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
@@ -1703,8 +1746,10 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_clean", &name_clean));
     mapCallTable.insert(make_pair("sendtoname", &sendtoname));
     mapCallTable.insert(make_pair("game_getstate", &game_getstate));
+    mapCallTable.insert(make_pair("game_waitforchange", &game_waitforchange));
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
+    setCallAsync.insert("game_waitforchange");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];
     printf("Setup huntercoin genesis block %s\n", hashGenesisBlock.GetHex().c_str());
     return new CHuntercoinHooks();
@@ -2516,6 +2561,12 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
     }
 
     return true;
+}
+
+void
+CHuntercoinHooks::NewBlockAdded ()
+{
+  cv_stateChange.notify_all ();
 }
 
 bool CHuntercoinHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)

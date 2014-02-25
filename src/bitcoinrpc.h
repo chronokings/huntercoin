@@ -15,6 +15,8 @@ int CommandLineRPC(int argc, char *argv[]);
 json_spirit::Value ExecuteRPC(const std::string &strMethod, const std::vector<std::string> &vParams);
 json_spirit::Value ExecuteRPC(const std::string &strMethod, const json_spirit::Array &params);
 
+uint256 ParseHashV(const json_spirit::Value&, std::string);
+
 /*
   Type-check arguments; throws JSONRPCError if wrong type given. Does not check that
   the right number of arguments are passed, just that any passed are the correct type.
@@ -32,6 +34,10 @@ void RPCTypeCheck(const json_spirit::Object& o,
 std::string HelpRequiringPassphrase();
 void EnsureWalletIsUnlocked();
 json_spirit::Value ValueFromAmount(int64 amount);
+
+typedef json_spirit::Value(*rpcfn_type)(const json_spirit::Array& params, bool fHelp);
+extern std::map<std::string, rpcfn_type> mapCallTable;
+extern std::set<std::string> setCallAsync;
 
 
 // Bitcoin RPC error codes
@@ -68,6 +74,9 @@ enum RPCErrorCode
     RPC_WALLET_WRONG_ENC_STATE      = -15, // Command given in wrong wallet encryption state (encrypting an encrypted wallet etc.)
     RPC_WALLET_ENCRYPTION_FAILED    = -16, // Failed to encrypt the wallet
     RPC_WALLET_ALREADY_UNLOCKED     = -17, // Wallet is already unlocked
+
+    // Async method call interrupted.
+    RPC_ASYNC_INTERRUPT             = -100,
 };
 
 #endif

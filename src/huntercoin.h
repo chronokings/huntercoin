@@ -1,6 +1,8 @@
 #ifndef HUNTERCOIN_H
 #define HUNTERCOIN_H
 
+#include <boost/thread/thread.hpp>
+
 class CNameDB : public CDB
 {
 protected:
@@ -100,5 +102,13 @@ int64 GetNetworkFee(int nHeight);
 bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, std::vector<unsigned char>& name);
 void UnspendInputs(CWalletTx& wtx);
 bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
+
+/* For the front-end and the game_waitforchange RPC call, we allow threads
+   to "register" to be notified when a new block is attached.  This is
+   synchronised using the mut_currentState and the condition variable
+   cv_stateChange.  When a new block is found, all threads waiting on
+   cv_stateChange will be notified.  */
+extern boost::mutex mut_currentState;
+extern boost::condition_variable cv_stateChange;
 
 #endif // HUNTERCOIN_H

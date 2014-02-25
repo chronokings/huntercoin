@@ -1322,7 +1322,6 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         return error("ConnectBlock() : hook failed");
 
     // nFees may include taxes from the game, so we check it after creating game transactions
-
     if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
     {
 	printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
@@ -1504,6 +1503,10 @@ bool CBlock::SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew)
     nTimeBestReceived = GetTime();
     nTransactionsUpdated++;
     printf("SetBestChain: new best=%s  height=%d  work=%s\n", hashBestChain.ToString().substr(0,20).c_str(), nBestHeight, bnBestChainWork.ToString().c_str());
+
+    // When everything is done, call hook for new block so that the game
+    // state can be finally updated in front-ends and such.
+    hooks->NewBlockAdded();
 
     return true;
 }
