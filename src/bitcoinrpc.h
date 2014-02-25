@@ -15,6 +15,8 @@ int CommandLineRPC(int argc, char *argv[]);
 json_spirit::Value ExecuteRPC(const std::string &strMethod, const std::vector<std::string> &vParams);
 json_spirit::Value ExecuteRPC(const std::string &strMethod, const json_spirit::Array &params);
 
+uint256 ParseHashV(const json_spirit::Value&, std::string);
+
 /*
   Type-check arguments; throws JSONRPCError if wrong type given. Does not check that
   the right number of arguments are passed, just that any passed are the correct type.

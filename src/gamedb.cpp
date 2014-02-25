@@ -272,7 +272,12 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 
     if (*pindex->phashBlock == currentState.hashBlock)
     {
-        outState = currentState;
+        /* In GetCurrentState(), this routine is called with currentState
+           as outState.  Avoid a redundant copy operation.  The default
+           operator= does this, AFAIK, but make it explicit here
+           also for clarity.  */
+        if (&outState != &currentState)
+            outState = currentState;
         return true;
     }
 
@@ -339,7 +344,7 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         plast = plast->pnext;
         lastState = outState;
     }
-    if (pindex == pindexBest)
+    if (pindex == pindexBest && &outState != &currentState)
         currentState = outState;
 
     if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
