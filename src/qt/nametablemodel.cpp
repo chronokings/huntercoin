@@ -333,7 +333,9 @@ public:
 
     bool updateGameState(bool &fRewardAddrChanged)
     {
-        LOCK(cs_main);
+        CTryCriticalBlock criticalBlock(cs_main);
+        if (!criticalBlock.Entered())
+            return false;
 
         const Game::GameState &gameState = GetCurrentGameState();
         if (gameState.hashBlock == cachedLastBlock)
