@@ -34,6 +34,9 @@ map<vector<unsigned char>, set<uint256> > mapNamePending;
 boost::mutex mut_currentState;
 boost::condition_variable cv_stateChange;
 
+boost::mutex json_spirit::mtx_parser;
+
+
 #ifdef GUI
 extern std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;
 #endif

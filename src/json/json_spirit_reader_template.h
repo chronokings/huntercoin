@@ -513,17 +513,24 @@ namespace json_spirit
 
         Semantic_actions_t& actions_;
     };
+    
+    extern boost::mutex mtx_parser;
 
     template< class Iter_type, class Value_type >
     Iter_type read_range_or_throw( Iter_type begin, Iter_type end, Value_type& value )
     {
+    
+    //boost::lock_guard<boost::mutex> lock(_mtx)
+    
+        mtx_parser.lock();
         Semantic_actions< Value_type, Iter_type > semantic_actions( value );
-     
+        Json_grammer< Value_type, Iter_type > *jg = new Json_grammer< Value_type, Iter_type>( semantic_actions );
         const spirit_namespace::parse_info< Iter_type > info = 
-                            spirit_namespace::parse( begin, end, 
-                                                    Json_grammer< Value_type, Iter_type >( semantic_actions ), 
+                            spirit_namespace::parse( begin, end, *jg, 
                                                     spirit_namespace::space_p );
-
+        delete jg;
+        mtx_parser.unlock();
+        
         if( !info.hit )
         {
             assert( false ); // in theory exception should already have been thrown
