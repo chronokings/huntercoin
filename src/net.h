@@ -653,7 +653,9 @@ public:
         // We're using mapAskFor as a priority queue,
         // the key is the earliest time the request can be sent
         int64& nRequestTime = mapAlreadyAskedFor[inv];
-        printf("askfor %s   %"PRI64d"\n", inv.ToString().c_str(), nRequestTime);
+        if (fDebug)
+            printf("askfor %s   %"PRI64d"\n",
+                   inv.ToString().c_str(), nRequestTime);
 
         // Make sure not to reuse time indexes to keep things in the same order
         int64 nNow = (GetTime() - 1) * 1000000;
@@ -676,8 +678,10 @@ public:
         vSend << CMessageHeader(pszCommand, 0);
         nMessageStart = vSend.size();
         if (fDebug)
+        {
             printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
-        printf("sending: %s ", pszCommand);
+            printf("sending: %s ", pszCommand);
+        }
     }
 
     void AbortMessage()
@@ -688,7 +692,9 @@ public:
         nHeaderStart = -1;
         nMessageStart = -1;
         cs_vSend.Leave();
-        printf("(aborted)\n");
+
+        if (fDebug)
+            printf("(aborted)\n");
     }
 
     void EndMessage()
@@ -714,8 +720,8 @@ public:
         assert(nMessageStart - nHeaderStart >= offsetof(CMessageHeader, nChecksum) + sizeof(nChecksum));
         memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nChecksum), &nChecksum, sizeof(nChecksum));
 
-        printf("(%d bytes) ", nSize);
-        printf("\n");
+        if (fDebug)
+            printf("(%d bytes)\n", nSize);
 
         nHeaderStart = -1;
         nMessageStart = -1;
