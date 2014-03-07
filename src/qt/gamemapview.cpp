@@ -593,12 +593,12 @@ void GameMapView::SelectPlayer(const QString &name, const GameState &state, Queu
     if (!path.isEmpty())
     {
         playerPath = scene->addPath(path, grobjs->magenta_pen);
-        playerPath->setZValue(0.5);
+        playerPath->setZValue(1e9 + 1);
     }
     if (!queuedPath.isEmpty())
     {
         queuedPlayerPath = scene->addPath(queuedPath, grobjs->gray_pen);
-        queuedPlayerPath->setZValue(0.6);
+        queuedPlayerPath->setZValue(1e9 + 2);
     }
 
     use_cross_cursor = true;
