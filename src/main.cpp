@@ -10,6 +10,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
+#include <cassert>
+
 using namespace std;
 using namespace boost;
 
@@ -1799,9 +1801,26 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         mapOrphanBlocksByPrev.erase(hashPrev);
     }
 
-    printf ("ProcessBlock: ACCEPTED @%d %s\n",
+    const int algo = pblock->GetAlgo ();
+    std::string algoStr;
+    switch (algo)
+      {
+      case ALGO_SHA256D:
+        algoStr = "SHA-256";
+        break;
+
+      case ALGO_SCRYPT:
+        algoStr = "scrypt";
+        break;
+
+      default:
+        assert (false);
+      }
+    printf ("ProcessBlock: ACCEPTED @%d %s with %s\n",
             mapBlockIndex[hash]->nHeight,
-            hash.ToString ().substr (0, 20).c_str ());
+            hash.ToString ().substr (0, 20).c_str (),
+            algoStr.c_str ());
+
     return true;
 }
 
