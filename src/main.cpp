@@ -1799,7 +1799,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         mapOrphanBlocksByPrev.erase(hashPrev);
     }
 
-    printf("ProcessBlock: ACCEPTED\n");
+    printf ("ProcessBlock: ACCEPTED @%d %s\n",
+            mapBlockIndex[hash]->nHeight,
+            hash.ToString ().substr (0, 20).c_str ());
     return true;
 }
 
