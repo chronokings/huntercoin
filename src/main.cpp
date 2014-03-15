@@ -1373,6 +1373,12 @@ bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
             return error("Reorganize() : pfork->pprev is null");
     }
 
+    // Print some data.
+    printf ("Reorganize():\n  Old: %s\n  New: %s\n  Common: %s\n",
+            pindexBest->ToString ().c_str (),
+            pindexNew->ToString ().c_str (),
+            pfork->ToString ().c_str ());
+
     // List of what to disconnect
     vector<CBlockIndex*> vDisconnect;
     for (CBlockIndex* pindex = pindexBest; pindex != pfork; pindex = pindex->pprev)
