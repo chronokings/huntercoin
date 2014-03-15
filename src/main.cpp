@@ -10,6 +10,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
+#include <cassert>
+
 using namespace std;
 using namespace boost;
 
@@ -1371,6 +1373,12 @@ bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
             return error("Reorganize() : pfork->pprev is null");
     }
 
+    // Print some data.
+    printf ("Reorganize():\n  Old: %s\n  New: %s\n  Common: %s\n",
+            pindexBest->ToString ().c_str (),
+            pindexNew->ToString ().c_str (),
+            pfork->ToString ().c_str ());
+
     // List of what to disconnect
     vector<CBlockIndex*> vDisconnect;
     for (CBlockIndex* pindex = pindexBest; pindex != pfork; pindex = pindex->pprev)
@@ -1799,7 +1807,26 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         mapOrphanBlocksByPrev.erase(hashPrev);
     }
 
-    printf("ProcessBlock: ACCEPTED\n");
+    const int algo = pblock->GetAlgo ();
+    std::string algoStr;
+    switch (algo)
+      {
+      case ALGO_SHA256D:
+        algoStr = "SHA-256";
+        break;
+
+      case ALGO_SCRYPT:
+        algoStr = "scrypt";
+        break;
+
+      default:
+        assert (false);
+      }
+    printf ("ProcessBlock: ACCEPTED @%d %s with %s\n",
+            mapBlockIndex[hash]->nHeight,
+            hash.ToString ().substr (0, 20).c_str (),
+            algoStr.c_str ());
+
     return true;
 }
 
