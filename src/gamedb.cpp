@@ -295,7 +295,11 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 
     if (!pindex->IsInMainChain())
         return error("GetGameState called for non-main chain");
-        
+
+    printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+    printf("GetGameState: need to integrate state for height %d (current %d)\n",
+           pindex->nHeight, currentState.nHeight);
+
     CBlockIndex *plast = pindex;
     GameState lastState;
     for (; plast->pprev; plast = plast->pprev)
@@ -303,6 +307,9 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         if (gameDb.Read(plast->pprev->nHeight, lastState))
             break;
     }
+
+    printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+    printf("GetGameState: last saved block has height %d\n", lastState.nHeight);
 
     // When connecting genesis block, there is no nameindexfull.dat file yet
     std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
@@ -346,6 +353,9 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
     }
     if (pindex == pindexBest && &outState != &currentState)
         currentState = outState;
+
+    printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+    printf("GetGameState: done integrating\n");
 
     if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
     {
