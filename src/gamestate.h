@@ -256,7 +256,7 @@ struct PlayerState
         READWRITE(addressLock);
     )
 
-    PlayerState() : color(0xFF), message_block(0), next_character_index(0) { }
+    PlayerState() : color(0xFF), next_character_index(0), message_block(0) { }
     void SpawnCharacter(RandomGenerator &rnd);
     bool CanSpawnCharacter()
     {
