@@ -495,7 +495,7 @@ getchains (const Array& params, bool fHelp)
 
   /* Lock everything.  Not sure if this is needed for the whole duration
      of the call, but better be safe than sorry.  */
-  CCriticalBlock lock(cs_main);
+  CRITICAL_BLOCK(cs_main);
 
   /* For each block known, keep track if there are follow-ups (which have
      the block as pprev) so that we find the chain heads.  */
@@ -1855,7 +1855,7 @@ void ThreadCleanWalletPassphrase(void* parg)
 {
     int64 nMyWakeTime = GetTimeMillis() + *((int64*)parg) * 1000;
 
-    cs_nWalletUnlockTime.Enter();
+    CRITICAL_BLOCK(cs_nWalletUnlockTime);
 
     if (nWalletUnlockTime == 0)
     {
@@ -1869,9 +1869,7 @@ void ThreadCleanWalletPassphrase(void* parg)
             if (nToSleep <= 0)
                 break;
 
-            cs_nWalletUnlockTime.Leave();
             Sleep(nToSleep);
-            cs_nWalletUnlockTime.Enter();
 
         } while(1);
 
@@ -1886,8 +1884,6 @@ void ThreadCleanWalletPassphrase(void* parg)
         if (nWalletUnlockTime < nMyWakeTime)
             nWalletUnlockTime = nMyWakeTime;
     }
-
-    cs_nWalletUnlockTime.Leave();
 
     delete (int64*)parg;
 }
