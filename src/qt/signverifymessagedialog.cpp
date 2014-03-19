@@ -123,7 +123,7 @@ void SignVerifyMessageDialog::on_signMessageButton_SM_clicked()
 
     CPrivKey privKey;
     bool found = false;
-    CRITICAL_BLOCK(pwalletMain->cs_mapKeys)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
         std::map<uint160, std::vector<unsigned char> >::const_iterator mi = pwalletMain->mapPubKeys.find(hash160);
         if (mi != pwalletMain->mapPubKeys.end() && pwalletMain->GetPrivKey(mi->second, privKey))

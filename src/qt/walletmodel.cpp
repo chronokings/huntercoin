@@ -627,7 +627,7 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
     scriptPubKey << OP_NAME_UPDATE << vchName << vchValue << OP_2DROP << OP_DROP;
 
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(wallet->cs_mapWallet)
+    CRITICAL_BLOCK(wallet->cs_wallet)
     {
         if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
         {
@@ -844,7 +844,7 @@ bool WalletModel::DeleteTransaction(const QString &strHash, QString &retMsg)
     hash.SetHex(strHash.toStdString());
 
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(wallet->cs_mapWallet)
+    CRITICAL_BLOCK(wallet->cs_wallet)
     {
         if (!wallet->mapWallet.count(hash))
         {

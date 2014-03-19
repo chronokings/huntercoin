@@ -73,7 +73,7 @@ public:
         std::map< std::vector<unsigned char>, NameTableEntry > vNamesO;
         
         CRITICAL_BLOCK(cs_main)
-        CRITICAL_BLOCK(wallet->cs_mapWallet)
+        CRITICAL_BLOCK(wallet->cs_wallet)
         {
             CTxIndex txindex;
             CTxDB txdb("r");
@@ -168,7 +168,7 @@ public:
         NameTableEntry nameObj(stringFromVch(inName), std::string(), std::string(), NameTableEntry::NAME_NON_EXISTING);
 
         CRITICAL_BLOCK(cs_main)
-        CRITICAL_BLOCK(wallet->cs_mapWallet)
+        CRITICAL_BLOCK(wallet->cs_wallet)
         {
             CTxIndex txindex;
             CTxDB txdb("r");
@@ -333,7 +333,7 @@ public:
 
     bool updateGameState(bool &fRewardAddrChanged)
     {
-        CTryCriticalBlock criticalBlock(cs_main);
+        CTryCriticalBlock criticalBlock(cs_main, "cs_main", __FILE__, __LINE__);
         if (!criticalBlock.Entered())
             return false;
 
