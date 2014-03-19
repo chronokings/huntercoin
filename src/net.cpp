@@ -447,6 +447,10 @@ bool AddAddress(CAddress addr, int64 nTimePenalty)
     if (addr.ip == addrLocalHost.ip)
         return false;
     addr.nTime = max((int64)0, (int64)addr.nTime - nTimePenalty);
+    bool fUpdated = false;
+    bool fNew = false;
+    CAddress addrFound = addr;
+
     CRITICAL_BLOCK(cs_mapAddresses)
     {
         map<vector<unsigned char>, CAddress>::iterator it = mapAddresses.find(addr.GetKey());
@@ -455,13 +459,12 @@ bool AddAddress(CAddress addr, int64 nTimePenalty)
             // New address
             printf("AddAddress(%s)\n", addr.ToString().c_str());
             mapAddresses.insert(make_pair(addr.GetKey(), addr));
-            CAddrDB().WriteAddress(addr);
-            return true;
+            fUpdated = true;
+            fNew = true;
         }
         else
         {
-            bool fUpdated = false;
-            CAddress& addrFound = (*it).second;
+            addrFound = (*it).second;
             if ((addrFound.nServices | addr.nServices) != addrFound.nServices)
             {
                 // Services have been added
@@ -476,11 +479,19 @@ bool AddAddress(CAddress addr, int64 nTimePenalty)
                 addrFound.nTime = addr.nTime;
                 fUpdated = true;
             }
-            if (fUpdated)
-                CAddrDB().WriteAddress(addrFound);
         }
     }
-    return false;
+    // There is a nasty deadlock bug if this is done inside the cs_mapAddresses
+    // CRITICAL_BLOCK:
+    // Thread 1:  begin db transaction (locks inside-db-mutex)
+    //            then AddAddress (locks cs_mapAddresses)
+    // Thread 2:  AddAddress (locks cs_mapAddresses)
+    //             ... then db operation hangs waiting for inside-db-mutex
+    if (fUpdated)
+    {
+        CAddrDB().WriteAddress(addrFound);
+    }
+    return fNew;
 }
 
 void AddressCurrentlyConnected(const CAddress& addr)
