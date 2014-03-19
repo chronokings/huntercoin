@@ -3906,8 +3906,11 @@ void ThreadRPCServer2(void* parg)
         }
 
         // Clean up async threads.
-        printf("Trying to clean up %d async RPC call threads...\n",
-               asyncThreads.size());
+        if (asyncThreads.size() > 0)
+        {
+            printf("Trying to clean up %d async RPC call threads...\n",
+                   asyncThreads.size());
+        }
         for (ThreadList::iterator i = asyncThreads.begin();
              i != asyncThreads.end(); )
         {
