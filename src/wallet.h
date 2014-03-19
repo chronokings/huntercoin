@@ -41,28 +41,14 @@ public:
 
     mutable CCriticalSection cs_wallet;
 
-    // Synonyms for cs_wallet
-    CCriticalSection &cs_setKeyPool;
-    CCriticalSection &cs_mapWallet;
-    CCriticalSection &cs_mapRequestCount;
-    CCriticalSection &cs_mapAddressBook;
-
-    CWallet() :
-        cs_setKeyPool(cs_wallet),
-        cs_mapWallet(cs_wallet),
-        cs_mapRequestCount(cs_wallet),
-        cs_mapAddressBook(cs_wallet)
+    CWallet()
     {
         fFileBacked = false;
         nMasterKeyMaxID = 0;
         pwalletdbEncryption = NULL;
     }
 
-    CWallet(std::string strWalletFileIn) :
-        cs_setKeyPool(cs_wallet),
-        cs_mapWallet(cs_wallet),
-        cs_mapRequestCount(cs_wallet),
-        cs_mapAddressBook(cs_wallet)
+    CWallet(std::string strWalletFileIn)
     {
         strWalletFile = strWalletFileIn;
         fFileBacked = true;
@@ -141,7 +127,7 @@ public:
     {
         std::vector<unsigned char> vchPubKey;
         if (ExtractPubKey(txout.scriptPubKey, this, vchPubKey))
-            CRITICAL_BLOCK(cs_mapAddressBook)
+            CRITICAL_BLOCK(cs_wallet)
                 if (!mapAddressBook.count(PubKeyToAddress(vchPubKey)))
                     return true;
         return false;
@@ -220,10 +206,8 @@ public:
     bool LoadWallet(bool& fFirstRunRet);
 //    bool BackupWallet(const std::string& strDest);
 
-    // requires cs_mapAddressBook lock
     bool SetAddressBookName(const std::string& strAddress, const std::string& strName);
 
-    // requires cs_mapAddressBook lock
     bool DelAddressBookName(const std::string& strAddress);
     
 #ifdef GUI
@@ -239,7 +223,7 @@ public:
     void UpdatedTransaction(const uint256 &hashTx)
     {
 #ifdef GUI
-        CRITICAL_BLOCK(cs_mapWallet)
+        CRITICAL_BLOCK(cs_wallet)
         {
             //vWalletUpdated.push_back(hashTx);
             NotifyTransactionChanged(this, hashTx, CT_UPDATED);
@@ -251,7 +235,7 @@ public:
 
     void Inventory(const uint256 &hash)
     {
-        CRITICAL_BLOCK(cs_mapRequestCount)
+        CRITICAL_BLOCK(cs_wallet)
         {
             std::map<uint256, int>::iterator mi = mapRequestCount.find(hash);
             if (mi != mapRequestCount.end())

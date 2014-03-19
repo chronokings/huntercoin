@@ -60,7 +60,7 @@ void CWallet::WalletUpdateSpent(const CTransaction &tx)
     // Anytime a signature is successfully verified, it's proof the outpoint is spent.
     // Update the wallet spent flag if it doesn't know due to wallet.dat being
     // restored from backup or the user making copies of wallet.dat.
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         BOOST_FOREACH(const CTxIn& txin, tx.vin)
         {
@@ -96,7 +96,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn)
 {
     uint256 hash = wtxIn.GetHash();
     bool fInsertedNew = false;
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         // Inserts only if not already there, returns tx inserted or tx found
         pair<map<uint256, CWalletTx>::iterator, bool> ret = mapWallet.insert(make_pair(hash, wtxIn));
@@ -172,18 +172,21 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn)
 bool CWallet::AddToWalletIfInvolvingMe(const CTransaction& tx, const CBlock* pblock, bool fUpdate)
 {
     uint256 hash = tx.GetHash();
-    bool fExisted = mapWallet.count(hash);
-    if (fExisted && !fUpdate) return false;
-    if (fExisted || IsMine(tx) || IsFromMe(tx))
+    CRITICAL_BLOCK(cs_wallet)
     {
-        CWalletTx wtx(this,tx);
-        // Get merkle branch if transaction was found in a block
-        if (pblock)
-            wtx.SetMerkleBranch(pblock);
-        return AddToWallet(wtx);
+        bool fExisted = mapWallet.count(hash);
+        if (fExisted && !fUpdate) return false;
+        if (fExisted || IsMine(tx) || IsFromMe(tx))
+        {
+            CWalletTx wtx(this,tx);
+            // Get merkle branch if transaction was found in a block
+            if (pblock)
+                wtx.SetMerkleBranch(pblock);
+            return AddToWallet(wtx);
+        }
+        else
+            WalletUpdateSpent(tx);
     }
-    else
-        WalletUpdateSpent(tx);
     return false;
 }
 
@@ -191,7 +194,7 @@ bool CWallet::EraseFromWallet(uint256 hash)
 {
     if (!fFileBacked)
         return false;
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         if (mapWallet.erase(hash))
             CWalletDB(strWalletFile).EraseTx(hash);
@@ -202,7 +205,7 @@ bool CWallet::EraseFromWallet(uint256 hash)
 
 bool CWallet::IsMine(const CTxIn &txin) const
 {
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
         if (mi != mapWallet.end())
@@ -218,7 +221,7 @@ bool CWallet::IsMine(const CTxIn &txin) const
 
 int64 CWallet::GetDebit(const CTxIn &txin) const
 {
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
         if (mi != mapWallet.end())
@@ -234,7 +237,7 @@ int64 CWallet::GetDebit(const CTxIn &txin) const
 
 int64 CWallet::GetDebitInclName(const CTxIn &txin) const
 {
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         map<uint256, CWalletTx>::const_iterator mi = mapWallet.find(txin.prevout.hash);
         if (mi != mapWallet.end())
@@ -253,17 +256,20 @@ int64 CWallet::GetDebitInclName(const CTxIn &txin) const
 
 int64 CWalletTx::GetTxTime() const
 {
-    if (!fTimeReceivedIsTxTime && hashBlock != 0)
+    CRITICAL_BLOCK(cs_main)
     {
-        // If we did not receive the transaction directly, we rely on the block's
-        // time to figure out when it happened.  We use the median over a range
-        // of blocks to try to filter out inaccurate block times.
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
-        if (mi != mapBlockIndex.end())
+        if (!fTimeReceivedIsTxTime && hashBlock != 0)
         {
-            CBlockIndex* pindex = (*mi).second;
-            if (pindex)
-                return pindex->GetMedianTime();
+            // If we did not receive the transaction directly, we rely on the block's
+            // time to figure out when it happened.  We use the median over a range
+            // of blocks to try to filter out inaccurate block times.
+            map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+            if (mi != mapBlockIndex.end())
+            {
+                CBlockIndex* pindex = (*mi).second;
+                if (pindex)
+                    return pindex->GetMedianTime();
+            }
         }
     }
     return nTimeReceived;
@@ -275,7 +281,7 @@ int CWalletTx::GetRequestCount() const
     int nRequests = -1;
     if (IsGameTx())
         return nRequests;
-    CRITICAL_BLOCK(pwallet->cs_mapRequestCount)
+    CRITICAL_BLOCK(pwallet->cs_wallet)
     {
         if (IsCoinBase())
         {
@@ -428,7 +434,7 @@ void CWalletTx::GetAccountAmounts(const string& strAccount, int64& nGenerated, i
             nSent += s.second;
         nFee = allFee;
     }
-    CRITICAL_BLOCK(pwallet->cs_mapAddressBook)
+    CRITICAL_BLOCK(pwallet->cs_wallet)
     {
         BOOST_FOREACH(const PAIRTYPE(string,int64)& r, listReceived)
         {
@@ -458,7 +464,7 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
             vWorkQueue.push_back(txin.prevout.hash);
 
         // This critsect is OK because txdb is already open
-        CRITICAL_BLOCK(pwallet->cs_mapWallet)
+        CRITICAL_BLOCK(pwallet->cs_wallet)
         {
             map<uint256, const CMerkleTx*> mapWalletPrev;
             set<uint256> setAlreadyDone;
@@ -516,7 +522,7 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
     int ret = 0;
 
     CBlockIndex* pindex = pindexStart;
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         while (pindex)
         {
@@ -542,7 +548,7 @@ void CWallet::ReacceptWalletTransactions()
 {
     CTxDB txdb("r");
     bool fRepeat = true;
-    while (fRepeat) CRITICAL_BLOCK(cs_mapWallet)
+    while (fRepeat) CRITICAL_BLOCK(cs_wallet)
     {
         fRepeat = false;
         vector<CDiskTxPos> vMissingTx;
@@ -648,7 +654,7 @@ void CWallet::ResendWalletTransactions()
     printf("ResendWalletTransactions()\n");
     EraseBadMoveTransactions();
     CTxDB txdb("r");
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         // Sort them in chronological order
         multimap<unsigned int, CWalletTx*> mapSorted;
@@ -684,7 +690,7 @@ int64 CWallet::GetBalance() const
     int64 nStart = GetTimeMillis();
 
     int64 nTotal = 0;
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
@@ -704,7 +710,7 @@ int64 CWallet::GetUnconfirmedBalance() const
     int64 nStart = GetTimeMillis();
 
     int64 nTotal = 0;
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
@@ -723,7 +729,7 @@ int64 CWallet::GetImmatureBalance() const
     int64 nStart = GetTimeMillis();
 
     int64 nTotal = 0;
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
@@ -777,7 +783,7 @@ bool CWallet::SelectCoinsMinConf(int64 nTargetValue, int nConfMine, int nConfThe
     vector<pair<int64, pair<const CWalletTx*,unsigned int> > > vValue;
     int64 nTotalLower = 0;
 
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
        vector<const CWalletTx*> vCoins;
        vCoins.reserve(mapWallet.size());
@@ -937,10 +943,10 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CW
     wtxNew.pwallet = this;
 
     CRITICAL_BLOCK(cs_main)
+    CRITICAL_BLOCK(cs_wallet)
     {
         // txdb must be opened before the mapWallet lock
         CTxDB txdb("r");
-        CRITICAL_BLOCK(cs_mapWallet)
         {
             nFeeRet = nTransactionFee;
             loop
@@ -1043,7 +1049,7 @@ bool CWallet::CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& w
 bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 {
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         printf("CommitTransaction:\n%s", wtxNew.ToString().c_str());
         // This is only to keep the database open to defeat the auto-flush for the
@@ -1093,7 +1099,6 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 
 
 
-// requires cs_main lock
 string CWallet::SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, bool fAskFee)
 {
     CReserveKey reservekey(this);
@@ -1135,7 +1140,6 @@ string CWallet::SendMoneyPrepare(CScript scriptPubKey, int64 nValue, CWalletTx& 
 
 
 
-// requires cs_main lock
 string CWallet::SendMoneyToBitcoinAddress(string strAddress, int64 nValue, CWalletTx& wtxNew, bool fAskFee)
 {
     // Check amount
@@ -1229,7 +1233,7 @@ bool CWallet::EraseNameFirstUpdate(const std::vector<unsigned char>& vchName)
 
 void CWallet::PrintWallet(const CBlock& block)
 {
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         if (mapWallet.count(block.vtx[0].GetHash()))
         {
@@ -1242,7 +1246,7 @@ void CWallet::PrintWallet(const CBlock& block)
 
 bool CWallet::GetTransaction(const uint256 &hashTx, CWalletTx& wtx)
 {
-    CRITICAL_BLOCK(cs_mapWallet)
+    CRITICAL_BLOCK(cs_wallet)
     {
         map<uint256, CWalletTx>::iterator mi = mapWallet.find(hashTx);
         if (mi != mapWallet.end())
@@ -1297,9 +1301,7 @@ void CWallet::ReserveKeyFromKeyPool(int64& nIndex, CKeyPool& keypool)
 {
     nIndex = -1;
     keypool.vchPubKey.clear();
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(cs_mapWallet)
-    CRITICAL_BLOCK(cs_setKeyPool)
+    CRITICAL_BLOCK(cs_wallet)
     {
         CWalletDB walletdb(strWalletFile);
 
@@ -1341,10 +1343,7 @@ void CWallet::KeepKey(int64 nIndex)
     if (fFileBacked)
     {
         CWalletDB walletdb(strWalletFile);
-        CRITICAL_BLOCK(cs_main)
-        {
-            walletdb.ErasePool(nIndex);
-        }
+        walletdb.ErasePool(nIndex);
     }
     printf("keypool keep %"PRI64d"\n", nIndex);
 }
@@ -1352,7 +1351,7 @@ void CWallet::KeepKey(int64 nIndex)
 void CWallet::ReturnKey(int64 nIndex)
 {
     // Return to key pool
-    CRITICAL_BLOCK(cs_setKeyPool)
+    CRITICAL_BLOCK(cs_wallet)
         setKeyPool.insert(nIndex);
     printf("keypool return %"PRI64d"\n", nIndex);
 }
@@ -1519,6 +1518,7 @@ bool CWallet::Unlock(const SecureString& strWalletPassphrase)
     CCrypter crypter;
     CKeyingMaterial vMasterKey;
 
+    //CRITICAL_BLOCK(cs_KeyStore)
     CRITICAL_BLOCK(cs_wallet)
     {
         BOOST_FOREACH(const MasterKeyMap::value_type& pMasterKey, mapMasterKeys)
@@ -1546,7 +1546,7 @@ bool CWallet::ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase,
         CKeyingMaterial vMasterKey;
         BOOST_FOREACH(MasterKeyMap::value_type& pMasterKey, mapMasterKeys)
         {
-            if(!crypter.SetKeyFromPassphrase(strOldWalletPassphrase, pMasterKey.second.vchSalt, pMasterKey.second.nDeriveIterations, pMasterKey.second.nDerivationMethod))
+            if (!crypter.SetKeyFromPassphrase(strOldWalletPassphrase, pMasterKey.second.vchSalt, pMasterKey.second.nDeriveIterations, pMasterKey.second.nDerivationMethod))
                 return false;
             if (!crypter.Decrypt(pMasterKey.second.vchCryptedKey, vMasterKey))
                 return false;

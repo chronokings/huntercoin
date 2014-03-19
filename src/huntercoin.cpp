@@ -319,7 +319,7 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
     {
         // txdb must be opened before the mapWallet lock
         CTxDB txdb("r");
-        CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+        CRITICAL_BLOCK(pwalletMain->cs_wallet)
         {
             nFeeRet = nTransactionFee;
             loop
@@ -661,7 +661,7 @@ Value name_list(const Array& params, bool fHelp)
     map< vector<unsigned char>, int > vNamesI;
     map< vector<unsigned char>, Object > vNamesO;
 
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
         CTxIndex txindex;
         uint256 hash;
@@ -1213,7 +1213,7 @@ Value name_update(const Array& params, bool fHelp)
     scriptPubKey << OP_NAME_UPDATE << vchName << vchValue << OP_2DROP << OP_DROP;
 
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
         if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
         {
@@ -1570,7 +1570,7 @@ Value deletetransaction(const Array& params, bool fHelp)
     if (params.size() != 1)
       throw runtime_error("missing txid");
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
       uint256 hash;
       hash.SetHex(params[0].get_str());
@@ -1617,7 +1617,7 @@ Value name_clean(const Array& params, bool fHelp)
         throw runtime_error("name_clean\nClean unsatisfiable transactions from the wallet - including name_update on an already taken name\n");
 
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
         map<uint256, CWalletTx> mapRemove;
 
@@ -1783,7 +1783,7 @@ bool CNameDB::ReconstructNameIndex()
     vector<unsigned char> vchValue;
     CTxIndex txindex;
     CBlockIndex* pindex = pindexGenesisBlock;
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
         //CNameDB dbName("cr+", txdb);
         TxnBegin();

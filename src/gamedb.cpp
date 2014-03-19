@@ -597,7 +597,7 @@ extern CWallet* pwalletMain;
 void EraseBadMoveTransactions()
 {
     CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
         std::map<uint256, CWalletTx> mapRemove;
         std::vector<unsigned char> vchName;

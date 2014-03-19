@@ -1029,61 +1029,58 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
         return false;
 
     // Compile solution
-    CRITICAL_BLOCK(keystore.cs_mapKeys)
+    BOOST_FOREACH(PAIRTYPE(opcodetype, valtype)& item, vSolution)
     {
-        BOOST_FOREACH(PAIRTYPE(opcodetype, valtype)& item, vSolution)
+        if (item.first == OP_PUBKEY)
         {
-            if (item.first == OP_PUBKEY)
+            // Sign
+            const valtype& vchPubKey = item.second;
+            if (hash == 0)
             {
-                // Sign
-                const valtype& vchPubKey = item.second;
-                if (hash == 0)
-                {
-                    if (keystore.HaveKey(vchPubKey))
-                        return true;
-                    // Check for watch-only addresses, which do not have a pubkey, but have Hash160(pubkey)
-                    map<uint160, valtype>::const_iterator mi = keystore.mapPubKeys.find(Hash160(vchPubKey));
-                    if (mi == keystore.mapPubKeys.end())
-                        return false;
-                    return keystore.HaveKey(mi->second);
-                }
-                CPrivKey privkey;
-                if (!keystore.GetPrivKey(vchPubKey, privkey))
-                    return false;
-                if (hash != 0)
-                {
-                    vector<unsigned char> vchSig;
-                    if (!CKey::Sign(privkey, hash, vchSig))
-                        return false;
-                    vchSig.push_back((unsigned char)nHashType);
-                    scriptSigRet << vchSig;
-                }
-            }
-            else if (item.first == OP_PUBKEYHASH)
-            {
-                // Sign and give pubkey
-                map<uint160, valtype>::const_iterator mi = keystore.mapPubKeys.find(uint160(item.second));
+                if (keystore.HaveKey(vchPubKey))
+                    return true;
+                // Check for watch-only addresses, which do not have a pubkey, but have Hash160(pubkey)
+                map<uint160, valtype>::const_iterator mi = keystore.mapPubKeys.find(Hash160(vchPubKey));
                 if (mi == keystore.mapPubKeys.end())
                     return false;
-                const vector<unsigned char>& vchPubKey = (*mi).second;
-                if (hash == 0)
-                    return keystore.HaveKey(vchPubKey);
-                CPrivKey privkey;
-                if (!keystore.GetPrivKey(vchPubKey, privkey))
-                    return false;
-                if (hash != 0)
-                {
-                    vector<unsigned char> vchSig;
-                    if (!CKey::Sign(privkey, hash, vchSig))
-                        return false;
-                    vchSig.push_back((unsigned char)nHashType);
-                    scriptSigRet << vchSig << vchPubKey;
-                }
+                return keystore.HaveKey(mi->second);
             }
-            else
-            {
+            CPrivKey privkey;
+            if (!keystore.GetPrivKey(vchPubKey, privkey))
                 return false;
+            if (hash != 0)
+            {
+                vector<unsigned char> vchSig;
+                if (!CKey::Sign(privkey, hash, vchSig))
+                    return false;
+                vchSig.push_back((unsigned char)nHashType);
+                scriptSigRet << vchSig;
             }
+        }
+        else if (item.first == OP_PUBKEYHASH)
+        {
+            // Sign and give pubkey
+            map<uint160, valtype>::const_iterator mi = keystore.mapPubKeys.find(uint160(item.second));
+            if (mi == keystore.mapPubKeys.end())
+                return false;
+            const vector<unsigned char>& vchPubKey = (*mi).second;
+            if (hash == 0)
+                return keystore.HaveKey(vchPubKey);
+            CPrivKey privkey;
+            if (!keystore.GetPrivKey(vchPubKey, privkey))
+                return false;
+            if (hash != 0)
+            {
+                vector<unsigned char> vchSig;
+                if (!CKey::Sign(privkey, hash, vchSig))
+                    return false;
+                vchSig.push_back((unsigned char)nHashType);
+                scriptSigRet << vchSig << vchPubKey;
+            }
+        }
+        else
+        {
+            return false;
         }
     }
 
@@ -1108,21 +1105,18 @@ bool IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
 
 bool IsMine(const CKeyStore& keystore, const std::string& address)
 {
-    CRITICAL_BLOCK(keystore.cs_mapKeys)
-    {
-        uint160 hash160;
-        AddressToHash160(address, hash160);
-        std::map<uint160, std::vector<unsigned char> >::const_iterator mi = keystore.mapPubKeys.find(hash160);
-        if (mi == keystore.mapPubKeys.end())
-            return false;
-        return keystore.HaveKey(mi->second);
-    }
+    uint160 hash160;
+    AddressToHash160(address, hash160);
+    std::map<uint160, std::vector<unsigned char> >::const_iterator mi = keystore.mapPubKeys.find(hash160);
+    if (mi == keystore.mapPubKeys.end())
+        return false;
+    return keystore.HaveKey(mi->second);
 }
 
 // importaddress-friendly version of IsMine (ignores watch-only addresses)
 bool IsSpendable(const CKeyStore &keystore, const CScript& scriptPubKey)
 {
-    CRITICAL_BLOCK(keystore.cs_mapKeys)
+    CRITICAL_BLOCK(keystore.cs_KeyStore)
     {
         if (!IsMine(keystore, scriptPubKey))
             return false;
@@ -1136,7 +1130,7 @@ bool IsSpendable(const CKeyStore &keystore, const CScript& scriptPubKey)
 // importaddress-friendly version of IsMine (ignores watch-only addresses)
 bool IsSpendable(const CKeyStore& keystore, const std::string& address)
 {
-    CRITICAL_BLOCK(keystore.cs_mapKeys)
+    CRITICAL_BLOCK(keystore.cs_KeyStore)
     {
         uint160 hash160;
         AddressToHash160(address, hash160);
@@ -1158,7 +1152,7 @@ bool ExtractPubKey(const CScript& scriptPubKey, const CKeyStore* keystore, vecto
     if (keystore)
     {
         // Use keystore to convert hash160 to pubkey; only return keys that belong to us
-        CRITICAL_BLOCK(keystore->cs_mapKeys)
+        CRITICAL_BLOCK(keystore->cs_KeyStore)
         {
             BOOST_FOREACH(PAIRTYPE(opcodetype, valtype)& item, vSolution)
             {
