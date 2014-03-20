@@ -5,9 +5,13 @@
 #include "headers.h"
 #include "huntercoin.h"
 
+#include <list>
+#include <map>
+
 using namespace Game;
 
 static const int KEEP_EVERY_NTH_STATE = 2000;
+static const unsigned IN_MEMORY_STATE_CACHE = 10;
 
 class CGameDB : public CDB
 {
@@ -64,12 +68,12 @@ protected:
 
 public:
     GameStepValidator(const GameState *pstate_)
-        : pstate(pstate_), fOwnState(false), pTxDB(NULL)
+        : fOwnState(false), pTxDB(NULL), pstate(pstate_)
     {
     }
 
     GameStepValidator(CTxDB &txdb, CBlockIndex *pindex)
-        : fOwnState(true), pTxDB(&txdb), fOwnTxDB(false)
+        : fOwnState(true), fOwnTxDB(false), pTxDB(&txdb)
     {
         GameState *newState = new GameState;
         if (!GetGameState(txdb, pindex, *newState))
@@ -247,17 +251,189 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
     return CreateGameTransactions(pnameDb, outState, stepResult, outvgametx);
 }
 
-static GameState currentState;
+/* ************************************************************************** */
+/* GameStateCache.  */
+
+/**
+ * This class holds a cache of recently calculated game states just in memory
+ * (this is never written to disk) and can be used to get the current state
+ * as well as very recent "old" ones efficiently (without recalculation).
+ * The recent (but not current) states are necessary to perform efficient
+ * reorganisations after orphan blocks.
+ */
+class GameStateCache
+{
+
+private:
+
+  /** Type used for the map blockhash -> state.  */
+  typedef std::map<uint256, GameState*> gameStateMap;
+
+  /** Map holding the data.  */
+  gameStateMap map;
+
+  /** Maximum size, after which elements are pruned.  */
+  unsigned maxSize;
+
+public:
+
+  /**
+   * Construct it empty.
+   * @param sz Maximum size after which we remove old entries.
+   */
+  inline GameStateCache (unsigned sz)
+    : map(), maxSize(sz)
+  {}
+
+  /**
+   * Destruct and free all memory.
+   */
+  ~GameStateCache ();
+
+  /**
+   * Retrieve a game state if it is stored.
+   * @param hash Block hash for which we want the state.
+   * @return Pointer to stored state or NULL.
+   */
+  inline const GameState*
+  query (const uint256& hash) const
+  {
+    const gameStateMap::const_iterator i = map.find (hash);
+    if (i == map.end ())
+      return NULL;
+
+    return i->second;
+  }
+
+  /**
+   * Retrieve a game state if it is stored.
+   * @param hash Block hash for which we want the state.
+   * @param out Write the game state here.
+   * @return True iff the state was found.
+   */
+  inline bool
+  query (const uint256& hash, GameState& out) const
+  {
+    const GameState* ptr = query (hash);
+    if (!ptr)
+      return false;
+
+    out = *ptr;
+    return true;
+  }
+
+  /**
+   * Insert the given game state into the cache.
+   * @param state Game state to store.
+   */
+  void store (const GameState& state);
+
+};
+
+GameStateCache::~GameStateCache ()
+{
+  for (gameStateMap::iterator i = map.begin (); i != map.end (); ++i)
+    delete i->second;
+}
+
+void
+GameStateCache::store (const GameState& state)
+{
+  gameStateMap::iterator i;
+
+  /* See if the state is there first, and overwrite it if yes.  */
+  i = map.find (state.hashBlock);
+  if (i != map.end ())
+    {
+      *i->second = state;
+      return;
+    }
+
+  /* Insert the new entry.  */
+  printf ("GameStateCache: storing for block @%d %s\n",
+          state.nHeight, state.hashBlock.GetHex ().c_str ());
+  map.insert (std::make_pair (state.hashBlock, new GameState (state)));
+
+  /* Drop entries until we reach the maximal size goal.  */
+  while (map.size () > maxSize)
+    {
+      bool deleted = false;
+
+      /* See if there are entries for blocks not on the main chain.  Remove
+         those first.  */
+      for (i = map.begin (); i != map.end () && !deleted; ++i)
+        {
+          std::map<uint256, CBlockIndex*>::const_iterator j;
+          j = mapBlockIndex.find (i->second->hashBlock);
+
+          if (j == mapBlockIndex.end () || !j->second->IsInMainChain ())
+            {
+              if (j == mapBlockIndex.end ())
+                printf ("Warning: Block in GameStateCache not found in"
+                        " mapBlockIndex.  Removing.\n");
+
+              printf ("GameStateCache: removing block %s not in main chain\n", 
+                      i->second->hashBlock.GetHex ().c_str ());
+
+              delete i->second;
+              map.erase (i);
+              deleted = true;
+            }
+        }
+      
+      /* If we already deleted something, check size again.  */
+      if (deleted)
+        continue;
+
+      /* Remove entry with lowest block height.  */
+
+      gameStateMap::iterator bestPosition = map.end ();
+      for (i = map.begin (); i != map.end (); ++i)
+        {
+          if (bestPosition == map.end ()
+              || i->second->nHeight < bestPosition->second->nHeight)
+            bestPosition = i;
+        }
+      assert (bestPosition != map.end ());
+      printf ("GameStateCache: removing block with lowest height %d\n",
+              bestPosition->second->nHeight);
+
+      delete bestPosition->second;
+      map.erase (bestPosition);
+    }
+}
+
+/** Our game state cache instance.  */
+static GameStateCache stateCache(IN_MEMORY_STATE_CACHE);
+
+/* ************************************************************************** */
 
 // Caller must hold cs_main lock
-const GameState &GetCurrentGameState()
+const GameState& GetCurrentGameState()
 {
-    if (currentState.nHeight != nBestHeight)
-    {
-        CTxDB txdb("r");
-        GetGameState(txdb, pindexBest, currentState);
-    }
-    return currentState;
+    const GameState* state;
+
+    /* If the state is in the cache, return it immediately.  */
+    state = stateCache.query (*pindexBest->phashBlock);
+    if (state)
+      return *state;
+
+    /* Else, calulate the state.  */
+    GameState cur;
+    CTxDB txdb("r");
+    GetGameState(txdb, pindexBest, cur);
+
+    /* If it is still not in the cache, store it explicitly.  */
+    state = stateCache.query (*pindexBest->phashBlock);
+    if (state)
+      return *state;
+    stateCache.store (cur);
+
+    /* Finally, it should indeed be there.  */
+    state = stateCache.query (*pindexBest->phashBlock);
+    assert (state);
+
+    return *state;
 }
 
 // pindex must belong to the main branch, i.e. corresponding blocks must be connected
@@ -270,16 +446,9 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         return true;
     }
 
-    if (*pindex->phashBlock == currentState.hashBlock)
-    {
-        /* In GetCurrentState(), this routine is called with currentState
-           as outState.  Avoid a redundant copy operation.  The default
-           operator= does this, AFAIK, but make it explicit here
-           also for clarity.  */
-        if (&outState != &currentState)
-            outState = currentState;
-        return true;
-    }
+    /* See if we have the block in the state cache.  */
+    if (stateCache.query (*pindex->phashBlock, outState))
+      return true;
 
     // Get the latest saved state
     CGameDB gameDb("cr", txdb);
@@ -295,19 +464,29 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 
     if (!pindex->IsInMainChain())
         return error("GetGameState called for non-main chain");
-        
+
+    printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+    printf("GetGameState: need to integrate state for height %d (current %d)\n",
+           pindex->nHeight, nBestHeight);
+
     CBlockIndex *plast = pindex;
     GameState lastState;
     for (; plast->pprev; plast = plast->pprev)
     {
+        if (stateCache.query (*plast->pprev->phashBlock, lastState))
+            break;
         if (gameDb.Read(plast->pprev->nHeight, lastState))
             break;
     }
+
+    printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+    printf("GetGameState: last saved block has height %d\n", lastState.nHeight);
 
     // When connecting genesis block, there is no nameindexfull.dat file yet
     std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
 
     // Integrate steps starting from the last saved state
+    // FIXME: Might want to store intermediate steps in stateCache, too.
     loop
     {
         std::vector<CTransaction> vgametx;
@@ -344,8 +523,12 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         plast = plast->pnext;
         lastState = outState;
     }
-    if (pindex == pindexBest && &outState != &currentState)
-        currentState = outState;
+
+    /* Store into game state cache.  */
+    stateCache.store (outState);
+
+    printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+    printf("GetGameState: done integrating\n");
 
     if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
     {
@@ -359,13 +542,10 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 // Called from ConnectBlock
 bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nFees)
 {
-    GameState outState;
+    GameState currentState, outState;
 
-    if (currentState.hashBlock != block->hashPrevBlock)
-    {
-        if (!GetGameState(txdb, pindex->pprev, currentState))
-            return error("AdvanceGameState: cannot get current game state");
-    }
+    if (!GetGameState(txdb, pindex->pprev, currentState))
+        return error("AdvanceGameState: cannot get current game state");
 
     if (currentState.nHeight != pindex->nHeight - 1)
         return error("AdvanceGameState: incorrect height encountered");
@@ -386,10 +566,6 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nF
         return error("AdvanceGameState: incorrect height stored");
     if (outState.hashBlock != *pindex->phashBlock)
         return error("AdvanceGameState: incorrect hash stored");
-
-    // Here we optimistically assume that the block being connected
-    // will be connected successfully and pindexBest will equal pindex
-    currentState = outState;
 
     CGameDB gameDb("cr+", txdb);
     gameDb.Write(pindex->nHeight, outState);
@@ -426,7 +602,7 @@ void EraseBadMoveTransactions()
         std::map<uint256, CWalletTx> mapRemove;
         std::vector<unsigned char> vchName;
 
-        GameStepValidator gameStepValidator(&currentState);
+        GameStepValidator gameStepValidator(&GetCurrentGameState ());
 
         {
             CTxDB txdb("r");
