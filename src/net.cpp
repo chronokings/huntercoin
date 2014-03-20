@@ -499,21 +499,25 @@ bool AddAddress(CAddress addr, int64 nTimePenalty, CAddrDB *pAddrDB)
 
 void AddressCurrentlyConnected(const CAddress& addr)
 {
+    CAddress *paddrFound = NULL;
+
     CRITICAL_BLOCK(cs_mapAddresses)
     {
         // Only if it's been published already
         map<vector<unsigned char>, CAddress>::iterator it = mapAddresses.find(addr.GetKey());
         if (it != mapAddresses.end())
+            paddrFound = &(*it).second;
+    }
+
+    if (paddrFound)
+    {
+        int64 nUpdateInterval = 20 * 60;
+        if (paddrFound->nTime < GetAdjustedTime() - nUpdateInterval)
         {
-            CAddress& addrFound = (*it).second;
-            int64 nUpdateInterval = 20 * 60;
-            if (addrFound.nTime < GetAdjustedTime() - nUpdateInterval)
-            {
-                // Periodically update most recently seen time
-                addrFound.nTime = GetAdjustedTime();
-                CAddrDB addrdb;
-                addrdb.WriteAddress(addrFound);
-            }
+            // Periodically update most recently seen time
+            paddrFound->nTime = GetAdjustedTime();
+            CAddrDB addrdb;
+            addrdb.WriteAddress(*paddrFound);
         }
     }
 }
