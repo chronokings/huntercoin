@@ -1796,7 +1796,7 @@ void ThreadCleanWalletPassphrase(void* parg)
 {
     int64 nMyWakeTime = GetTimeMillis() + *((int64*)parg) * 1000;
 
-    CRITICAL_BLOCK(cs_nWalletUnlockTime);
+    ENTER_CRITICAL_SECTION(cs_nWalletUnlockTime);
 
     if (nWalletUnlockTime == 0)
     {
@@ -1810,7 +1810,9 @@ void ThreadCleanWalletPassphrase(void* parg)
             if (nToSleep <= 0)
                 break;
 
+            LEAVE_CRITICAL_SECTION(cs_nWalletUnlockTime);
             Sleep(nToSleep);
+            ENTER_CRITICAL_SECTION(cs_nWalletUnlockTime);
 
         } while(1);
 
@@ -1825,6 +1827,8 @@ void ThreadCleanWalletPassphrase(void* parg)
         if (nWalletUnlockTime < nMyWakeTime)
             nWalletUnlockTime = nMyWakeTime;
     }
+
+    LEAVE_CRITICAL_SECTION(cs_nWalletUnlockTime);
 
     delete (int64*)parg;
 }
