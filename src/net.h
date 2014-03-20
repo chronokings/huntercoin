@@ -733,19 +733,6 @@ public:
         LEAVE_CRITICAL_SECTION(cs_vSend);
     }
 
-    void EndMessageAbortIfEmpty()
-    {
-        if (nHeaderStart == -1)
-            return;
-        int nSize = vSend.size() - nMessageStart;
-        if (nSize > 0)
-            EndMessage();
-        else
-            AbortMessage();
-    }
-
-
-
     void PushVersion()
     {
         /// when NTP implemented, change to just nTime = GetAdjustedTime()
