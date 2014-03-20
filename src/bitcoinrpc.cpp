@@ -52,7 +52,9 @@ using namespace json_spirit;
 void ThreadRPCServer2(void* parg);
 Value sendtoaddress(const Array& params, bool fHelp);
 
-int64 nWalletUnlockTime;
+static std::string strRPCUserColonPass;
+
+static int64 nWalletUnlockTime;
 static CCriticalSection cs_nWalletUnlockTime;
 
 void ThreadCleanWalletPassphrase(void* parg);
@@ -3584,24 +3586,6 @@ string EncodeBase64(string s)
     return result;
 }
 
-string DecodeBase64(string s)
-{
-    BIO *b64, *bmem;
-
-    char* buffer = static_cast<char*>(calloc(s.size(), sizeof(char)));
-
-    b64 = BIO_new(BIO_f_base64());
-    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
-    bmem = BIO_new_mem_buf(const_cast<char*>(s.c_str()), s.size());
-    bmem = BIO_push(b64, bmem);
-    BIO_read(bmem, buffer, s.size());
-    BIO_free_all(bmem);
-
-    string result(buffer);
-    free(buffer);
-    return result;
-}
-
 bool HTTPAuthorized(map<string, string>& mapHeaders)
 {
     string strAuth = mapHeaders["authorization"];
@@ -3609,12 +3593,7 @@ bool HTTPAuthorized(map<string, string>& mapHeaders)
         return false;
     string strUserPass64 = strAuth.substr(6); boost::trim(strUserPass64);
     string strUserPass = DecodeBase64(strUserPass64);
-    string::size_type nColon = strUserPass.find(":");
-    if (nColon == string::npos)
-        return false;
-    string strUser = strUserPass.substr(0, nColon);
-    string strPassword = strUserPass.substr(nColon+1);
-    return (strUser == mapArgs["-rpcuser"] && strPassword == mapArgs["-rpcpassword"]);
+    return strUserPass == strRPCUserColonPass;
 }
 
 //
@@ -3848,7 +3827,8 @@ void ThreadRPCServer2(void* parg)
 {
     printf("ThreadRPCServer started\n");
 
-    if (mapArgs["-rpcuser"] == "" && mapArgs["-rpcpassword"] == "")
+    strRPCUserColonPass = mapArgs["-rpcuser"] + ":" + mapArgs["-rpcpassword"];
+    if (strRPCUserColonPass == ":")
     {
         string strWhatAmI = "To use huntercoind";
         if (mapArgs.count("-server"))
