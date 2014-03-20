@@ -440,7 +440,7 @@ void ThreadGetMyExternalIP(void* parg)
 
 
 
-bool AddAddress(CAddress addr, int64 nTimePenalty)
+bool AddAddress(CAddress addr, int64 nTimePenalty, CAddrDB *pAddrDB)
 {
     if (!addr.IsRoutable())
         return false;
@@ -489,7 +489,10 @@ bool AddAddress(CAddress addr, int64 nTimePenalty)
     //             ... then db operation hangs waiting for inside-db-mutex
     if (fUpdated)
     {
-        CAddrDB().WriteAddress(addrFound);
+        if (pAddrDB)
+            pAddrDB->WriteAddress(addrFound);
+        else
+            CAddrDB().WriteAddress(addrFound);
     }
     return fNew;
 }
@@ -1181,15 +1184,18 @@ void DNSAddressSeed()
             vector<CAddress> vaddr;
             if (Lookup(strDNSSeed[seed_idx], vaddr, NODE_NETWORK, -1, true))
             {
+                CAddrDB addrDB;
+                addrDB.TxnBegin();
                 BOOST_FOREACH (CAddress& addr, vaddr)
                 {
                     if (addr.GetByte(3) != 127)
                     {
                         addr.nTime = 0;
-                        AddAddress(addr);
+                        AddAddress(addr, 0, &addrDB);
                         found++;
                     }
                 }
+                addrDB.TxnCommit();  // Save addresses (it's ok if this fails)
             }
         }
     }
