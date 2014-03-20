@@ -1211,7 +1211,7 @@ static void potential_deadlock_detected(const std::pair<void*, void*>& mismatch,
     }
 }
 
-static void push_lock(void* c, const CLockLocation& locklocation)
+static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
 {
     bool fOrderOK = true;
     if (lockstack.get() == NULL)
@@ -1221,7 +1221,7 @@ static void push_lock(void* c, const CLockLocation& locklocation)
 
     (*lockstack).push_back(std::make_pair(c, locklocation));
 
-    BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, (*lockstack))
+    if (!fTry) BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, (*lockstack))
     {
         if (i.first == c) break;
 
@@ -1245,9 +1245,9 @@ static void pop_lock()
     (*lockstack).pop_back();
 }
 
-void EnterCritical(const char* pszName, const char* pszFile, int nLine, void* cs)
+void EnterCritical(const char* pszName, const char* pszFile, int nLine, void* cs, bool fTry)
 {
-    push_lock((CCriticalSection*)cs, CLockLocation(pszName, pszFile, nLine));
+    push_lock(cs, CLockLocation(pszName, pszFile, nLine), fTry);
 }
 
 void LeaveCritical()
