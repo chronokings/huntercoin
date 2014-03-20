@@ -2355,7 +2355,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
 
-        AddTimeData(pfrom->addr.ip, nTime);
 
         // Change version
         pfrom->PushMessage("verack");
@@ -2398,6 +2397,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         printf("version message: version %d, blocks=%d, ip=%s\n", pfrom->nVersion, pfrom->nStartingHeight, pfrom->addr.ToString().c_str());
 
+        LOCK(cs_main);
+        AddTimeData(pfrom->addr.ip, nTime);
         cPeerBlockCounts.input(pfrom->nStartingHeight);
     }
 
@@ -2484,7 +2485,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 break;
             }
         }
+
         CTxDB txdb("r");
+
+        LOCK(cs_main);
+
         for (int nInv = 0; nInv < vInv.size(); nInv++)
         {
             const CInv &inv = vInv[nInv];
@@ -2525,6 +2530,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         if (vInv.size() > 50000)
             return error("message getdata size() = %d", vInv.size());
 
+        LOCK(cs_main);
         BOOST_FOREACH(const CInv& inv, vInv)
         {
             if (fShutdown)
@@ -2578,6 +2584,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         uint256 hashStop;
         vRecv >> locator >> hashStop;
 
+        LOCK(cs_main);
+
         // Find the last block the caller has in the main chain
         CBlockIndex* pindex = locator.GetBlockIndex();
 
@@ -2615,6 +2623,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;
+
+        LOCK(cs_main);
 
         CBlockIndex* pindex = NULL;
         if (locator.IsNull())
@@ -2666,6 +2676,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                    tx.GetHash().ToString().c_str(),
                    oldSize, nSize);
         }
+
+        LOCK(cs_main);
 
         bool fMissingInputs = false;
         if (tx.AcceptToMemoryPool(true, true, &fMissingInputs))
@@ -2720,6 +2732,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         CInv inv(MSG_BLOCK, block.GetHash());
         pfrom->AddInventoryKnown(inv);
+
+        LOCK(cs_main);
 
         if (ProcessBlock(pfrom, &block))
             mapAlreadyAskedFor.erase(inv);
@@ -2914,10 +2928,7 @@ bool ProcessMessages(CNode* pfrom)
         bool fRet = false;
         try
         {
-            {
-                LOCK(cs_main);
-                fRet = ProcessMessage(pfrom, strCommand, vMsg);
-            }
+            fRet = ProcessMessage(pfrom, strCommand, vMsg);
             if (fShutdown)
                 return true;
         }
