@@ -332,8 +332,8 @@ inline int OutputDebugStringF(const char* pszFormat, ...)
         static CCriticalSection cs_OutputDebugStringF;
 
         // accumulate a line at a time
-        CRITICAL_BLOCK(cs_OutputDebugStringF)
         {
+            LOCK(cs_OutputDebugStringF);
             static char pszBuffer[50000];
             static char* pend;
             if (pend == NULL)
@@ -699,8 +699,8 @@ const char* wxGetTranslation(const char* pszEnglish)
 #if 0
     // Wrapper of wxGetTranslation returning the same const char* type as was passed in
     static CCriticalSection cs;
-    CRITICAL_BLOCK(cs)
     {
+        LOCK(cs);
         // Look in cache
         static map<string, char*> mapCache;
         map<string, char*>::iterator mi = mapCache.find(pszEnglish);

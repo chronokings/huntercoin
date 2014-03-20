@@ -127,9 +127,11 @@ public:
     {
         std::vector<unsigned char> vchPubKey;
         if (ExtractPubKey(txout.scriptPubKey, this, vchPubKey))
-            CRITICAL_BLOCK(cs_wallet)
-                if (!mapAddressBook.count(PubKeyToAddress(vchPubKey)))
-                    return true;
+        {
+            LOCK(cs_wallet);
+            if (!mapAddressBook.count(PubKeyToAddress(vchPubKey)))
+                return true;
+        }
         return false;
     }
     int64 GetChange(const CTxOut& txout) const
@@ -223,8 +225,8 @@ public:
     void UpdatedTransaction(const uint256 &hashTx)
     {
 #ifdef GUI
-        CRITICAL_BLOCK(cs_wallet)
         {
+            LOCK(cs_wallet);
             //vWalletUpdated.push_back(hashTx);
             NotifyTransactionChanged(this, hashTx, CT_UPDATED);
         }
@@ -235,8 +237,8 @@ public:
 
     void Inventory(const uint256 &hash)
     {
-        CRITICAL_BLOCK(cs_wallet)
         {
+            LOCK(cs_wallet);
             std::map<uint256, int>::iterator mi = mapRequestCount.find(hash);
             if (mi != mapRequestCount.end())
                 (*mi).second++;

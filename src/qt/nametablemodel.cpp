@@ -72,9 +72,8 @@ public:
 
         std::map< std::vector<unsigned char>, NameTableEntry > vNamesO;
         
-        CRITICAL_BLOCK(cs_main)
-        CRITICAL_BLOCK(wallet->cs_wallet)
         {
+            LOCK2(cs_main, wallet->cs_wallet);
             CTxIndex txindex;
             CTxDB txdb("r");
             CTransaction tx;
@@ -167,9 +166,8 @@ public:
     {
         NameTableEntry nameObj(stringFromVch(inName), std::string(), std::string(), NameTableEntry::NAME_NON_EXISTING);
 
-        CRITICAL_BLOCK(cs_main)
-        CRITICAL_BLOCK(wallet->cs_wallet)
         {
+            LOCK2(cs_main, wallet->cs_wallet);
             CTxIndex txindex;
             CTxDB txdb("r");
             CTransaction tx;
@@ -333,53 +331,57 @@ public:
 
     bool updateGameState(bool &fRewardAddrChanged)
     {
-        CTryCriticalBlock criticalBlock(cs_main, "cs_main", __FILE__, __LINE__);
-        if (!criticalBlock.Entered())
-            return false;
-
-        const Game::GameState &gameState = GetCurrentGameState();
-        if (gameState.hashBlock == cachedLastBlock)
-            return false;
-
-        bool fChanged = false;
-        for (int i = 0, n = size(); i < n; i++)
+        TRY_LOCK(cs_main, lockGameState);
+        if (lockGameState)
         {
-            NameTableEntry *item = index(i);
-            QString s;
+            const Game::GameState &gameState = GetCurrentGameState();
+            if (gameState.hashBlock == cachedLastBlock)
+                return false;
 
-            if (item->HeightValid() || item->nHeight == NameTableEntry::NAME_UNCONFIRMED)
+            bool fChanged = false;
+            for (int i = 0, n = size(); i < n; i++)
             {
-                std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
-                if (it != gameState.players.end())
+                NameTableEntry *item = index(i);
+                QString s;
+
+                if (item->HeightValid() || item->nHeight == NameTableEntry::NAME_UNCONFIRMED)
                 {
-                    bool fRewardAddressDifferent = !it->second.address.empty() && item->address != it->second.address.c_str();
-
-                    if (item->fRewardAddressDifferent != fRewardAddressDifferent)
+                    std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
+                    if (it != gameState.players.end())
                     {
-                        item->fRewardAddressDifferent = fRewardAddressDifferent;
-                        fRewardAddrChanged = true;
-                    }
+                        bool fRewardAddressDifferent = !it->second.address.empty() && item->address != it->second.address.c_str();
 
-                    // Note: we do not provide crown_index here, so the JSON string won't contain has_crown field
-                    s = QString::fromStdString(json_spirit::write_string(it->second.ToJsonValue(-1), false));
+                        if (item->fRewardAddressDifferent != fRewardAddressDifferent)
+                        {
+                            item->fRewardAddressDifferent = fRewardAddressDifferent;
+                            fRewardAddrChanged = true;
+                        }
+
+                        // Note: we do not provide crown_index here, so the JSON string won't contain has_crown field
+                        s = QString::fromStdString(json_spirit::write_string(it->second.ToJsonValue(-1), false));
+                    }
+                }
+
+                if (item->state != s)
+                {
+                    std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
+                    if (it != gameState.players.end())
+                        item->color = it->second.color;
+
+                    item->state = s;
+                    fChanged = true;
                 }
             }
 
-            if (item->state != s)
-            {
-                std::map<Game::PlayerID, Game::PlayerState>::const_iterator it = gameState.players.find(item->name.toStdString());
-                if (it != gameState.players.end())
-                    item->color = it->second.color;
+            cachedLastBlock = gameState.hashBlock;
+            emit parent->gameStateChanged(gameState);
 
-                item->state = s;
-                fChanged = true;
-            }
+            return fChanged;
         }
-
-        cachedLastBlock = gameState.hashBlock;
-        emit parent->gameStateChanged(gameState);
-
-        return fChanged;
+        else
+        {
+            return false;
+        }
     }
 
     int size()

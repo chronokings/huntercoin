@@ -495,7 +495,7 @@ getchains (const Array& params, bool fHelp)
 
   /* Lock everything.  Not sure if this is needed for the whole duration
      of the call, but better be safe than sorry.  */
-  CRITICAL_BLOCK(cs_main);
+  LOCK(cs_main);
 
   /* For each block known, keep track if there are follow-ups (which have
      the block as pprev) so that we find the chain heads.  */
@@ -960,8 +960,8 @@ Value listaddressgroupings(const Array& params, bool fHelp)
             Array addressInfo;
             addressInfo.push_back(address);
             addressInfo.push_back(ValueFromAmount(balances[address]));
-            CRITICAL_BLOCK(pwalletMain->cs_wallet)
             {
+                LOCK(pwalletMain->cs_wallet);
                 map<string, string>::iterator mi = pwalletMain->mapAddressBook.find(address);
                 if (mi != pwalletMain->mapAddressBook.end())
                     addressInfo.push_back(mi->second);
@@ -1013,8 +1013,8 @@ Value getreceivedbyaddress(const Array& params, bool fHelp)
 
 void GetAccountPubKeys(string strAccount, set<CScript>& setPubKey)
 {
-    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
+        LOCK(pwalletMain->cs_wallet);
         BOOST_FOREACH(const PAIRTYPE(string, string)& item, pwalletMain->mapAddressBook)
         {
             const string& strAddress = item.first;
@@ -1918,8 +1918,8 @@ Value walletlock(const Array& params, bool fHelp)
     if (!pwalletMain->IsCrypted())
         throw JSONRPCError(RPC_WALLET_WRONG_ENC_STATE, "Error: running with an unencrypted wallet, but walletlock was called.");
 
-    CRITICAL_BLOCK(cs_nWalletUnlockTime)
     {
+        LOCK(cs_nWalletUnlockTime);
         pwalletMain->Lock();
         nWalletUnlockTime = 0;
     }
@@ -2516,9 +2516,8 @@ Value importprivkey(const Array& params, bool fHelp)
     CSecret32 secret = vchSecret.GetSecret(fCompressed);
     key.SetSecret(secret, fCompressed);
     string strAddress = PubKeyToAddress(key.GetPubKey());
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
         EnsureWalletIsUnlocked();
 
         if (!pwalletMain->AddKey(key))
@@ -2558,9 +2557,8 @@ Value importaddress(const Array& params, bool fHelp)
     if (params.size() > 2)
         fRescan = params[2].get_bool();
 
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
         if (!pwalletMain->AddAddress(hash160))
             throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
 
@@ -2593,8 +2591,8 @@ Value dumpprivkey(const Array& params, bool fHelp)
         
     CPrivKey privKey;
     bool found = false;
-    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
+        LOCK(pwalletMain->cs_wallet);
         EnsureWalletIsUnlocked();
 
         std::map<uint160, std::vector<unsigned char> >::const_iterator mi = pwalletMain->mapPubKeys.find(hash160);
@@ -2630,8 +2628,8 @@ Value signmessage(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
 
     CPrivKey privKey;
-    CRITICAL_BLOCK(pwalletMain->cs_wallet)
     {
+        LOCK(pwalletMain->cs_wallet);
         std::map<uint160, std::vector<unsigned char> >::const_iterator mi = pwalletMain->mapPubKeys.find(hash160);
         if (mi == pwalletMain->mapPubKeys.end())
             throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
@@ -3241,8 +3239,8 @@ Value getrawmempool(const Array& params, bool fHelp)
 
     Array a;
 
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK(cs_mapTransactions);
         a.reserve(mapTransactions.size());
         BOOST_FOREACH(const PAIRTYPE(uint256, CTransaction) &mi, mapTransactions)
             a.push_back(mi.first.ToString());

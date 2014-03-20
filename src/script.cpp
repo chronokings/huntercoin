@@ -1116,8 +1116,8 @@ bool IsMine(const CKeyStore& keystore, const std::string& address)
 // importaddress-friendly version of IsMine (ignores watch-only addresses)
 bool IsSpendable(const CKeyStore &keystore, const CScript& scriptPubKey)
 {
-    CRITICAL_BLOCK(keystore.cs_KeyStore)
     {
+        LOCK(keystore.cs_KeyStore);
         if (!IsMine(keystore, scriptPubKey))
             return false;
         vector<unsigned char> vchPubKey;
@@ -1130,8 +1130,8 @@ bool IsSpendable(const CKeyStore &keystore, const CScript& scriptPubKey)
 // importaddress-friendly version of IsMine (ignores watch-only addresses)
 bool IsSpendable(const CKeyStore& keystore, const std::string& address)
 {
-    CRITICAL_BLOCK(keystore.cs_KeyStore)
     {
+        LOCK(keystore.cs_KeyStore);
         uint160 hash160;
         AddressToHash160(address, hash160);
         std::map<uint160, std::vector<unsigned char> >::const_iterator mi = keystore.mapPubKeys.find(hash160);
@@ -1152,8 +1152,8 @@ bool ExtractPubKey(const CScript& scriptPubKey, const CKeyStore* keystore, vecto
     if (keystore)
     {
         // Use keystore to convert hash160 to pubkey; only return keys that belong to us
-        CRITICAL_BLOCK(keystore->cs_KeyStore)
         {
+            LOCK(keystore->cs_KeyStore);
             BOOST_FOREACH(PAIRTYPE(opcodetype, valtype)& item, vSolution)
             {
                 valtype vchPubKey;

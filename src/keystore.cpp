@@ -24,8 +24,8 @@ std::vector<unsigned char> CKeyStore::GenerateNewKey()
 
 bool CKeyStore::AddKey(const CKey& key)
 {
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         if (!IsCrypted())
         {
             mapKeys[key.GetPubKey()] = key.GetPrivKey();
@@ -53,8 +53,8 @@ bool CKeyStore::AddAddress(const uint160& hash160)
     std::vector<unsigned char> vchEmpty;
 
     // The key is watch-only. We don't have the secret. 
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         mapPubKeys[hash160] = vchEmpty;
         if (!IsCrypted())
             mapKeys[vchEmpty] = CPrivKey();
@@ -66,8 +66,8 @@ bool CKeyStore::AddAddress(const uint160& hash160)
 
 bool CKeyStore::AddCryptedKey(const std::vector<unsigned char> &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret)
 {
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         if (!SetCrypted())
             return false;
 
@@ -79,8 +79,8 @@ bool CKeyStore::AddCryptedKey(const std::vector<unsigned char> &vchPubKey, const
 
 bool CKeyStore::GetPrivKey(const std::vector<unsigned char> &vchPubKey, CPrivKey& keyOut) const
 {
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         if (!IsCrypted())
         {
             std::map<std::vector<unsigned char>, CPrivKey>::const_iterator mi = mapKeys.find(vchPubKey);
@@ -109,8 +109,8 @@ bool CKeyStore::GetPrivKey(const std::vector<unsigned char> &vchPubKey, CPrivKey
 
 bool CKeyStore::SetCrypted()
 {
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         if (fUseCrypto)
             return true;
 
@@ -138,8 +138,10 @@ bool CKeyStore::Lock()
     if (!SetCrypted())
         return false;
 
-    CRITICAL_BLOCK(cs_KeyStore)
+    {
+        LOCK(cs_KeyStore);
         vMasterKey.clear();
+    }
 #ifdef GUI
     NotifyStatusChanged(this);
 #endif
@@ -148,8 +150,8 @@ bool CKeyStore::Lock()
 
 bool CKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn)
 {
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         if (!SetCrypted())
             return false;
 
@@ -179,8 +181,8 @@ bool CKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn)
 
 bool CKeyStore::EncryptKeys(CKeyingMaterial& vMasterKeyIn)
 {
-    CRITICAL_BLOCK(cs_KeyStore)
     {
+        LOCK(cs_KeyStore);
         if (!mapCryptedKeys.empty() || IsCrypted())
             return false;
 

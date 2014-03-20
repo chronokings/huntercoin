@@ -54,8 +54,8 @@ public:
 
     virtual bool HaveKey(const std::vector<unsigned char> &vchPubKey) const
     {
-        CRITICAL_BLOCK(cs_KeyStore)
         {
+            LOCK(cs_KeyStore);
             if (IsCrypted())
                 return (mapCryptedKeys.count(vchPubKey) > 0);
             else
@@ -77,8 +77,10 @@ public:
         if (!IsCrypted())
             return false;
         bool result;
-        CRITICAL_BLOCK(cs_KeyStore)
+        {
+            LOCK(cs_KeyStore);
             result = vMasterKey.empty();
+        }
         return result;
     }
 

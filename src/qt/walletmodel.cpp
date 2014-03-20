@@ -122,8 +122,8 @@ void WalletModel::checkBalanceChanged()
 
 void WalletModel::sendPendingNameFirstUpdates()
 {
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         for (std::map<std::vector<unsigned char>, PreparedNameFirstUpdate>::iterator mi = mapMyNameFirstUpdate.begin();
                 mi != mapMyNameFirstUpdate.end(); )
         {
@@ -145,8 +145,8 @@ void WalletModel::sendPendingNameFirstUpdates()
             }
             uint256 wtxInHash = it1->second;
             bool fSkip = false;
-            CRITICAL_BLOCK(wallet->cs_wallet)
             {
+                LOCK(wallet->cs_wallet);
                 std::map<uint256, CWalletTx>::const_iterator it2 = wallet->mapWallet.find(wtxInHash);
                 if (it2 == wallet->mapWallet.end())
                 {
@@ -493,8 +493,8 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
     scriptPubKey << OP_NAME_NEW << hash << OP_2DROP;
     scriptPubKey += scriptPubKeyOrig;
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         // Include additional fee to name_new, which will be re-used by name_firstupdate
         // In this way we can preconfigure name_firstupdate
 
@@ -566,8 +566,8 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
 
         {
             CTxDB txdb("r");
-            CRITICAL_BLOCK(wallet->cs_wallet)
             {
+                LOCK(wallet->cs_wallet);
                 // Fill vtxPrev by copying from previous transactions vtxPrev
                 prep.wtx.AddSupportingTransactions(txdb);
                 wallet->WriteNameFirstUpdate(ret.vchName, ret.hex, rand, prep.fPostponed, prep.vchData, prep.wtx);
@@ -584,8 +584,8 @@ QString WalletModel::nameFirstUpdatePrepare(const QString &name, const std::stri
 
     std::vector<unsigned char> vchValue(data.begin(), data.end());
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         std::map<std::vector<unsigned char>, uint256>::const_iterator it1 = mapMyNames.find(vchName);
         if (it1 == mapMyNames.end())
             return tr("Cannot find stored tx hash for name");
@@ -605,8 +605,10 @@ QString WalletModel::nameFirstUpdatePrepare(const QString &name, const std::stri
         it2->second.wtx = wtx;
         it2->second.fPostponed = fPostponed;
 
-        CRITICAL_BLOCK(wallet->cs_wallet)
+        {
+            LOCK(wallet->cs_wallet);
             wallet->WriteNameFirstUpdate(vchName, wtxInHash, rand, fPostponed, vchValue, wtx);
+        }
         printf("Automatic name_firstupdate created for name %s%s, created tx: %s:\n%s", qPrintable(name), fPostponed ? ", postponed" : "", wtx.GetHash().GetHex().c_str(), wtx.ToString().c_str());
     }
 
@@ -626,9 +628,8 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_UPDATE << vchName << vchValue << OP_2DROP << OP_DROP;
 
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(wallet->cs_wallet)
     {
+        LOCK2(cs_main, wallet->cs_wallet);
         if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
         {
             error("name_update() : there are %d pending operations on that name, including %s",
@@ -843,9 +844,8 @@ bool WalletModel::DeleteTransaction(const QString &strHash, QString &retMsg)
     uint256 hash;
     hash.SetHex(strHash.toStdString());
 
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(wallet->cs_wallet)
     {
+        LOCK2(cs_main, wallet->cs_wallet);
         if (!wallet->mapWallet.count(hash))
         {
             retMsg = tr("FAILED: transaction not in wallet");

@@ -638,15 +638,19 @@ public:
 
     void AddInventoryKnown(const CInv& inv)
     {
-        CRITICAL_BLOCK(cs_inventory)
+        {
+            LOCK(cs_inventory);
             setInventoryKnown.insert(inv);
+        }
     }
 
     void PushInventory(const CInv& inv)
     {
-        CRITICAL_BLOCK(cs_inventory)
+        {
+            LOCK(cs_inventory);
             if (!setInventoryKnown.count(inv))
                 vInventoryToSend.push_back(inv);
+        }
     }
 
     void AskFor(const CInv& inv)
@@ -921,8 +925,10 @@ public:
         uint256 hashReply;
         RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
 
-        CRITICAL_BLOCK(cs_mapRequests)
+        {
+            LOCK(cs_mapRequests);
             mapRequests[hashReply] = CRequestTracker(fn, param1);
+        }
 
         PushMessage(pszCommand, hashReply);
     }
@@ -934,8 +940,10 @@ public:
         uint256 hashReply;
         RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
 
-        CRITICAL_BLOCK(cs_mapRequests)
+        {
+            LOCK(cs_mapRequests);
             mapRequests[hashReply] = CRequestTracker(fn, param1);
+        }
 
         PushMessage(pszCommand, hashReply, a1);
     }
@@ -947,8 +955,10 @@ public:
         uint256 hashReply;
         RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
 
-        CRITICAL_BLOCK(cs_mapRequests)
+        {
+            LOCK(cs_mapRequests);
             mapRequests[hashReply] = CRequestTracker(fn, param1);
+        }
 
         PushMessage(pszCommand, hashReply, a1, a2);
     }
@@ -975,9 +985,11 @@ public:
 inline void RelayInventory(const CInv& inv)
 {
     // Put on lists to offer to the other nodes
-    CRITICAL_BLOCK(cs_vNodes)
+    {
+        LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
             pnode->PushInventory(inv);
+    }
 }
 
 template<typename T>
@@ -992,8 +1004,8 @@ void RelayMessage(const CInv& inv, const T& a)
 template<>
 inline void RelayMessage<>(const CInv& inv, const CDataStream& ss)
 {
-    CRITICAL_BLOCK(cs_mapRelay)
     {
+        LOCK(cs_mapRelay);
         // Expire old relay messages
         while (!vRelayExpiration.empty() && vRelayExpiration.front().first < GetTime())
         {
@@ -1034,10 +1046,12 @@ void AdvertStartPublish(CNode* pfrom, unsigned int nChannel, unsigned int nHops,
         return;
 
     // Relay
-    CRITICAL_BLOCK(cs_vNodes)
+    {
+        LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
             if (pnode != pfrom && (nHops < PUBLISH_HOPS || pnode->IsSubscribed(nChannel)))
                 pnode->PushMessage("publish", nChannel, nHops, obj);
+    }
 }
 
 template<typename T>
@@ -1045,10 +1059,12 @@ void AdvertStopPublish(CNode* pfrom, unsigned int nChannel, unsigned int nHops, 
 {
     uint256 hash = obj.GetHash();
 
-    CRITICAL_BLOCK(cs_vNodes)
+    {
+        LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
             if (pnode != pfrom && (nHops < PUBLISH_HOPS || pnode->IsSubscribed(nChannel)))
                 pnode->PushMessage("pub-cancel", nChannel, nHops, hash);
+    }
 
     AdvertErase(obj);
 }
