@@ -54,7 +54,6 @@ extern std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;
 extern uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
 
 // forward decls
-extern bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc);
 extern bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash, int nHashType, CScript& scriptSigRet);
 extern bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn, int nHashType);
 extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& name);
@@ -1937,13 +1936,14 @@ CHooks* InitHook()
     return new CHuntercoinHooks();
 }
 
-bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch)
+bool DecodeNameScript(const CScript& script, int& op, vector<vchType> &vvch)
 {
     CScript::const_iterator pc = script.begin();
     return DecodeNameScript(script, op, vvch, pc);
 }
 
-bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc)
+bool DecodeNameScript(const CScript& script, int& op,
+                      vector<vchType> &vvch, CScript::const_iterator& pc)
 {
     opcodetype opcode;
     if (!script.GetOp(pc, opcode))
@@ -1980,7 +1980,8 @@ bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned cha
     return error("invalid number of arguments for name op");
 }
 
-bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut, vector<vector<unsigned char> >& vvch)
+bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut,
+                  vector<vchType>& vvch)
 {
     bool found = false;
 

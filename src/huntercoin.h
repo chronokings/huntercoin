@@ -3,6 +3,8 @@
 
 #include <boost/thread/thread.hpp>
 
+typedef std::vector<unsigned char> vchType;
+
 class CNameDB : public CDB
 {
 protected:
@@ -75,7 +77,6 @@ class CNameIndex;
 class CDiskTxPos;
 class uint256;
 
-typedef std::vector<unsigned char> vchType;
 extern std::map<vchType, uint256> mapMyNames;
 extern std::map<vchType, std::set<uint256> > mapNamePending;
 
@@ -93,8 +94,12 @@ bool GetValueOfTxPos(const CNameIndex& txPos, std::vector<unsigned char>& vchVal
 bool GetValueOfTxPos(const CDiskTxPos& txPos, std::vector<unsigned char>& vchValue, uint256& hash, int& nHeight);
 bool GetNameOfTx(const CTransaction& tx, std::vector<unsigned char>& name);
 bool GetValueOfNameTx(const CTransaction& tx, std::vector<unsigned char>& value);
-bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut, std::vector<std::vector<unsigned char> >& vvch);
-bool DecodeNameScript(const CScript& script, int& op, std::vector<std::vector<unsigned char> > &vvch);
+bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut,
+                  std::vector<vchType>& vvch);
+bool DecodeNameScript(const CScript& script, int& op,
+                      std::vector<vchType> &vvch, CScript::const_iterator& pc);
+bool DecodeNameScript(const CScript& script, int& op,
+                      std::vector<vchType> &vvch);
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress);
 bool GetNameAddress(const CTransaction& tx, uint160 &hash160);
 std::string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
