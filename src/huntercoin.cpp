@@ -629,6 +629,19 @@ Value name_list(const Array& params, bool fHelp)
 
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
         {
+            // ignore spent tx
+            if (item.second.vfSpent.size() > 0)
+            {
+                bool allSpent = true;
+                for (int i=0; i < item.second.vfSpent.size(); i++)
+                {
+                    if (!item.second.IsSpent(i))
+                        allSpent = false;
+                }
+                if (allSpent)
+                    continue;
+            }
+
             hash = item.second.GetHash();
             if(!txdb.ReadDiskTx(hash, tx, txindex))
                 continue;
