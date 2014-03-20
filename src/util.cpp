@@ -1233,7 +1233,7 @@ static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
         std::pair<void*, void*> p2 = std::make_pair(c, i.first);
         if (lockorders.count(p2))
         {
-            potential_deadlock_detected(lockorders[p2], lockorders[p1]);
+            potential_deadlock_detected(p1, lockorders[p2], lockorders[p1]);
             break;
         }
     }
