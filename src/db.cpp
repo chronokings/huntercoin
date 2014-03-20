@@ -113,10 +113,7 @@ CDB::CDB(const char* pszFile, const char* pszMode) : pdb(NULL)
             {
                 delete pdb;
                 pdb = NULL;
-                {
-                    LOCK(cs_db);
-                    --mapFileUseCount[strFile];
-                }
+                --mapFileUseCount[strFile];
                 strFile = "";
                 throw runtime_error(strprintf("CDB() : can't open database file %s, error %d", pszFile, ret));
             }
