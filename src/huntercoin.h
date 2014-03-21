@@ -2,6 +2,7 @@
 #define HUNTERCOIN_H
 
 #include <boost/thread/thread.hpp>
+#include "json/json_spirit.h"
 
 typedef std::vector<unsigned char> vchType;
 
@@ -116,5 +117,8 @@ bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
    cv_stateChange will be notified.  */
 extern boost::mutex mut_currentState;
 extern boost::condition_variable cv_stateChange;
+
+/* Handle the name operation part of the RPC call createrawtransaction.  */
+void AddRawTxNameOperation(CTransaction& tx, const json_spirit::Object& obj);
 
 #endif // HUNTERCOIN_H
