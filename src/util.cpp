@@ -1177,16 +1177,22 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue)
 
 struct CLockLocation
 {
-    std::string mutexName;
-    std::string sourceFile;
-    int sourceLine;
-
     CLockLocation(const char* pszName, const char* pszFile, int nLine)
     {
         mutexName = pszName;
         sourceFile = pszFile;
         sourceLine = nLine;
     }
+
+    std::string ToString() const
+    {
+        return mutexName+"  "+sourceFile+":"+itostr(sourceLine);
+    }
+
+private:
+    std::string mutexName;
+    std::string sourceFile;
+    int sourceLine;
 };
 
 typedef std::vector< std::pair<void*, CLockLocation> > LockStack;
@@ -1202,12 +1208,12 @@ static void potential_deadlock_detected(const std::pair<void*, void*>& mismatch,
     printf("Previous lock order was:\n");
     BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, s2)
     {
-        printf(" %s  %s:%d\n", i.second.mutexName.c_str(), i.second.sourceFile.c_str(), i.second.sourceLine);
+        printf(" %s\n", i.second.ToString().c_str());
     }
     printf("Current lock order is:\n");
     BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, s1)
     {
-        printf(" %s  %s:%d\n", i.second.mutexName.c_str(), i.second.sourceFile.c_str(), i.second.sourceLine);
+        printf(" %s\n", i.second.ToString().c_str());
     }
 }
 
@@ -1237,12 +1243,20 @@ static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
             break;
         }
     }
+    if (fDebug) printf("Locking: %s\n", locklocation.ToString().c_str());
     dd_mutex.unlock();
 }
 
 static void pop_lock()
 {
+    if (fDebug) 
+    {
+        const CLockLocation& locklocation = (*lockstack).rbegin()->second;
+        printf("Unlocked: %s\n", locklocation.ToString().c_str());
+    }
+    dd_mutex.lock();
     (*lockstack).pop_back();
+    dd_mutex.unlock();
 }
 
 void EnterCritical(const char* pszName, const char* pszFile, int nLine, void* cs, bool fTry)
