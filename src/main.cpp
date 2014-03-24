@@ -1347,7 +1347,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     // nFees may include taxes from the game, so we check it after creating game transactions
     if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
     {
-	printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
+        printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
         printf("  vtx[0].GetValueOut() = %s\n", FormatMoney(vtx[0].GetValueOut()).c_str());
         printf("  GetBlockValue(pindex->nHeight, nFees) = %s\n", FormatMoney(GetBlockValue(pindex->nHeight, nFees)).c_str());
         printf("  nFees = %s\n", FormatMoney(nFees).c_str());
@@ -2270,11 +2270,11 @@ bool static AlreadyHave(CTxDB& txdb, const CInv& inv)
     {
     case MSG_TX:
         {
-	bool txInMap = false;
-	    {
+        bool txInMap = false;
+            {
             LOCK(cs_mapTransactions);
-	    txInMap = (mapTransactions.count(inv.hash) != 0);
-	    }
+            txInMap = (mapTransactions.count(inv.hash) != 0);
+            }
         return txInMap ||
                mapOrphanTransactions.count(inv.hash) ||
                txdb.ContainsTx(inv.hash);
