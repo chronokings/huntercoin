@@ -46,7 +46,7 @@ CBlockIndex* pindexBest = NULL;
 int64 nTimeBestReceived = 0;
 int miningAlgo = ALGO_SHA256D;
 
-CMedianFilter<int> cPeerBlockCounts(8, 0); // Amount of blocks that other nodes claim to have
+static CMedianFilter<int> cPeerBlockCounts(8, 0); // Amount of blocks that other nodes claim to have
 
 map<uint256, CBlock*> mapOrphanBlocks;
 multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
@@ -2397,8 +2397,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         printf("version message: version %d, blocks=%d, ip=%s\n", pfrom->nVersion, pfrom->nStartingHeight, pfrom->addr.ToString().c_str());
 
-        LOCK(cs_main);
         AddTimeData(pfrom->addr.ip, nTime);
+
+        LOCK(cs_main);
         cPeerBlockCounts.input(pfrom->nStartingHeight);
     }
 

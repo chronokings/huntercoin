@@ -29,7 +29,6 @@ string strMiscWarning;
 bool fTestNet = false;
 bool fNoListen = false;
 bool fLogTimestamps = false;
-CMedianFilter<int64> vTimeOffsets(200,0);
 
 
 
@@ -1054,10 +1053,12 @@ int64 GetTime()
     return time(NULL);
 }
 
+static CCriticalSection cs_nTimeOffset;
 static int64 nTimeOffset = 0;
 
 int64 GetTimeOffset()
 {
+    LOCK(cs_nTimeOffset);
     return nTimeOffset;
 }
 
@@ -1070,12 +1071,14 @@ void AddTimeData(unsigned int ip, int64 nTime)
 {
     int64 nOffsetSample = nTime - GetTime();
 
+    LOCK(cs_nTimeOffset);
     // Ignore duplicates
     static set<unsigned int> setKnown;
     if (!setKnown.insert(ip).second)
         return;
 
     // Add data
+    static CMedianFilter<int64> vTimeOffsets(200,0);
     vTimeOffsets.input(nOffsetSample);
     printf("Added time data, samples %d, offset %+"PRI64d" (%+"PRI64d" minutes)\n", vTimeOffsets.size(), nOffsetSample, nOffsetSample/60);
     if (vTimeOffsets.size() >= 5 && vTimeOffsets.size() % 2 == 1)
