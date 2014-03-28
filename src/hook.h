@@ -45,6 +45,10 @@ public:
         unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
         unsigned int nBytes, unsigned int nNewBlockSize) = 0;
 
+    /* Allows to restrict the rules for relaying / mining transactions based
+       on fees in them.  */
+    virtual bool CheckFees (const CTransaction& tx, int64 nFees) = 0;
+
     virtual std::string GetAlertPubkey1() = 0;
     virtual std::string GetAlertPubkey2() { return GetAlertPubkey1(); }
 };
