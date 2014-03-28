@@ -672,7 +672,9 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
         }
         scriptPubKey += scriptPubKeyOrig;
 
-        return QString::fromStdString(SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, true));
+        /* Don't ask for fee confirmation here since name_update includes
+           a mandatory minimum fee.  */
+        return QString::fromStdString(SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, false));
     }
 }
 
