@@ -32,7 +32,7 @@ template<typename T> void ConvertTo(Value& value, bool fAllowNull=false);
    a lower fee are valid but non-standard, to enforce protection against
    transaction spam in the blockchain.  If the transaction would require
    a larger fee due to the usual fee rules, then this is still true.  */
-static const int64 NAME_UPDATE_MIN_FEE = COIN / 1000;
+static const int64 NAME_UPDATE_MIN_FEE = COIN / 100;
 
 map<vector<unsigned char>, uint256> mapMyNames;
 map<vector<unsigned char>, set<uint256> > mapNamePending;
