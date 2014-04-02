@@ -75,8 +75,9 @@ class CNameIndex;
 class CDiskTxPos;
 class uint256;
 
-extern std::map<std::vector<unsigned char>, uint256> mapMyNames;
-extern std::map<std::vector<unsigned char>, std::set<uint256> > mapNamePending;
+typedef std::vector<unsigned char> vchType;
+extern std::map<vchType, uint256> mapMyNames;
+extern std::map<vchType, std::set<uint256> > mapNamePending;
 
 std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromString(const std::string &str);
