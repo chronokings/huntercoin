@@ -28,6 +28,12 @@ extern int64 AmountFromValue(const Value& value);
 extern Object JSONRPCError(int code, const string& message);
 template<typename T> void ConvertTo(Value& value, bool fAllowNull=false);
 
+/* Minimum mandatory fee for name_update transactions.  Transactions with
+   a lower fee are valid but non-standard, to enforce protection against
+   transaction spam in the blockchain.  If the transaction would require
+   a larger fee due to the usual fee rules, then this is still true.  */
+static const int64 NAME_UPDATE_MIN_FEE = COIN / 100;
+
 map<vector<unsigned char>, uint256> mapMyNames;
 map<vector<unsigned char>, set<uint256> > mapNamePending;
 
@@ -100,30 +106,69 @@ public:
 
     virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
         unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
-        unsigned int nBytes, unsigned int nNewBlockSize)
-    {
-        if (tx.nVersion != NAMECOIN_TX_VERSION)
-            return;
+        unsigned int nBytes, unsigned int nNewBlockSize);
 
-        vector<vector<unsigned char> > vvch;
-
-        int op;
-        int nOut;
-
-        if (!DecodeNameTx(tx, op, nOut, vvch))
-            return;
-
-        // Allow free moves
-        if (op == OP_NAME_UPDATE && nBytes < 500)
-            nMinFee = 0;
-    }
+    virtual bool CheckFees (const CTransaction& tx, int64 nFees);
 
     string GetAlertPubkey1()
     {
         // Huntercoin alert pubkey
         return "04d55568f5688898159fd01640f6c7ef2e63fef95376e8418244b4c7c4dd57110d8028f4086a092f2586dc09b36359e67e0717a0bec2a483c81aaf252377fc666a";
     }
+
+private:
+
+    /* Utility routine to check if a tx is a name_update.  This is used to
+       enforce the mandatory fee both in the GetMinFee and IsStandard hooks.  */
+    static bool IsNameUpdate (const CTransaction& tx);
+
 };
+
+bool
+CHuntercoinHooks::IsNameUpdate (const CTransaction& tx)
+{
+    if (tx.nVersion != NAMECOIN_TX_VERSION)
+        return false;
+
+    vector<vector<unsigned char> > vvch;
+
+    int op;
+    int nOut;
+
+    if (!DecodeNameTx(tx, op, nOut, vvch))
+        return false;
+
+    return (op == OP_NAME_UPDATE);
+}
+
+void
+CHuntercoinHooks::GetMinFee(int64 &nMinFee, int64 &nBaseFee,
+    const CTransaction &tx,
+    unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
+    unsigned int nBytes, unsigned int nNewBlockSize)
+{
+    if (!IsNameUpdate (tx))
+        return;
+
+    /* Enforce minimum mandatory fee for moves.  */
+    if (nMinFee < NAME_UPDATE_MIN_FEE)
+        nMinFee = NAME_UPDATE_MIN_FEE;
+}
+
+bool
+CHuntercoinHooks::CheckFees (const CTransaction& tx, int64 nFees)
+{
+  if (IsNameUpdate (tx) && nFees < NAME_UPDATE_MIN_FEE)
+    return false;
+
+  return true;
+}
+
+bool
+CHuntercoinHooks::IsStandard(const CScript& scriptPubKey)
+{
+    return true;
+}
 
 int64 getAmount(Value value)
 {
@@ -1853,11 +1898,6 @@ CHooks* InitHook()
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];
     printf("Setup huntercoin genesis block %s\n", hashGenesisBlock.GetHex().c_str());
     return new CHuntercoinHooks();
-}
-
-bool CHuntercoinHooks::IsStandard(const CScript& scriptPubKey)
-{
-    return true;
 }
 
 bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch)

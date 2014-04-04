@@ -482,6 +482,8 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool fLimi
         // Don't accept it if it can't get into a block
         if (fLimitFree && nFees < GetMinFee(1000, true, true))
             return error("AcceptToMemoryPool() : not enough fees");
+        if (!hooks->CheckFees (*this, nFees))
+            return error("AcceptToMemoryPool() : not enough fees for hook");
 
         // Continuously rate-limit free transactions
         // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
