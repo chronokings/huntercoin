@@ -11,7 +11,7 @@ class CNameDB : public CDB
 protected:
     bool fHaveParent;
 public:
-    CNameDB(const char* pszMode="r+") : CDB("nameindexfull.dat", pszMode) {
+    CNameDB(const char* pszMode="r+") : CDB("nameindexfull.dat", pszMode, COMPRESS_ZLIB) {
         fHaveParent = false;
     }
 
