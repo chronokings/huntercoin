@@ -1971,25 +1971,43 @@ bool LoadBlockIndex(bool fAllowNew)
 
     hooks->MessageStart(pchMessageStart);
 
-    int nTxDbVersion = VERSION;
 
     //
-    // Load block index
+    // Load block index.  Update to the new format (without auxpow)
+    // if necessary.
     //
     {
-        CTxDB txdb("cr");
-        if (!txdb.LoadBlockIndex())
-            return false;
-        txdb.ReadVersion(nTxDbVersion);
-        txdb.Close();
-    }
+      int nTxDbVersion = VERSION;
+      CTxDB txdb("cr");
+      if (!txdb.LoadBlockIndex())
+          return false;
+      txdb.ReadVersion(nTxDbVersion);
+      txdb.Close();
 
-    if (nTxDbVersion < 1000400)
-    {
-        CTxDB txdb("r+");
-        printf("FixTxIndexBug...\n");
-        if (!txdb.FixTxIndexBug())
-            printf("FixTxIndexBug failed\n");
+      if (nTxDbVersion < 1000400)
+        {
+          CTxDB txdb("r+");
+          printf ("FixTxIndexBug...\n");
+          if (!txdb.FixTxIndexBug ())
+            printf ("FixTxIndexBug failed\n");
+        }
+
+      if (nTxDbVersion < 1000800)
+        {
+          txdb.Close ();
+          CTxDB wtxdb;
+
+          /* Go through each blkindex object loaded into memory and
+             write it again to disk.  */
+          printf ("Updating blkindex.dat data format...\n");
+          map<uint256, CBlockIndex*>::const_iterator mi;
+          for (mi = mapBlockIndex.begin (); mi != mapBlockIndex.end (); ++mi)
+            {
+              CDiskBlockIndex disk(mi->second);
+              wtxdb.WriteBlockIndex (disk);
+            }
+          wtxdb.WriteVersion (VERSION);
+        }
     }
 
     //
@@ -3960,13 +3978,20 @@ void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
 
 std::string CBlockIndex::ToString() const
 {
-    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, game-merkle=%s, hashBlock=%s, hashParentBlock=%s)",
+    const char* auxpowStr;
+    if (!hasAuxpow)
+      auxpowStr = "-";
+    else if (auxpow)
+      auxpowStr = auxpow->GetParentBlockHash ().ToString ().substr (0, 20).c_str ();
+    else
+      auxpowStr = "<not loaded>";
+
+    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, hashBlock=%s, hashParentBlock=%s)",
             pprev, pnext, nFile, nBlockPos, nHeight,
             hashMerkleRoot.ToString().substr(0,10).c_str(),
             hashGameMerkleRoot.ToString().substr(0,10).c_str(),
             GetBlockHash().ToString().substr(0,20).c_str(),
-            (auxpow.get() != NULL) ? auxpow->GetParentBlockHash().ToString().substr(0,20).c_str() : "-"
-            );
+            auxpowStr);
 }
 
 CBigNum CBlockIndex::GetBlockWork() const

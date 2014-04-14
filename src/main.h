@@ -1095,9 +1095,14 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
-    // if this is an aux work block
-    boost::shared_ptr<CAuxPow> auxpow;
+    /* If this is an aux work block, store a pointer to the auxpow here.
+       Note that this is not saved on disk for performance (instead, it needs
+       to be leaded from the block chain itself when needed).  Instead,
+       a flag is stored to record whether or not there is an auxpow.  */
+    bool hasAuxpow;
+    mutable boost::shared_ptr<CAuxPow> auxpow;
 
+public:
 
     CBlockIndex()
     {
@@ -1115,6 +1120,7 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
+        hasAuxpow      = false;
         auxpow.reset();
     }
 
@@ -1134,12 +1140,26 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
+        hasAuxpow      = static_cast<bool> (block.auxpow);
         auxpow         = block.auxpow;
     }
 
     CBlock GetBlockHeader() const
     {
         CBlock block;
+
+        /* If this block has auxpow but it is not yet loaded, do this
+           now and keep it in memory.  */
+        if (hasAuxpow && !auxpow)
+          {
+            printf ("GetBlockHeader(): reading auxpow from disk");
+            if (!block.ReadFromDisk (nFile, nBlockPos, false))
+              throw std::runtime_error ("CBlock::ReadFromDisk failed while"
+                                        " retrieving auxpow");
+            auxpow = block.auxpow;
+            return block;
+          }
+
         block.nVersion       = nVersion;
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
@@ -1149,6 +1169,8 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.auxpow         = auxpow;
+        assert ((hasAuxpow && block.auxpow) || (!hasAuxpow && !block.auxpow));
+
         return block;
     }
     
@@ -1236,9 +1258,10 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
-        if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        /* This is only written to disk.  */
+        assert (nType & SER_DISK);
 
+        READWRITE(nVersion);
         READWRITE(hashNext);
         READWRITE(nFile);
         READWRITE(nBlockPos);
@@ -1254,7 +1277,16 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
 
-        ReadWriteAuxPow(s, auxpow, nType, this->nVersion, ser_action);
+        /* In the old format, the auxpow is stored.  Load it if this
+           is the case to set the hasAuxpow flag.  Otherwise, only
+           store the flag instead of the full auxpow.  */
+        if (fRead && nVersion < 1000800)
+        {
+            ReadWriteAuxPow(s, auxpow, nType, this->nVersion, ser_action);
+            const_cast<CDiskBlockIndex*> (this)->hasAuxpow = static_cast<bool> (auxpow);
+        }
+        else
+            READWRITE(hasAuxpow);
     )
 
     uint256 GetBlockHash() const
