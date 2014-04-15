@@ -33,6 +33,10 @@ template<typename T> void ConvertTo(Value& value, bool fAllowNull=false);
    transaction spam in the blockchain.  If the transaction would require
    a larger fee due to the usual fee rules, then this is still true.  */
 static const int64 NAME_UPDATE_MIN_FEE = COIN / 100;
+/* Fee per (full) 100 characters name length for name_update.  This is in
+   addition to the NAME_UPDATE_MIN_FEE.  If the ordinary fee due to
+   transaction size is larger, the latter will be used instead.  */
+static const int64 NAME_UPDATE_LEN_FEE = COIN / 500;
 
 map<vector<unsigned char>, uint256> mapMyNames;
 map<vector<unsigned char>, set<uint256> > mapNamePending;
@@ -119,26 +123,36 @@ public:
 private:
 
     /* Utility routine to check if a tx is a name_update.  This is used to
-       enforce the mandatory fee both in the GetMinFee and IsStandard hooks.  */
-    static bool IsNameUpdate (const CTransaction& tx);
+       enforce the mandatory fee both in the GetMinFee and IsStandard hooks.
+       If true, it also returns the value the name is updated to.  */
+    static bool IsNameUpdate (const CTransaction& tx, vchType& value);
+
+    /* Calculate fee for name_update operations based on the value length.  */
+    inline static int64
+    NameUpdateFee (const vchType& value)
+    {
+      return NAME_UPDATE_MIN_FEE + NAME_UPDATE_LEN_FEE * (value.size () / 100);
+    }
 
 };
 
 bool
-CHuntercoinHooks::IsNameUpdate (const CTransaction& tx)
+CHuntercoinHooks::IsNameUpdate (const CTransaction& tx, vchType& value)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
-        return false;
+  if (tx.nVersion != NAMECOIN_TX_VERSION)
+    return false;
 
-    vector<vector<unsigned char> > vvch;
+  vector<vchType> vvch;
+  int op;
+  int nOut;
+  if (!DecodeNameTx(tx, op, nOut, vvch))
+    return false;
 
-    int op;
-    int nOut;
+  if (op != OP_NAME_UPDATE)
+    return false;
 
-    if (!DecodeNameTx(tx, op, nOut, vvch))
-        return false;
-
-    return (op == OP_NAME_UPDATE);
+  value = vvch[1];
+  return true;
 }
 
 void
@@ -147,21 +161,24 @@ CHuntercoinHooks::GetMinFee(int64 &nMinFee, int64 &nBaseFee,
     unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
     unsigned int nBytes, unsigned int nNewBlockSize)
 {
-    if (!IsNameUpdate (tx))
+    vchType value;
+    if (!IsNameUpdate (tx, value))
         return;
 
     /* Enforce minimum mandatory fee for moves.  */
-    if (nMinFee < NAME_UPDATE_MIN_FEE)
-        nMinFee = NAME_UPDATE_MIN_FEE;
+    const int64 updateFee = NameUpdateFee (value);
+    if (nMinFee < updateFee)
+        nMinFee = updateFee;
 }
 
 bool
 CHuntercoinHooks::CheckFees (const CTransaction& tx, int64 nFees)
 {
-  if (IsNameUpdate (tx) && nFees < NAME_UPDATE_MIN_FEE)
-    return false;
+  vchType value;
+  if (!IsNameUpdate (tx, value))
+    return true;
 
-  return true;
+  return (nFees >= NameUpdateFee (value));
 }
 
 bool
