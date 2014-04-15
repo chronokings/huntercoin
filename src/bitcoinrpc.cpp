@@ -1743,6 +1743,66 @@ Value listtransactions(const Array& params, bool fHelp)
     return ret;
 }
 
+/* Analyse the UTXO set.  This possibly takes a very long time.  */
+Value analyseutxo (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size() > 0)
+    throw std::runtime_error (
+          "analyseutxo\n"
+          "Look through the UTXO and construct certain data about it.");
+
+  CTxDB txdb("r");
+
+  unsigned txCnt = 0;
+  unsigned txoCnt = 0;
+  int64_t amount = 0;
+  const CBlockIndex* pInd = pindexBest;
+  const unsigned startingHeight = pInd->nHeight;
+  for (; pInd; pInd = pInd->pprev)
+    {
+      printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
+      std::vector<const CTransaction*> vTxs;
+
+      CBlock block;
+      block.ReadFromDisk (pInd);
+
+      for (unsigned i = 0; i < block.vtx.size (); ++i)
+        vTxs.push_back (&block.vtx[i]);
+      for (unsigned i = 0; i < block.vgametx.size (); ++i)
+        vTxs.push_back (&block.vgametx[i]);
+
+      for (unsigned i = 0; i < vTxs.size (); ++i)
+        {
+          CTxIndex txindex;
+          if (!txdb.ReadTxIndex (vTxs[i]->GetHash (), txindex))
+            throw std::runtime_error ("ReadTxIndex failed.");
+
+          bool hasUnspent = false;
+          for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
+            if (txindex.vSpent[j].IsNull ())
+              {
+                hasUnspent = true;
+                ++txoCnt;
+                amount += vTxs[i]->vout[j].nValue;
+              }
+          if (hasUnspent)
+            ++txCnt;
+        }
+
+      /* Since this is an async RPC call, give the main thread a chance
+         to interrupt this thread in case the server is going to shut down.  */
+      boost::this_thread::interruption_point ();
+    }
+
+  Object res;
+  res.push_back (Pair ("height", static_cast<int> (startingHeight)));
+  res.push_back (Pair ("ntx", static_cast<int> (txCnt)));
+  res.push_back (Pair ("ntxout", static_cast<int> (txoCnt)));
+  res.push_back (Pair ("total", ValueFromAmount (amount)));
+
+  return res;
+}
+
 Value listaccounts(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
@@ -3366,6 +3426,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("gettransaction",        &gettransaction),
     make_pair("listtransactions",      &listtransactions),
     make_pair("listsinceblock",        &listsinceblock),
+    make_pair("analyseutxo",           &analyseutxo),
     make_pair("getwork",               &getwork),
     make_pair("getworkaux",            &getworkaux),
     make_pair("getauxblock",           &getauxblock),
@@ -3424,7 +3485,11 @@ set<string> setAllowInSafeMode(pAllowInSafeMode, pAllowInSafeMode + sizeof(pAllo
 
 /* Methods that will be called in a new thread and can block waiting for
    some condition without hurting the RPC server performance.  */
-set<string> setCallAsync;
+string pCallAsync[] =
+{
+    "analyseutxo",
+};
+set<string> setCallAsync(pCallAsync, pCallAsync + sizeof(pCallAsync)/sizeof(pCallAsync[0]));
 
 
 
