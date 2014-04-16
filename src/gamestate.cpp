@@ -589,6 +589,7 @@ GameState::GameState()
     crownPos.x = CROWN_START_X;
     crownPos.y = CROWN_START_Y;
     nHeight = -1;
+    nDisasterHeight = -1;
     hashBlock = 0;
 }
 
@@ -671,6 +672,7 @@ json_spirit::Value GameState::ToJsonValue() const
     obj.push_back(Pair("crown", subobj));
 
     obj.push_back(Pair("height", nHeight));
+    obj.push_back(Pair("disasterHeight", nDisasterHeight));
     obj.push_back(Pair("hashBlock", hashBlock.ToString().c_str()));
 
     return obj;
@@ -932,7 +934,11 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     outState = inState;
 
+    /* Initialise basic stuff.  The disaster height is set to the old
+       block's for now, but it may be reset later when we decide that
+       a disaster happens at this block.  */
     outState.nHeight = inState.nHeight + 1;
+    outState.nDisasterHeight = inState.nDisasterHeight;
     outState.hashBlock = stepData.newHash;
     outState.dead_players_chat.clear();
 

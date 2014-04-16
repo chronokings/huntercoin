@@ -314,6 +314,12 @@ struct GameState
     // 0  = game state immediately after the genesis block
     int nHeight;
 
+    /* Block height (as per nHeight) of the last state that had a disaster.
+       I. e., for a game state where disaster has just happened,
+       nHeight == nDisasterHeight.  It is -1 before the first disaster
+       happens.  */
+    int nDisasterHeight;
+
     // Hash of the last block, moves from which were included
     // into this game state. This is meta-information (i.e. used
     // mainly for managing game states rather than as part of game
@@ -322,22 +328,28 @@ struct GameState
     
     IMPLEMENT_SERIALIZE
     (
-        /* Should be only ever written to disk.  */
-        assert (nType & SER_DISK);
+      /* Should be only ever written to disk.  */
+      assert (nType & SER_DISK);
 
-        READWRITE(players);
-        if (nVersion >= 1000500)
-            READWRITE(dead_players_chat);
-        else if (fRead)
-            (const_cast<std::map<PlayerID, PlayerState>&>(dead_players_chat)).clear();
-        READWRITE(loot);
-        READWRITE(hearts);
-        READWRITE(crownPos);
-        READWRITE(crownHolder.player);
-        if (!crownHolder.player.empty())
-            READWRITE(crownHolder.index);
-        READWRITE(nHeight);
-        READWRITE(hashBlock);
+      READWRITE(players);
+      if (nVersion >= 1000500)
+        READWRITE(dead_players_chat);
+      else if (fRead)
+        (const_cast<std::map<PlayerID, PlayerState>&>(dead_players_chat)).clear();
+      READWRITE(loot);
+      READWRITE(hearts);
+      READWRITE(crownPos);
+      READWRITE(crownHolder.player);
+      if (!crownHolder.player.empty())
+        READWRITE(crownHolder.index);
+      READWRITE(nHeight);
+
+      if (nVersion >= 1001100)
+        READWRITE(nDisasterHeight);
+      else
+        assert (nDisasterHeight == -1);
+
+      READWRITE(hashBlock);
     )
 
     void UpdateVersion(int oldVersion);
