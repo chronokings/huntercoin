@@ -196,9 +196,11 @@ struct CharacterState
     WaypointVector waypoints;           // Waypoints (stored in reverse so removal of the first waypoint is fast)
     CollectedLootInfo loot;             // Loot collected by player but not banked yet
     unsigned char stay_in_spawn_area;   // Auto-kill players who stay in the spawn area too long
-    std::string attack;
 
-    CharacterState() : coord(0, 0), dir(0), from(0, 0), stay_in_spawn_area(0) { }
+    CharacterState ()
+      : coord(0, 0), dir(0), from(0, 0),
+        stay_in_spawn_area(0)
+    {}
 
     IMPLEMENT_SERIALIZE
     (
@@ -208,7 +210,13 @@ struct CharacterState
         READWRITE(waypoints);
         READWRITE(loot);
         READWRITE(stay_in_spawn_area);
-        READWRITE(attack);
+
+        /* Old versions had a never-used string "attack" stored.  */
+        if (nVersion < 1000800)
+          {
+            std::string attack;
+            READWRITE(attack);
+          }
     )
 
     void Spawn(int color, RandomGenerator &rnd);
@@ -269,9 +277,6 @@ struct GameState
 {
     GameState();
 
-    // Memory-only version. Is not read/written. Used by UpgradeGameDB.
-    int nVersion;
-
     // Player states
     std::map<PlayerID, PlayerState> players;
 
@@ -300,7 +305,7 @@ struct GameState
     IMPLEMENT_SERIALIZE
     (
         READWRITE(players);
-        if (this->nVersion >= 1000500)
+        if (nVersion >= 1000500)
             READWRITE(dead_players_chat);
         else if (fRead)
             (const_cast<std::map<PlayerID, PlayerState>&>(dead_players_chat)).clear();
@@ -314,7 +319,7 @@ struct GameState
         READWRITE(hashBlock);
     )
 
-    void UpdateVersion();
+    void UpdateVersion(int oldVersion);
 
     json_spirit::Value ToJsonValue() const;
 

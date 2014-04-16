@@ -592,16 +592,15 @@ json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
 
 GameState::GameState()
 {
-    nVersion = VERSION;
     crownPos.x = CROWN_START_X;
     crownPos.y = CROWN_START_Y;
     nHeight = -1;
     hashBlock = 0;
 }
 
-void GameState::UpdateVersion()
+void GameState::UpdateVersion(int oldVersion)
 {
-    if (nVersion < 1000500)
+    if (oldVersion < 1000500)
     {
         std::set<PlayerID> toErase;
 
@@ -612,7 +611,6 @@ void GameState::UpdateVersion()
         BOOST_FOREACH(const PlayerID &p, toErase)
             players.erase(p);
     }
-    nVersion = VERSION;
 }
 
 json_spirit::Value GameState::ToJsonValue() const

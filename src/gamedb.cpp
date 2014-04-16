@@ -667,22 +667,22 @@ bool UpgradeGameDB()
         gameDb.Close();
     }
 
-    if (nGameDbVersion < 1000500)
+    if (nGameDbVersion < 1000800)
     {
         printf("Updating GameDB...\n");
 
         CGameDB gameDb("r+");
 
         GameState state;
-        state.nVersion = nGameDbVersion;
         for (unsigned int i = 0; i <= nBestHeight; i++)
         {
+            gameDb.SetSerialisationVersion (nGameDbVersion);
             if (gameDb.Read(i, state))
             {
-                state.UpdateVersion();
+                state.UpdateVersion (nGameDbVersion);
+                gameDb.SetSerialisationVersion (VERSION);
                 if (!gameDb.Write(i, state))
                     return false;
-                state.nVersion = nGameDbVersion;
             }
         }
 
