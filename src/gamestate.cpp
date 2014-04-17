@@ -275,11 +275,16 @@ Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 
 void Move::ApplyWaypoints(GameState &state) const
 {
-    PlayerState &pl = state.players[player];
+    std::map<PlayerID, PlayerState>::iterator pl;
+    pl = state.players.find (player);
+    if (pl == state.players.end ())
+      return;
+
     BOOST_FOREACH(const PAIRTYPE(int, std::vector<Coord>) &p, waypoints)
     {
-        std::map<int, CharacterState>::iterator mi = pl.characters.find(p.first);
-        if (mi == pl.characters.end())
+        std::map<int, CharacterState>::iterator mi;
+        mi = pl->second.characters.find(p.first);
+        if (mi == pl->second.characters.end())
             continue;
         CharacterState &ch = mi->second;
         const std::vector<Coord> &wp = p.second;
@@ -871,7 +876,8 @@ void GameState::CollectCrown(RandomGenerator &rnd, bool respawn_crown)
 
 // Loot is pushed out from the spawn area to avoid some ambiguities with banking rules (as spawn areas are also banks)
 // Note: the map must be constructed in such a way that there are no obstacles near spawn areas
-Coord PushCoordOutOfSpawnArea(const Coord &c)
+static Coord
+PushCoordOutOfSpawnArea(const Coord &c)
 {
     if (!IsInSpawnArea(c))
         return c;
@@ -899,6 +905,49 @@ Coord PushCoordOutOfSpawnArea(const Coord &c)
         return Coord(c.x, c.y - 1);
     else
         return c;     // Should not happen
+}
+
+void
+GameState::FinaliseKills (const PlayerSet& killedPlayers,
+                          const KilledByMap& killedBy, int64& nTaxAmount)
+{
+  /* Kill depending characters.  */
+  BOOST_FOREACH(const PlayerID& victim, killedPlayers)
+    {
+      const PlayerState& victimState = players.find (victim)->second;
+
+      /* If killed by the game for staying in the spawn area, then no tax.  */
+      const bool apply_tax = (killedBy.count (victim) > 0);
+
+      /* Kill all alive characters of the player.  */
+      BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
+                    victimState.characters)
+        {
+          const int i = pc.first;
+          const CharacterState& ch = pc.second;
+
+          /* The general was already killed by the triggering action!  */
+          assert (i > 0);
+
+          int64 nAmount = ch.loot.nAmount;
+          if (nAmount > 0)
+            {
+              if (apply_tax)
+                {
+                  // Tax from killing: 4%
+                  const int64 nTax = nAmount / 25;
+                  nTaxAmount += nTax;
+                  nAmount -= nTax;
+                }
+
+              AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
+            }
+        }
+    }
+
+  /* Erase killed players from the state.  */
+  BOOST_FOREACH(const PlayerID& victim, killedPlayers)
+    players.erase (victim);
 }
 
 struct AttackableCharacter
@@ -1063,45 +1112,15 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             p.second.characters.erase(i);
     }
 
-    BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
-    {
-        const PlayerState &victimState = outState.players.find(victim)->second;
+    /* Finalise the kills.  */
+    outState.FinaliseKills (stepResult.killedPlayers, stepResult.killedBy,
+                            stepResult.nTaxAmount);
 
-        // If killed by the game for staying in the spawn area, then no tax
-        bool apply_tax = stepResult.killedBy.count(victim) != 0;
-
-        // Kill all alive characters of the player
-        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, victimState.characters)
-        {
-            int i = pc.first;
-            const CharacterState &ch = pc.second;
-
-            assert(i != 0);  // If player is killed, main character must have been killed
-
-            int64 nAmount = ch.loot.nAmount;
-            if (nAmount > 0)
-            {
-                if (apply_tax)
-                {
-                    // Tax from killing: 4%
-                    int64 nTax = nAmount / 25;
-                    stepResult.nTaxAmount += nTax;
-                    nAmount -= nTax;
-                }
-
-                outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-            }
-        }
-    }
-
-    // Apply updates to target coordinate
+    /* Apply updates to target coordinate.  This ignores already
+       killed players.  */
     BOOST_FOREACH(const Move &m, stepData.vMoves)
         if (!m.IsSpawn())
             m.ApplyWaypoints(outState);
-
-    // Erase killed players
-    BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
-        outState.players.erase(victim);
 
     // For all alive players perform path-finding
     BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.players)

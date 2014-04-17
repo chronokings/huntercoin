@@ -56,6 +56,10 @@ struct CharacterID
     bool operator>=(const CharacterID &that) const { return !(*this < that); }
 };
 
+// Define STL types used for killed player identification later on.
+typedef std::set<PlayerID> PlayerSet;
+typedef std::multimap<PlayerID, CharacterID> KilledByMap;
+
 class GameState;
 class RandomGenerator;
 
@@ -371,6 +375,13 @@ struct GameState
      * @return Number of initial characters to create (including general).
      */
     unsigned GetNumInitialCharacters () const;
+
+    /* For a given list of killed players, kill all their characters
+       and collect the tax amount.  The killed players are removed from
+       the state's list of players.  */
+    void FinaliseKills (const PlayerSet& killedPlayers,
+                        const KilledByMap& killedBy, int64& nTaxAmount);
+
 };
 
 struct StepData : boost::noncopyable
@@ -386,9 +397,10 @@ struct StepResult
 
     std::map<CharacterID, CollectedLootInfo> bounties;
 
-    // The following arrays only contain killed players (i.e. the main character)
-    std::set<PlayerID> killedPlayers;
-    std::multimap<PlayerID, CharacterID> killedBy;
+    // The following arrays only contain killed players
+    // (i.e. the main character)
+    PlayerSet killedPlayers;
+    KilledByMap killedBy;
 
     int64 nTaxAmount;
 };
