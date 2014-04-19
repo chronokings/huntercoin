@@ -250,6 +250,7 @@ public:
         }
       vTxn.push_back (ptxn);
       ownTxn.push_back (own);
+
       return true;
     }
 
