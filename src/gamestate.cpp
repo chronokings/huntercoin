@@ -1147,7 +1147,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                 stepResult.nTaxAmount += nTax;
                 ch.loot.nAmount -= nTax;
 
-                stepResult.bounties[CharacterID(p.first, i)] = ch.loot;
+                CollectedBounty b(p.first, i, ch.loot, p.second.address);
+                stepResult.bounties.push_back (b);
                 ch.loot = CollectedLootInfo();
             }
         }

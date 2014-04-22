@@ -391,11 +391,31 @@ struct StepData : boost::noncopyable
     std::vector<Move> vMoves;
 };
 
+/* Encode data for a banked bounty.  This includes also the payment address
+   as per the player state (may be empty if no explicit address is set), so
+   that the reward-paying game tx can be constructed even if the player
+   is no longer alive (e. g., killed by a disaster).  */
+class CollectedBounty
+{
+public:
+
+  CharacterID character;
+  CollectedLootInfo loot;
+  std::string address;
+
+  inline CollectedBounty (const PlayerID& p, int cInd,
+                          const CollectedLootInfo& l,
+                          const std::string& addr)
+    : character(p, cInd), loot(l), address(addr)
+  {}
+
+};
+
 struct StepResult
 {
     StepResult() : nTaxAmount(0) { }
 
-    std::map<CharacterID, CollectedLootInfo> bounties;
+    std::vector<CollectedBounty> bounties;
 
     // The following arrays only contain killed players
     // (i.e. the main character)

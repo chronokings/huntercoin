@@ -33,92 +33,88 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
                         const StepResult& stepResult,
                         std::vector<CTransaction>& outvgametx)
 {
-    // Create resulting game transactions
-    // Transaction hashes must be unique
-    outvgametx.clear();
+  // Create resulting game transactions
+  // Transaction hashes must be unique
+  outvgametx.clear ();
 
-    CTransaction txNew;
-    txNew.SetGameTx();
+  CTransaction txNew;
+  txNew.SetGameTx ();
 
-    // Destroy name-coins of killed players
-    txNew.vin.reserve(stepResult.killedPlayers.size());
-    BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
+  // Destroy name-coins of killed players
+  txNew.vin.reserve(stepResult.killedPlayers.size());
+  BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
     {
-        std::vector<unsigned char> vchName = vchFromString(victim);
-        CTransaction tx;
-        if (!GetTxOfNameAtHeight(nameDb, vchName, gameState.nHeight, tx))
-            return error("Game engine killed a non-existing player %s", victim.c_str());
+      const vchType vchName = vchFromString (victim);
+      CTransaction tx;
+      if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
+        return error ("Game engine killed a non-existing player %s",
+                      victim.c_str ());
 
-        CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
+      CTxIn txin(tx.GetHash (), IndexOfNameOutput (tx));
 
-        txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+      txin.scriptSig << vchName << GAMEOP_KILLED_BY;
 
-        // List all killers, if player was simultaneously killed by several other players
-        typedef std::multimap<PlayerID, CharacterID>::const_iterator Iter;
-        std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range(victim);
-        for (Iter it = iters.first; it != iters.second; ++it)
-            txin.scriptSig << vchFromString(it->second.ToString());
-        txNew.vin.push_back(txin);
+      /* List all killers, if player was simultaneously killed by several
+         other players.  */
+      typedef std::multimap<PlayerID, CharacterID>::const_iterator Iter;
+      std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range (victim);
+      for (Iter it = iters.first; it != iters.second; ++it)
+        txin.scriptSig << vchFromString (it->second.ToString ());
+      txNew.vin.push_back (txin);
     }
-    if (!txNew.IsNull())
-        outvgametx.push_back(txNew);
+  if (!txNew.IsNull ())
+    outvgametx.push_back (txNew);
 
-    // Pay bounties to the players who collected them
-    txNew.SetNull();
-    txNew.SetGameTx();
-    txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
-    txNew.vout.reserve(stepResult.bounties.size());
+  /* Pay bounties to the players who collected them.  The transaction
+     inputs are just "dummy" containing informational messages.  */
+  txNew.SetNull ();
+  txNew.SetGameTx ();
+  txNew.vin.reserve (stepResult.bounties.size ());
+  txNew.vout.reserve (stepResult.bounties.size ());
 
-    BOOST_FOREACH(const PAIRTYPE(CharacterID, CollectedLootInfo) &bounty, stepResult.bounties)
+  BOOST_FOREACH(const CollectedBounty& bounty, stepResult.bounties)
     {
-        std::vector<unsigned char> vchName = vchFromString(bounty.first.player);
-        CTransaction tx;
-        if (!GetTxOfNameAtHeight(nameDb, vchName, gameState.nHeight, tx))
-            return error("Game engine created bounty for non-existing player");
+      const vchType vchName = vchFromString (bounty.character.player);
+      CTransaction tx;
+      if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
+        return error ("Game engine created bounty for non-existing player");
 
-        CTxOut txout;
-        txout.nValue = bounty.second.nAmount;
+      CTxOut txout;
+      txout.nValue = bounty.loot.nAmount;
 
-        // Note: we only use the resulting game state to pay rewards. If we need to pay them to just-killed players,
-        // this function should be modified to accept two game states, or the game state must be augmented with deadPlayers array.
-
-        std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(bounty.first.player);
-        if (mi == gameState.players.end())
-            return error("Game engine created bounty for non-existing (dead?) player");
-
-        if (!mi->second.address.empty())
+      if (!bounty.address.empty ())
         {
-            // Player-provided addresses are validated before accepting them, so failing
-            // here is ok
-            if (!txout.scriptPubKey.SetBitcoinAddress(mi->second.address))
-                return error("Failed to set player-provided address for bounty");
+          /* Player-provided addresses are validated before accepting them,
+             so failing here is ok.  */
+          if (!txout.scriptPubKey.SetBitcoinAddress (bounty.address))
+            return error ("Failed to set player-provided address for bounty");
         }
-        else
+      else
         {
-            // TODO: Maybe pay to the script of the name-tx without extracting the address first
-            // (see source of GetNameAddress - it obtains the script by calling RemoveNameScriptPrefix)
-            uint160 addr;
-            if (!GetNameAddress(tx, addr))
-                return error("Cannot get name address for bounty");
-            txout.scriptPubKey.SetBitcoinAddress(addr);
+          // TODO: Maybe pay to the script of the name-tx without extracting the address first
+          // (see source of GetNameAddress - it obtains the script by calling RemoveNameScriptPrefix)
+          uint160 addr;
+          if (!GetNameAddress (tx, addr))
+            return error("Cannot get name address for bounty");
+          txout.scriptPubKey.SetBitcoinAddress (addr);
         }
 
-        txNew.vout.push_back(txout);
+      txNew.vout.push_back (txout);
 
-        CTxIn txin;
-        txin.scriptSig << vchName << GAMEOP_COLLECTED_BOUNTY
-                << bounty.first.index
-                << bounty.second.firstBlock
-                << bounty.second.lastBlock
-                << bounty.second.collectedFirstBlock
-                << bounty.second.collectedLastBlock
-            ;
-        txNew.vin.push_back(txin);
+      CTxIn txin;
+      txin.scriptSig
+        << vchName << GAMEOP_COLLECTED_BOUNTY
+        << bounty.character.index
+        << bounty.loot.firstBlock
+        << bounty.loot.lastBlock
+        << bounty.loot.collectedFirstBlock
+        << bounty.loot.collectedLastBlock;
+      txNew.vin.push_back (txin);
     }
-    if (!txNew.IsNull())
-        outvgametx.push_back(txNew);
+  if (!txNew.IsNull ())
+    outvgametx.push_back (txNew);
 
-    return true;
+  return true;
 }
 
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
