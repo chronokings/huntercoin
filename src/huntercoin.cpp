@@ -1249,6 +1249,9 @@ Value name_update(const Array& params, bool fHelp)
             throw runtime_error("could not find a coin with this name");
         }
 
+        if (tx.nVersion == GAME_TX_VERSION)
+          throw std::runtime_error ("this player is dead");
+
         uint256 wtxInHash = tx.GetHash();
 
         if (!pwalletMain->mapWallet.count(wtxInHash))
