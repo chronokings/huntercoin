@@ -332,12 +332,12 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
 
     wtxNew.pwallet = pwalletMain;
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         // txdb must be opened before the mapWallet lock
         CTxDB txdb("r");
-        CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
         {
+            LOCK(pwalletMain->cs_wallet);
             nFeeRet = nTransactionFee;
             loop
             {
@@ -638,8 +638,8 @@ Value sendtoname(const Array& params, bool fHelp)
     if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
         wtx.mapValue["to"]      = params[3].get_str();
 
-    CRITICAL_BLOCK(cs_main)
     {  
+        LOCK(cs_main);
         EnsureWalletIsUnlocked();
 
         string strError = pwalletMain->SendMoneyToBitcoinAddress(strAddress, nAmount, wtx);
@@ -658,16 +658,6 @@ Value name_list(const Array& params, bool fHelp)
                 "list my own names"
                 );
 
-    vector<unsigned char> vchName;
-    vector<unsigned char> vchLastName;
-    int nMax = 10000000;
-
-    if (params.size() == 1)
-    {
-        vchName = vchFromValue(params[0]);
-        nMax = 1;
-    }
-
     vector<unsigned char> vchNameUniq;
     if (params.size() == 1)
     {
@@ -678,73 +668,70 @@ Value name_list(const Array& params, bool fHelp)
     map< vector<unsigned char>, int > vNamesI;
     map< vector<unsigned char>, Object > vNamesO;
 
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+    CTxIndex txindex;
+    uint256 hash;
+    CTxDB txdb("r");
+    CTransaction tx;
+
+    vector<unsigned char> vchName;
+    vector<unsigned char> vchValue;
+    int nHeight;
+
+    BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
     {
-        CTxIndex txindex;
-        uint256 hash;
-        CTxDB txdb("r");
-        CTransaction tx;
-
-        vector<unsigned char> vchName;
-        vector<unsigned char> vchValue;
-        int nHeight;
-
-        BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
+        // ignore spent tx
+        if (item.second.vfSpent.size() > 0)
         {
-            // ignore spent tx
-            if (item.second.vfSpent.size() > 0)
+            bool allSpent = true;
+            for (int i=0; i < item.second.vfSpent.size(); i++)
             {
-                bool allSpent = true;
-                for (int i=0; i < item.second.vfSpent.size(); i++)
-                {
-                    if (!item.second.IsSpent(i))
-                        allSpent = false;
-                }
-                if (allSpent)
-                    continue;
+                if (!item.second.IsSpent(i))
+                    allSpent = false;
             }
-
-            hash = item.second.GetHash();
-            if(!txdb.ReadDiskTx(hash, tx, txindex))
+            if (allSpent)
                 continue;
-
-            if (tx.nVersion != NAMECOIN_TX_VERSION)
-                continue;
-
-            // name
-            if(!GetNameOfTx(tx, vchName))
-                continue;
-            if(vchNameUniq.size() > 0 && vchNameUniq != vchName)
-                continue;
-
-            // value
-            if(!GetValueOfNameTx(tx, vchValue))
-                continue;
-
-            // height
-            nHeight = GetTxPosHeight(txindex.pos);
-
-            Object oName;
-            std::string sName = stringFromVch(vchName);
-            oName.push_back(Pair("name", sName));
-            oName.push_back(Pair("value", stringFromVch(vchValue)));
-            const CWalletTx &nameTx = pwalletMain->mapWallet[tx.GetHash()];
-            if (!hooks->IsMine(nameTx))
-                oName.push_back(Pair("transferred", 1));
-            string strAddress = "";
-            GetNameAddress(tx, strAddress);
-            oName.push_back(Pair("address", strAddress));
-
-            // get last active name only
-            if(vNamesI.find(vchName) != vNamesI.end() && vNamesI[vchName] > nHeight)
-                continue;
-
-            if (IsPlayerDead(nameTx, txindex))
-                oName.push_back(Pair("dead", 1));
-
-            vNamesI[vchName] = nHeight;
-            vNamesO[vchName] = oName;
         }
+
+        hash = item.second.GetHash();
+        if(!txdb.ReadDiskTx(hash, tx, txindex))
+            continue;
+
+        if (tx.nVersion != NAMECOIN_TX_VERSION)
+            continue;
+
+        // name
+        if(!GetNameOfTx(tx, vchName))
+            continue;
+        if(vchNameUniq.size() > 0 && vchNameUniq != vchName)
+            continue;
+
+        // value
+        if(!GetValueOfNameTx(tx, vchValue))
+            continue;
+
+        // height
+        nHeight = GetTxPosHeight(txindex.pos);
+
+        Object oName;
+        std::string sName = stringFromVch(vchName);
+        oName.push_back(Pair("name", sName));
+        oName.push_back(Pair("value", stringFromVch(vchValue)));
+        const CWalletTx &nameTx = pwalletMain->mapWallet[tx.GetHash()];
+        if (!hooks->IsMine(nameTx))
+            oName.push_back(Pair("transferred", 1));
+        string strAddress = "";
+        GetNameAddress(tx, strAddress);
+        oName.push_back(Pair("address", strAddress));
+
+        // get last active name only
+        if(vNamesI.find(vchName) != vNamesI.end() && vNamesI[vchName] > nHeight)
+            continue;
+
+        if (IsPlayerDead(nameTx, txindex))
+            oName.push_back(Pair("dead", 1));
+
+        vNamesI[vchName] = nHeight;
+        vNamesO[vchName] = oName;
     }
 
     BOOST_FOREACH(const PAIRTYPE(vector<unsigned char>, Object)& item, vNamesO)
@@ -763,7 +750,8 @@ Value name_debug(const Array& params, bool fHelp)
     printf("Pending:\n----------------------------\n");
     pair<vector<unsigned char>, set<uint256> > pairPending;
 
-    CRITICAL_BLOCK(cs_main)
+    {
+        LOCK(cs_main);
         BOOST_FOREACH(pairPending, mapNamePending)
         {
             string name = stringFromVch(pairPending.first);
@@ -777,6 +765,7 @@ Value name_debug(const Array& params, bool fHelp)
                 printf("    %s\n", hash.GetHex().c_str());
             }
         }
+    }
     printf("----------------------------\n");
     return true;
 }
@@ -790,8 +779,8 @@ Value name_debug1(const Array& params, bool fHelp)
 
     vector<unsigned char> vchName = vchFromValue(params[0]);
     printf("Dump name:\n");
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
         CNameDB dbName("r");
@@ -828,8 +817,8 @@ Value name_show(const Array& params, bool fHelp)
     Object oLastName;
     vector<unsigned char> vchName = vchFromValue(params[0]);
     string name = stringFromVch(vchName);
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
         CNameDB dbName("r");
@@ -882,8 +871,8 @@ Value name_history(const Array& params, bool fHelp)
     Array oRes;
     vector<unsigned char> vchName = vchFromValue(params[0]);
     string name = stringFromVch(vchName);
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
         CNameDB dbName("r");
@@ -1117,8 +1106,8 @@ Value name_firstupdate(const Array& params, bool fHelp)
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
         {
             error("name_firstupdate() : there are %d pending operations on that name, including %s",
@@ -1139,8 +1128,8 @@ Value name_firstupdate(const Array& params, bool fHelp)
         }
     }
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         EnsureWalletIsUnlocked();
 
         // Make sure there is a previous NAME_NEW tx on this name
@@ -1229,9 +1218,8 @@ Value name_update(const Array& params, bool fHelp)
     CScript scriptPubKey;
     scriptPubKey << OP_NAME_UPDATE << vchName << vchValue << OP_2DROP << OP_DROP;
 
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
         if (mapNamePending.count(vchName) && mapNamePending[vchName].size())
         {
             error("name_update() : there are %d pending operations on that name, including %s",
@@ -1313,8 +1301,8 @@ Value name_new(const Array& params, bool fHelp)
     scriptPubKey << OP_NAME_NEW << hash << OP_2DROP;
     scriptPubKey += scriptPubKeyOrig;
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         EnsureWalletIsUnlocked();
 
         string strError = pwalletMain->SendMoney(scriptPubKey, NAME_COIN_AMOUNT, wtx, false);
@@ -1341,8 +1329,8 @@ name_pending (const Array& params, bool fHelp)
 
   Array res;
 
-  CRITICAL_BLOCK (cs_main)
     {
+      LOCK (cs_main);
       std::map<vchType, std::set<uint256> >::const_iterator i;
       for (i = mapNamePending.begin (); i != mapNamePending.end (); ++i)
         {
@@ -1436,8 +1424,8 @@ Value game_getstate(const Array& params, bool fHelp)
 
     Game::GameState state;
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         CBlockIndex* pindex;
         if (height == -1)
             pindex = NULL;
@@ -1485,8 +1473,8 @@ Value game_waitforchange (const Array& params, bool fHelp)
       /* Atomically check whether we have found a new best block and return
          it if that's the case.  We use a lock on cs_main in order to
          prevent race conditions.  */
-      CRITICAL_BLOCK(cs_main)
         {
+          LOCK(cs_main);
           if (lastHash != hashBestChain)
             {
               const Game::GameState& state = GetCurrentGameState ();
@@ -1522,8 +1510,8 @@ Value game_getplayerstate(const Array& params, bool fHelp)
 
     Game::GameState state;
 
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         CBlockIndex* pindex;
         if (height == -1)
             pindex = NULL;
@@ -1589,9 +1577,8 @@ Value deletetransaction(const Array& params, bool fHelp)
 
     if (params.size() != 1)
       throw runtime_error("missing txid");
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
+      LOCK2(cs_main, pwalletMain->cs_wallet);
       uint256 hash;
       hash.SetHex(params[0].get_str());
       if (!pwalletMain->mapWallet.count(hash))
@@ -1636,9 +1623,8 @@ Value name_clean(const Array& params, bool fHelp)
     if (fHelp || params.size())
         throw runtime_error("name_clean\nClean unsatisfiable transactions from the wallet - including name_update on an already taken name\n");
 
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
         map<uint256, CWalletTx> mapRemove;
 
         printf("-----------------------------\n");
@@ -1803,8 +1789,8 @@ bool CNameDB::ReconstructNameIndex()
     vector<unsigned char> vchValue;
     CTxIndex txindex;
     CBlockIndex* pindex = pindexGenesisBlock;
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
+        LOCK(pwalletMain->cs_wallet);
         //CNameDB dbName("cr+", txdb);
         TxnBegin();
 
@@ -2122,8 +2108,8 @@ void CHuntercoinHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
 
     if (op != OP_NAME_NEW)
     {
-        CRITICAL_BLOCK(cs_main)
-            mapNamePending[vvch[0]].insert(tx.GetHash());
+        LOCK(cs_main);
+        mapNamePending[vvch[0]].insert(tx.GetHash());
     }
 }
 
@@ -2145,8 +2131,8 @@ void CHuntercoinHooks::RemoveFromMemoryPool(const CTransaction& tx)
 
     if (op != OP_NAME_NEW)
     {
-        CRITICAL_BLOCK(cs_main)
         {
+            LOCK(cs_main);
             std::map<std::vector<unsigned char>, std::set<uint256> >::iterator mi = mapNamePending.find(vvch[0]);
             if (mi != mapNamePending.end())
                 mi->second.erase(tx.GetHash());
@@ -2492,8 +2478,8 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
 
             dbName.TxnCommit();
 
-            CRITICAL_BLOCK(cs_main)
             {
+                LOCK(cs_main);
                 std::map<std::vector<unsigned char>, std::set<uint256> >::iterator mi = mapNamePending.find(vvchArgs[0]);
                 if (mi != mapNamePending.end())
                     mi->second.erase(tx.GetHash());
@@ -2670,8 +2656,8 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
         }
 
         // Write game transactions to disk. They are written outside of the block - just appended to the block file.
-        CRITICAL_BLOCK(cs_AppendBlockFile)
         {
+            LOCK(cs_AppendBlockFile);
             char pchMessageVGameTx[8] = { 'v', 'g', 'a', 'm', 'e', 't', 'x', ':' };
             unsigned int nSize = GetSerializeSize(block.vgametx, SER_DISK) + sizeof(pchMessageVGameTx);
 

@@ -596,9 +596,8 @@ extern CWallet* pwalletMain;
 // valid for the current game state (e.g. attack on some player who's already killed)
 void EraseBadMoveTransactions()
 {
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
         std::map<uint256, CWalletTx> mapRemove;
         std::vector<unsigned char> vchName;
 

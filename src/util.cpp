@@ -32,7 +32,6 @@ bool fLogTimestamps = false;
 
 
 
-
 // Workaround for "multiple definition of `_tls_used'"
 // http://svn.boost.org/trac/boost/ticket/4258
 extern "C" void tss_cleanup_implemented() { }
@@ -332,8 +331,8 @@ inline int OutputDebugStringF(const char* pszFormat, ...)
         static CCriticalSection cs_OutputDebugStringF;
 
         // accumulate a line at a time
-        CRITICAL_BLOCK(cs_OutputDebugStringF)
         {
+            LOCK(cs_OutputDebugStringF);
             static char pszBuffer[50000];
             static char* pend;
             if (pend == NULL)
@@ -699,8 +698,8 @@ const char* wxGetTranslation(const char* pszEnglish)
 #if 0
     // Wrapper of wxGetTranslation returning the same const char* type as was passed in
     static CCriticalSection cs;
-    CRITICAL_BLOCK(cs)
     {
+        LOCK(cs);
         // Look in cache
         static map<string, char*> mapCache;
         map<string, char*>::iterator mi = mapCache.find(pszEnglish);
@@ -1054,10 +1053,12 @@ int64 GetTime()
     return time(NULL);
 }
 
+static CCriticalSection cs_nTimeOffset;
 static int64 nTimeOffset = 0;
 
 int64 GetTimeOffset()
 {
+    LOCK(cs_nTimeOffset);
     return nTimeOffset;
 }
 
@@ -1070,21 +1071,20 @@ void AddTimeData(unsigned int ip, int64 nTime)
 {
     int64 nOffsetSample = nTime - GetTime();
 
+    LOCK(cs_nTimeOffset);
     // Ignore duplicates
     static set<unsigned int> setKnown;
     if (!setKnown.insert(ip).second)
         return;
 
     // Add data
-    static vector<int64> vTimeOffsets;
-    if (vTimeOffsets.empty())
-        vTimeOffsets.push_back(0);
-    vTimeOffsets.push_back(nOffsetSample);
-    printf("Added time data, samples %d, offset %+"PRI64d" (%+"PRI64d" minutes)\n", vTimeOffsets.size(), vTimeOffsets.back(), vTimeOffsets.back()/60);
+    static CMedianFilter<int64> vTimeOffsets(200,0);
+    vTimeOffsets.input(nOffsetSample);
+    printf("Added time data, samples %d, offset %+"PRI64d" (%+"PRI64d" minutes)\n", vTimeOffsets.size(), nOffsetSample, nOffsetSample/60);
     if (vTimeOffsets.size() >= 5 && vTimeOffsets.size() % 2 == 1)
     {
-        sort(vTimeOffsets.begin(), vTimeOffsets.end());
-        int64 nMedian = vTimeOffsets[vTimeOffsets.size()/2];
+        int64 nMedian = vTimeOffsets.median();
+        std::vector<int64> vSorted = vTimeOffsets.sorted();
         // Only let other nodes change our time by so much
         if (abs64(nMedian) < 13 * 60)
         {
@@ -1099,7 +1099,7 @@ void AddTimeData(unsigned int ip, int64 nTime)
             {
                 // If nobody has a time different than ours but within 5 minutes of ours, give a warning
                 bool fMatch = false;
-                BOOST_FOREACH(int64 nOffset, vTimeOffsets)
+                BOOST_FOREACH(int64 nOffset, vSorted)
                     if (nOffset != 0 && abs64(nOffset) < 5 * 60)
                         fMatch = true;
 
@@ -1113,7 +1113,7 @@ void AddTimeData(unsigned int ip, int64 nTime)
                 }
             }
         }
-        BOOST_FOREACH(int64 n, vTimeOffsets)
+        BOOST_FOREACH(int64 n, vSorted)
             printf("%+"PRI64d"  ", n);
         printf("|  nTimeOffset = %+"PRI64d"  (%+"PRI64d" minutes)\n", nTimeOffset, nTimeOffset/60);
     }
@@ -1161,3 +1161,112 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue)
     else
         return SoftSetArg(strArg, std::string("0"));
 }
+
+
+#ifdef DEBUG_LOCKORDER
+//
+// Early deadlock detection.
+// Problem being solved:
+//    Thread 1 locks  A, then B, then C
+//    Thread 2 locks  D, then C, then A
+//     --> may result in deadlock between the two threads, depending on when they run.
+// Solution implemented here:
+// Keep track of pairs of locks: (A before B), (A before C), etc.
+// Complain if any thread trys to lock in a different order.
+//
+
+struct CLockLocation
+{
+    CLockLocation(const char* pszName, const char* pszFile, int nLine)
+    {
+        mutexName = pszName;
+        sourceFile = pszFile;
+        sourceLine = nLine;
+    }
+
+    std::string ToString() const
+    {
+        return mutexName+"  "+sourceFile+":"+itostr(sourceLine);
+    }
+
+private:
+    std::string mutexName;
+    std::string sourceFile;
+    int sourceLine;
+};
+
+typedef std::vector< std::pair<void*, CLockLocation> > LockStack;
+
+static boost::interprocess::interprocess_mutex dd_mutex;
+static std::map<std::pair<void*, void*>, LockStack> lockorders;
+static boost::thread_specific_ptr<LockStack> lockstack;
+
+
+static void potential_deadlock_detected(const std::pair<void*, void*>& mismatch, const LockStack& s1, const LockStack& s2)
+{
+    printf("POTENTIAL DEADLOCK DETECTED\n");
+    printf("Previous lock order was:\n");
+    BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, s2)
+    {
+        printf(" %s\n", i.second.ToString().c_str());
+    }
+    printf("Current lock order is:\n");
+    BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, s1)
+    {
+        printf(" %s\n", i.second.ToString().c_str());
+    }
+}
+
+static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
+{
+    bool fOrderOK = true;
+    if (lockstack.get() == NULL)
+        lockstack.reset(new LockStack);
+
+    dd_mutex.lock();
+
+    (*lockstack).push_back(std::make_pair(c, locklocation));
+
+    if (!fTry) BOOST_FOREACH(const PAIRTYPE(void*, CLockLocation)& i, (*lockstack))
+    {
+        if (i.first == c) break;
+
+        std::pair<void*, void*> p1 = std::make_pair(i.first, c);
+        if (lockorders.count(p1))
+            continue;
+        lockorders[p1] = (*lockstack);
+
+        std::pair<void*, void*> p2 = std::make_pair(c, i.first);
+        if (lockorders.count(p2))
+        {
+            potential_deadlock_detected(p1, lockorders[p2], lockorders[p1]);
+            break;
+        }
+    }
+    if (fDebug) printf("Locking: %s\n", locklocation.ToString().c_str());
+    dd_mutex.unlock();
+}
+
+static void pop_lock()
+{
+    if (fDebug) 
+    {
+        const CLockLocation& locklocation = (*lockstack).rbegin()->second;
+        printf("Unlocked: %s\n", locklocation.ToString().c_str());
+    }
+    dd_mutex.lock();
+    (*lockstack).pop_back();
+    dd_mutex.unlock();
+}
+
+void EnterCritical(const char* pszName, const char* pszFile, int nLine, void* cs, bool fTry)
+{
+    push_lock(cs, CLockLocation(pszName, pszFile, nLine), fTry);
+}
+
+void LeaveCritical()
+{
+    pop_lock();
+}
+ 
+#endif /* DEBUG_LOCKORDER */

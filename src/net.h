@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #endif
 
+class CAddrDB;
 class CMessageHeader;
 class CAddress;
 class CInv;
@@ -40,7 +41,7 @@ bool ConnectSocket(const CAddress& addrConnect, SOCKET& hSocketRet, int nTimeout
 bool Lookup(const char *pszName, std::vector<CAddress>& vaddr, int nServices, int nMaxSolutions, bool fAllowLookup = false, int portDefault = 0, bool fAllowPort = false);
 bool Lookup(const char *pszName, CAddress& addr, int nServices, bool fAllowLookup = false, int portDefault = 0, bool fAllowPort = false);
 bool GetMyExternalIP(unsigned int& ipRet);
-bool AddAddress(CAddress addr, int64 nTimePenalty=0);
+bool AddAddress(CAddress addr, int64 nTimePenalty=0, CAddrDB *pAddrDB=NULL);
 void AddressCurrentlyConnected(const CAddress& addr);
 CNode* FindNode(unsigned int ip);
 CNode* ConnectNode(CAddress addrConnect, int64 nTimeout=0);
@@ -637,15 +638,19 @@ public:
 
     void AddInventoryKnown(const CInv& inv)
     {
-        CRITICAL_BLOCK(cs_inventory)
+        {
+            LOCK(cs_inventory);
             setInventoryKnown.insert(inv);
+        }
     }
 
     void PushInventory(const CInv& inv)
     {
-        CRITICAL_BLOCK(cs_inventory)
+        {
+            LOCK(cs_inventory);
             if (!setInventoryKnown.count(inv))
                 vInventoryToSend.push_back(inv);
+        }
     }
 
     void AskFor(const CInv& inv)
@@ -671,7 +676,7 @@ public:
 
     void BeginMessage(const char* pszCommand)
     {
-        cs_vSend.Enter();
+        ENTER_CRITICAL_SECTION(cs_vSend);
         if (nHeaderStart != -1)
             AbortMessage();
         nHeaderStart = vSend.size();
@@ -691,7 +696,7 @@ public:
         vSend.resize(nHeaderStart);
         nHeaderStart = -1;
         nMessageStart = -1;
-        cs_vSend.Leave();
+        LEAVE_CRITICAL_SECTION(cs_vSend);
 
         if (fDebug)
             printf("(aborted)\n");
@@ -725,21 +730,8 @@ public:
 
         nHeaderStart = -1;
         nMessageStart = -1;
-        cs_vSend.Leave();
+        LEAVE_CRITICAL_SECTION(cs_vSend);
     }
-
-    void EndMessageAbortIfEmpty()
-    {
-        if (nHeaderStart == -1)
-            return;
-        int nSize = vSend.size() - nMessageStart;
-        if (nSize > 0)
-            EndMessage();
-        else
-            AbortMessage();
-    }
-
-
 
     void PushVersion()
     {
@@ -920,8 +912,10 @@ public:
         uint256 hashReply;
         RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
 
-        CRITICAL_BLOCK(cs_mapRequests)
+        {
+            LOCK(cs_mapRequests);
             mapRequests[hashReply] = CRequestTracker(fn, param1);
+        }
 
         PushMessage(pszCommand, hashReply);
     }
@@ -933,8 +927,10 @@ public:
         uint256 hashReply;
         RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
 
-        CRITICAL_BLOCK(cs_mapRequests)
+        {
+            LOCK(cs_mapRequests);
             mapRequests[hashReply] = CRequestTracker(fn, param1);
+        }
 
         PushMessage(pszCommand, hashReply, a1);
     }
@@ -946,8 +942,10 @@ public:
         uint256 hashReply;
         RAND_bytes((unsigned char*)&hashReply, sizeof(hashReply));
 
-        CRITICAL_BLOCK(cs_mapRequests)
+        {
+            LOCK(cs_mapRequests);
             mapRequests[hashReply] = CRequestTracker(fn, param1);
+        }
 
         PushMessage(pszCommand, hashReply, a1, a2);
     }
@@ -974,9 +972,11 @@ public:
 inline void RelayInventory(const CInv& inv)
 {
     // Put on lists to offer to the other nodes
-    CRITICAL_BLOCK(cs_vNodes)
+    {
+        LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
             pnode->PushInventory(inv);
+    }
 }
 
 template<typename T>
@@ -991,8 +991,8 @@ void RelayMessage(const CInv& inv, const T& a)
 template<>
 inline void RelayMessage<>(const CInv& inv, const CDataStream& ss)
 {
-    CRITICAL_BLOCK(cs_mapRelay)
     {
+        LOCK(cs_mapRelay);
         // Expire old relay messages
         while (!vRelayExpiration.empty() && vRelayExpiration.front().first < GetTime())
         {
@@ -1033,10 +1033,12 @@ void AdvertStartPublish(CNode* pfrom, unsigned int nChannel, unsigned int nHops,
         return;
 
     // Relay
-    CRITICAL_BLOCK(cs_vNodes)
+    {
+        LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
             if (pnode != pfrom && (nHops < PUBLISH_HOPS || pnode->IsSubscribed(nChannel)))
                 pnode->PushMessage("publish", nChannel, nHops, obj);
+    }
 }
 
 template<typename T>
@@ -1044,10 +1046,12 @@ void AdvertStopPublish(CNode* pfrom, unsigned int nChannel, unsigned int nHops, 
 {
     uint256 hash = obj.GetHash();
 
-    CRITICAL_BLOCK(cs_vNodes)
+    {
+        LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
             if (pnode != pfrom && (nHops < PUBLISH_HOPS || pnode->IsSubscribed(nChannel)))
                 pnode->PushMessage("pub-cancel", nChannel, nHops, hash);
+    }
 
     AdvertErase(obj);
 }

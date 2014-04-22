@@ -11,8 +11,8 @@
 #include <boost/signals2/signal.hpp>
 #include <boost/signals2/last_value.hpp>
 
-#define LOCK(cs) CCriticalBlock criticalblock(cs)
-#define LOCK2(cs1,cs2) CCriticalBlock criticalblock1(cs1),criticalblock2(cs2) 
+#define LOCK(cs) CCriticalBlock criticalblock(cs, #cs, __FILE__, __LINE__)
+#define LOCK2(cs1,cs2) CCriticalBlock criticalblock1(cs1, #cs1, __FILE__, __LINE__),criticalblock2(cs2, #cs2, __FILE__, __LINE__)
 
 class CWallet;
 class uint256;

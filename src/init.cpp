@@ -48,8 +48,8 @@ void Shutdown(void* parg)
     static CCriticalSection cs_Shutdown;
     static bool fTaken;
     bool fFirstThread;
-    CRITICAL_BLOCK(cs_Shutdown)
     {
+        LOCK(cs_Shutdown);
         fFirstThread = !fTaken;
         fTaken = true;
     }

@@ -46,7 +46,7 @@ CBlockIndex* pindexBest = NULL;
 int64 nTimeBestReceived = 0;
 int miningAlgo = ALGO_SHA256D;
 
-CMedianFilter<int> cPeerBlockCounts(8, 0); // Amount of blocks that other nodes claim to have
+static CMedianFilter<int> cPeerBlockCounts(8, 0); // Amount of blocks that other nodes claim to have
 
 map<uint256, CBlock*> mapOrphanBlocks;
 multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
@@ -86,30 +86,38 @@ CHooks* hooks;
 
 void RegisterWallet(CWallet* pwalletIn)
 {
-    CRITICAL_BLOCK(cs_setpwalletRegistered)
     {
+        LOCK(cs_setpwalletRegistered);
         setpwalletRegistered.insert(pwalletIn);
     }
 }
 
 void UnregisterWallet(CWallet* pwalletIn)
 {
-    CRITICAL_BLOCK(cs_setpwalletRegistered)
     {
+        LOCK(cs_setpwalletRegistered);
         setpwalletRegistered.erase(pwalletIn);
     }
 }
 
 bool static IsFromMe(CTransaction& tx)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         if (pwallet->IsFromMe(tx))
             return true;
     return false;
 }
 
+void UnregisterAllWallets()
+{
+    LOCK(cs_setpwalletRegistered);
+    setpwalletRegistered.clear();
+}
+
 bool static GetTransaction(const uint256& hashTx, CWalletTx& wtx)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         if (pwallet->GetTransaction(hashTx,wtx))
             return true;
@@ -118,42 +126,49 @@ bool static GetTransaction(const uint256& hashTx, CWalletTx& wtx)
 
 void static EraseFromWallets(uint256 hash)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->EraseFromWallet(hash);
 }
 
 void SyncWithWallets(const CTransaction& tx, const CBlock* pblock, bool fUpdate)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->AddToWalletIfInvolvingMe(tx, pblock, fUpdate);
 }
 
 void static SetBestChain(const CBlockLocator& loc)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->SetBestChain(loc);
 }
 
 void static UpdatedTransaction(const uint256& hashTx)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->UpdatedTransaction(hashTx);
 }
 
 void static PrintWallets(const CBlock& block)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->PrintWallet(block);
 }
 
 void static Inventory(const uint256& hash)
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->Inventory(hash);
 }
 
 void static ResendWalletTransactions()
 {
+    LOCK(cs_setpwalletRegistered);
     BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
         pwallet->ResendWalletTransactions();
 }
@@ -432,9 +447,11 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool fLimi
 
     // Do we already have it?
     uint256 hash = GetHash();
-    CRITICAL_BLOCK(cs_mapTransactions)
+    {
+        LOCK(cs_mapTransactions);
         if (mapTransactions.count(hash))
             return false;
+    }
     if (fCheckInputs)
         if (txdb.ContainsTx(hash))
             return false;
@@ -495,8 +512,8 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool fLimi
             static int64 nLastTime;
             int64 nNow = GetTime();
 
-            CRITICAL_BLOCK(cs)
             {
+                LOCK(cs);
                 // Use an exponentially decaying ~10-minute window:
                 dFreeCount *= pow(1.0 - 1.0/600.0, (double)(nNow - nLastTime));
                 nLastTime = nNow;
@@ -512,8 +529,8 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool fLimi
     }
 
     // Store transaction in memory
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK(cs_mapTransactions);
         if (ptxOld)
         {
             printf("AcceptToMemoryPool() : replacing tx %s with new version\n", ptxOld->GetHash().ToString().c_str());
@@ -545,8 +562,8 @@ bool CTransaction::AddToMemoryPoolUnchecked()
 {
     // Add to memory pool without checking anything.  Don't call this directly,
     // call AcceptToMemoryPool to properly check the transaction first.
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK(cs_mapTransactions);
         uint256 hash = GetHash();
         mapTransactions[hash] = *this;
         for (int i = 0; i < vin.size(); i++)
@@ -562,8 +579,8 @@ bool CTransaction::RemoveFromMemoryPool()
     hooks->RemoveFromMemoryPool(*this);
 
     // Remove transaction from memory pool
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK(cs_mapTransactions);
         BOOST_FOREACH(const CTxIn& txin, vin)
             mapNextTx.erase(txin.prevout);
         mapTransactions.erase(GetHash());
@@ -642,8 +659,8 @@ bool CMerkleTx::AcceptToMemoryPool()
 
 bool CWalletTx::AcceptWalletTransaction(CTxDB& txdb, bool fCheckInputs)
 {
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK(cs_mapTransactions);
         // Add previous supporting transactions first
         BOOST_FOREACH(CMerkleTx& tx, vtxPrev)
         {
@@ -685,10 +702,10 @@ int CTxIndex::GetDepthInMainChain() const
 // Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock
 bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock)
 {
-    CRITICAL_BLOCK(cs_main)
     {
-        CRITICAL_BLOCK(cs_mapTransactions)
+        LOCK(cs_main);
         {
+            LOCK(cs_mapTransactions);
             std::map<uint256, CTransaction>::iterator mi = mapTransactions.find(hash);
             if (mi != mapTransactions.end())
             {
@@ -1041,8 +1058,8 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
         if (!fFound /*|| txindex.pos.IsMemPool()*/)
         {
             // Get prev tx from single transactions in memory
-            CRITICAL_BLOCK(cs_mapTransactions)
             {
+                LOCK(cs_mapTransactions);
                 std::map<uint256, CTransaction>::iterator mi = mapTransactions.find(prevout.hash);
                 if (mi != mapTransactions.end())
                     txPrev = mi->second;
@@ -1121,8 +1138,8 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
             if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
             {
                 // Get prev tx from single transactions in memory
-                CRITICAL_BLOCK(cs_mapTransactions)
                 {
+                    LOCK(cs_mapTransactions);
                     if (!mapTransactions.count(prevout.hash))
                         return error("ConnectInputs() : %s mapTransactions prev not found %s", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
                     txPrev = mapTransactions[prevout.hash];
@@ -1227,8 +1244,8 @@ bool CTransaction::ClientConnectInputs()
         return false;
 
     // Take over previous transactions' spent pointers
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK(cs_mapTransactions);
         int64 nValueIn = 0;
         for (int i = 0; i < vin.size(); i++)
         {
@@ -1330,7 +1347,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
     // nFees may include taxes from the game, so we check it after creating game transactions
     if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
     {
-	printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
+        printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
         printf("  vtx[0].GetValueOut() = %s\n", FormatMoney(vtx[0].GetValueOut()).c_str());
         printf("  GetBlockValue(pindex->nHeight, nFees) = %s\n", FormatMoney(GetBlockValue(pindex->nHeight, nFees)).c_str());
         printf("  nFees = %s\n", FormatMoney(nFees).c_str());
@@ -1393,8 +1410,8 @@ bool static Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
     reverse(vConnect.begin(), vConnect.end());
 
     vector<CTransaction> vResurrect, vDelete;
-    CRITICAL_BLOCK(cs_main)    // Lock to prevent concurrent game state reads on the non-main chain
     {
+        LOCK(cs_main);    // Lock to prevent concurrent game state reads on the non-main chain
         // Disconnect shorter branch
         BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
         {
@@ -1590,8 +1607,8 @@ int GetOurChainID(int algo)
 
 bool CBlock::WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet)
 {
-    CRITICAL_BLOCK(cs_AppendBlockFile)
     {
+        LOCK(cs_AppendBlockFile);
         // Open history file to append
         CAutoFile fileout = AppendBlockFile(nFileRet);
         if (!fileout)
@@ -1749,10 +1766,12 @@ bool CBlock::AcceptBlock()
 
     // Relay inventory, but don't relay old inventory during initial block download
     if (hashBestChain == hash)
-        CRITICAL_BLOCK(cs_vNodes)
-            BOOST_FOREACH(CNode* pnode, vNodes)
-                if (nBestHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - 2000 : hooks->LockinHeight()))
-                    pnode->PushInventory(CInv(MSG_BLOCK, hash));
+    {
+        LOCK(cs_vNodes);
+        BOOST_FOREACH(CNode* pnode, vNodes)
+            if (nBestHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - 2000 : hooks->LockinHeight()))
+                pnode->PushInventory(CInv(MSG_BLOCK, hash));
+    }
 
     return true;
 }
@@ -2138,8 +2157,8 @@ string GetWarnings(string strFor)
     }
 
     // Alerts
-    CRITICAL_BLOCK(cs_mapAlerts)
     {
+        LOCK(cs_mapAlerts);
         BOOST_FOREACH(PAIRTYPE(const uint256, CAlert)& item, mapAlerts)
         {
             const CAlert& alert = item.second;
@@ -2182,8 +2201,8 @@ bool CAlert::ProcessAlert()
     if (!IsInEffect())
         return false;
 
-    CRITICAL_BLOCK(cs_mapAlerts)
     {
+        LOCK(cs_mapAlerts);
         // Cancel previous alerts
         for (map<uint256, CAlert>::iterator mi = mapAlerts.begin(); mi != mapAlerts.end();)
         {
@@ -2249,8 +2268,21 @@ bool static AlreadyHave(CTxDB& txdb, const CInv& inv)
 {
     switch (inv.type)
     {
-    case MSG_TX:    return mapTransactions.count(inv.hash) || mapOrphanTransactions.count(inv.hash) || txdb.ContainsTx(inv.hash);
-    case MSG_BLOCK: return mapBlockIndex.count(inv.hash) || mapOrphanBlocks.count(inv.hash);
+    case MSG_TX:
+        {
+        bool txInMap = false;
+            {
+            LOCK(cs_mapTransactions);
+            txInMap = (mapTransactions.count(inv.hash) != 0);
+            }
+        return txInMap ||
+               mapOrphanTransactions.count(inv.hash) ||
+               txdb.ContainsTx(inv.hash);
+        }
+
+    case MSG_BLOCK:
+        return mapBlockIndex.count(inv.hash) ||
+               mapOrphanBlocks.count(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -2323,7 +2355,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
 
-        AddTimeData(pfrom->addr.ip, nTime);
 
         // Change version
         pfrom->PushMessage("verack");
@@ -2356,14 +2387,19 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
 
         // Relay alerts
-        CRITICAL_BLOCK(cs_mapAlerts)
+        {
+            LOCK(cs_mapAlerts);
             BOOST_FOREACH(PAIRTYPE(const uint256, CAlert)& item, mapAlerts)
                 item.second.RelayTo(pfrom);
+        }
 
         pfrom->fSuccessfullyConnected = true;
 
         printf("version message: version %d, blocks=%d, ip=%s\n", pfrom->nVersion, pfrom->nStartingHeight, pfrom->addr.ToString().c_str());
 
+        AddTimeData(pfrom->addr.ip, nTime);
+
+        LOCK(cs_main);
         cPeerBlockCounts.input(pfrom->nStartingHeight);
     }
 
@@ -2406,8 +2442,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             if (addr.nTime > nSince && !pfrom->fGetAddr && vAddr.size() <= 10 && addr.IsRoutable())
             {
                 // Relay to a limited number of other nodes
-                CRITICAL_BLOCK(cs_vNodes)
                 {
+                    LOCK(cs_vNodes);
                     // Use deterministic randomness to send to the same nodes for 24 hours
                     // at a time so the setAddrKnowns of the chosen nodes prevent repeats
                     static uint256 hashSalt;
@@ -2450,7 +2486,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 break;
             }
         }
+
         CTxDB txdb("r");
+
+        LOCK(cs_main);
+
         for (int nInv = 0; nInv < vInv.size(); nInv++)
         {
             const CInv &inv = vInv[nInv];
@@ -2491,6 +2531,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         if (vInv.size() > 50000)
             return error("message getdata size() = %d", vInv.size());
 
+        LOCK(cs_main);
         BOOST_FOREACH(const CInv& inv, vInv)
         {
             if (fShutdown)
@@ -2524,8 +2565,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             else if (inv.IsKnownType())
             {
                 // Send stream from relay memory
-                CRITICAL_BLOCK(cs_mapRelay)
                 {
+                    LOCK(cs_mapRelay);
                     map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
                     if (mi != mapRelay.end())
                         pfrom->PushMessage(inv.GetCommand(), (*mi).second);
@@ -2543,6 +2584,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;
+
+        LOCK(cs_main);
 
         // Find the last block the caller has in the main chain
         CBlockIndex* pindex = locator.GetBlockIndex();
@@ -2581,6 +2624,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;
+
+        LOCK(cs_main);
 
         CBlockIndex* pindex = NULL;
         if (locator.IsNull())
@@ -2632,6 +2677,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                    tx.GetHash().ToString().c_str(),
                    oldSize, nSize);
         }
+
+        LOCK(cs_main);
 
         bool fMissingInputs = false;
         if (tx.AcceptToMemoryPool(true, true, &fMissingInputs))
@@ -2687,6 +2734,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CInv inv(MSG_BLOCK, block.GetHash());
         pfrom->AddInventoryKnown(inv);
 
+        LOCK(cs_main);
+
         if (ProcessBlock(pfrom, &block))
             mapAlreadyAskedFor.erase(inv);
     }
@@ -2697,8 +2746,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         // Nodes rebroadcast an addr every 24 hours
         pfrom->vAddrToSend.clear();
         int64 nSince = GetAdjustedTime() - 3 * 60 * 60; // in the last 3 hours
-        CRITICAL_BLOCK(cs_mapAddresses)
         {
+            LOCK(cs_mapAddresses);
             unsigned int nCount = 0;
             BOOST_FOREACH(const PAIRTYPE(vector<unsigned char>, CAddress)& item, mapAddresses)
             {
@@ -2749,8 +2798,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         vRecv >> hashReply;
 
         CRequestTracker tracker;
-        CRITICAL_BLOCK(pfrom->cs_mapRequests)
         {
+            LOCK(pfrom->cs_mapRequests);
             map<uint256, CRequestTracker>::iterator mi = pfrom->mapRequests.find(hashReply);
             if (mi != pfrom->mapRequests.end())
             {
@@ -2777,9 +2826,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         {
             // Relay
             pfrom->setKnown.insert(alert.GetHash());
-            CRITICAL_BLOCK(cs_vNodes)
+            {
+                LOCK(cs_vNodes);
                 BOOST_FOREACH(CNode* pnode, vNodes)
                     alert.RelayTo(pnode);
+            }
         }
     }
 
@@ -2878,8 +2929,7 @@ bool ProcessMessages(CNode* pfrom)
         bool fRet = false;
         try
         {
-            CRITICAL_BLOCK(cs_main)
-                fRet = ProcessMessage(pfrom, strCommand, vMsg);
+            fRet = ProcessMessage(pfrom, strCommand, vMsg);
             if (fShutdown)
                 return true;
         }
@@ -2917,8 +2967,8 @@ bool ProcessMessages(CNode* pfrom)
 
 bool SendMessages(CNode* pto, bool fSendTrickle)
 {
-    CRITICAL_BLOCK(cs_main)
-    {
+    TRY_LOCK(cs_main, lockMain);
+    if (lockMain) {
         // Don't send anything until we get their version message
         if (pto->nVersion == 0)
             return true;
@@ -2935,8 +2985,8 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         if (GetTime() - nLastRebroadcast > 24 * 60 * 60)
         {
             nLastRebroadcast = GetTime();
-            CRITICAL_BLOCK(cs_vNodes)
             {
+                LOCK(cs_vNodes);
                 BOOST_FOREACH(CNode* pnode, vNodes)
                 {
                     // Periodically clear setAddrKnown to allow refresh broadcasts
@@ -2960,8 +3010,8 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         if (GetTime() - nLastClear > 10 * 60 && vNodes.size() >= 3)
         {
             nLastClear = GetTime();
-            CRITICAL_BLOCK(cs_mapAddresses)
             {
+                LOCK(cs_mapAddresses);
                 CAddrDB addrdb;
                 int64 nSince = GetAdjustedTime() - 14 * 24 * 60 * 60;
                 for (map<vector<unsigned char>, CAddress>::iterator mi = mapAddresses.begin();
@@ -3014,8 +3064,8 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         //
         vector<CInv> vInv;
         vector<CInv> vInvWait;
-        CRITICAL_BLOCK(pto->cs_inventory)
         {
+            LOCK(pto->cs_inventory);
             vInv.reserve(pto->vInventoryToSend.size());
             vInvWait.reserve(pto->vInventoryToSend.size());
             BOOST_FOREACH(const CInv& inv, pto->vInventoryToSend)
@@ -3249,9 +3299,8 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
     // Collect memory pool transactions into the block
     int64 nFees = 0;
 
-    CRITICAL_BLOCK(cs_main)
-    CRITICAL_BLOCK(cs_mapTransactions)
     {
+        LOCK2(cs_main, cs_mapTransactions);
         CTxDB txdb("r");
 
         // Priority order to process transactions
@@ -3493,8 +3542,8 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
     printf("generated %s\n", FormatMoney(pblock->vtx[0].vout[0].nValue).c_str());
 
     // Found a solution
-    CRITICAL_BLOCK(cs_main)
     {
+        LOCK(cs_main);
         if (pblock->hashPrevBlock != hashBestChain)
             return error("BitcoinMiner : generated block is stale");
 
@@ -3502,8 +3551,10 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
         reservekey.KeepKey();
 
         // Track how many getdata requests this block gets
-        CRITICAL_BLOCK(wallet.cs_mapRequestCount)
+        {
+            LOCK(wallet.cs_wallet);
             wallet.mapRequestCount[pblock->GetHash()] = 0;
+        }
 
         // Process this block the same as if we had received it from another node
         if (!ProcessBlock(NULL, pblock))
@@ -3616,8 +3667,8 @@ void static BitcoinMiner(CWallet *pwallet)
             if (GetTimeMillis() - nHPSTimerStart > 4000)
             {
                 static CCriticalSection cs;
-                CRITICAL_BLOCK(cs)
                 {
+                    LOCK(cs);
                     if (GetTimeMillis() - nHPSTimerStart > 4000)
                     {
                         dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
@@ -3764,8 +3815,8 @@ void static ScryptMiner(CWallet *pwallet)
             if (GetTimeMillis() - nHPSTimerStart > 4000)
             {
                 static CCriticalSection cs;
-                CRITICAL_BLOCK(cs)
                 {
+                    LOCK(cs);
                     if (GetTimeMillis() - nHPSTimerStart > 4000)
                     {
                         dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
@@ -3938,8 +3989,8 @@ void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
         if (GetTimeMillis() - nHPSTimerStart > 30000)
         {
             static CCriticalSection cs;
-            CRITICAL_BLOCK(cs)
             {
+                LOCK(cs);
                 if (GetTimeMillis() - nHPSTimerStart > 30000)
                 {
                     dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);

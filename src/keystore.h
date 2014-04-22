@@ -14,6 +14,9 @@ typedef std::map<std::vector<unsigned char>, std::vector<unsigned char> > Crypte
 
 class CKeyStore
 {
+//protected:
+//    mutable CCriticalSection cs_KeyStore;
+
 private:
     KeyMap mapKeys;
     CryptedKeyMap mapCryptedKeys;
@@ -25,7 +28,6 @@ private:
     bool fUseCrypto;
 
 public:
-
     std::map<uint160, std::vector<unsigned char> > mapPubKeys;
 
     CKeyStore()
@@ -43,7 +45,7 @@ public:
         printf("mapCryptedKeys.size() = %d\n",  mapCryptedKeys.size());
     }
 
-    mutable CCriticalSection cs_mapKeys;
+    mutable CCriticalSection cs_KeyStore;
 
     virtual bool AddKey(const CKey& key);
     virtual bool AddCryptedKey(const std::vector<unsigned char> &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret);
@@ -52,8 +54,8 @@ public:
 
     virtual bool HaveKey(const std::vector<unsigned char> &vchPubKey) const
     {
-        CRITICAL_BLOCK(cs_mapKeys)
         {
+            LOCK(cs_KeyStore);
             if (IsCrypted())
                 return (mapCryptedKeys.count(vchPubKey) > 0);
             else
@@ -75,8 +77,10 @@ public:
         if (!IsCrypted())
             return false;
         bool result;
-        CRITICAL_BLOCK(cs_mapKeys)
+        {
+            LOCK(cs_KeyStore);
             result = vMasterKey.empty();
+        }
         return result;
     }
 
