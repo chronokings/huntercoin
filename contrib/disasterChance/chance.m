@@ -32,10 +32,16 @@ times = 0 : maxTime;
 function p = getProb (t)
   global minTime maxTime;
 
-  t -= minTime;
-  p = NA (size (t));
-  p(t < 0) = 0;
-  p(t >= 0) = 1 - exp (1 ./ (t(t >= 0) - (maxTime - minTime)));
+  if (false)
+    t -= minTime;
+    p = NA (size (t));
+    p(t < 0) = 0;
+    p(t >= 0) = 1 - exp (1 ./ (t(t >= 0) - (maxTime - minTime)));
+  else
+    p = ones (size (t)) / 30000;
+    p(t < minTime) = 0;
+    p(t >= maxTime) = 1;
+  endif
 endfunction
 probabilities = getProb (times);
 
