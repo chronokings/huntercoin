@@ -1095,13 +1095,6 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
-    /* If this is an aux work block, store a pointer to the auxpow here.
-       Note that this is not saved on disk for performance (instead, it needs
-       to be leaded from the block chain itself when needed).  Instead,
-       a flag is stored to record whether or not there is an auxpow.  */
-    bool hasAuxpow;
-    mutable boost::shared_ptr<CAuxPow> auxpow;
-
 public:
 
     CBlockIndex()
@@ -1120,8 +1113,6 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
-        hasAuxpow      = false;
-        auxpow.reset();
     }
 
     CBlockIndex(unsigned int nFileIn, unsigned int nBlockPosIn, CBlock& block)
@@ -1140,8 +1131,6 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
-        hasAuxpow      = static_cast<bool> (block.auxpow);
-        auxpow         = block.auxpow;
     }
 
     /* GetBlockHeader is never actually used in the code, thus disable
@@ -1282,16 +1271,12 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
 
-        /* In the old format, the auxpow is stored.  Load it if this
-           is the case to set the hasAuxpow flag.  Otherwise, only
-           store the flag instead of the full auxpow.  */
+        /* In the old format, the auxpow is stored.  Load it and ignore.  */
         if (fRead && nVersion < 1000800)
         {
+            boost::shared_ptr<CAuxPow> auxpow;
             ReadWriteAuxPow(s, auxpow, nType, this->nVersion, ser_action);
-            const_cast<CDiskBlockIndex*> (this)->hasAuxpow = static_cast<bool> (auxpow);
         }
-        else
-            READWRITE(hasAuxpow);
     )
 
     uint256 GetBlockHash() const

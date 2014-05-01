@@ -3979,20 +3979,10 @@ void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
 
 std::string CBlockIndex::ToString() const
 {
-    const char* auxpowStr;
-    if (!hasAuxpow)
-      auxpowStr = "-";
-    else if (auxpow)
-      auxpowStr = auxpow->GetParentBlockHash ().ToString ().substr (0, 20).c_str ();
-    else
-      auxpowStr = "<not loaded>";
-
-    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, hashBlock=%s, hashParentBlock=%s)",
+    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, hashBlock=%s)",
             pprev, pnext, nFile, nBlockPos, nHeight,
             hashMerkleRoot.ToString().substr(0,10).c_str(),
-            hashGameMerkleRoot.ToString().substr(0,10).c_str(),
-            GetBlockHash().ToString().substr(0,20).c_str(),
-            auxpowStr);
+            GetBlockHash().ToString().substr(0,20).c_str());
 }
 
 CBigNum CBlockIndex::GetBlockWork() const
