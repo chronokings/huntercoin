@@ -1971,11 +1971,8 @@ bool LoadBlockIndex(bool fAllowNew)
 
     hooks->MessageStart(pchMessageStart);
 
-
-    //
-    // Load block index.  Update to the new format (without auxpow)
-    // if necessary.
-    //
+    /* Load block index.  Update to the new format (without auxpow)
+       if necessary.  */
     {
       int nTxDbVersion = VERSION;
       CTxDB txdb("cr");
@@ -2007,6 +2004,9 @@ bool LoadBlockIndex(bool fAllowNew)
               wtxdb.WriteBlockIndex (disk);
             }
           wtxdb.WriteVersion (VERSION);
+
+          /* Rewrite the database to compact the storage format.  */
+          wtxdb.Rewrite ();
         }
     }
 
