@@ -347,6 +347,12 @@ public:
         return (GetHex());
     }
 
+    const char*
+    ToLogString () const
+    {
+        return ToString ().substr (0, 10).c_str ();
+    }
+
     unsigned char* begin()
     {
         return (unsigned char*)&pn[0];

@@ -498,6 +498,12 @@ public:
         return SerializeHash(*this);
     }
 
+    inline const char*
+    GetHashForLog () const
+    {
+        return GetHash ().ToLogString ();
+    }
+
     bool IsFinal(int nBlockHeight=0, int64 nBlockTime=0) const
     {
         // Time based nLockTime implemented in 0.1.6
