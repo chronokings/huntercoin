@@ -2390,14 +2390,14 @@ ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
             continue;
         int nout = tx.vin[i].prevout.n;
         if (nout >= vTxPrev[i].vout.size())
-            continue;
+            return error("ConnectInputsGameTx: nout out of bounds");
         CTxOut prevout = vTxPrev[i].vout[nout];
 
         int prevOp;
         vector<vchType> vvchPrevArgs;
 
         if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
-            continue;
+            return error("ConnectInputsGameTx: prev is not name_update");
 
         vector<CNameIndex> vtxPos;
         if (dbset.name ().ExistsName(vvchPrevArgs[0])
@@ -2434,14 +2434,14 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
             continue;
         int nout = tx.vin[i].prevout.n;
         if (nout >= txPrev.vout.size())
-            continue;
+            return error("DisconnectInputsGameTx: nout out of bounds");
         CTxOut prevout = txPrev.vout[nout];
 
         int prevOp;
         vector<vchType> vvchPrevArgs;
 
         if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
-            continue;
+            return error("DisconnectInputsGameTx: prev is not name_update");
 
         vector<CNameIndex> vtxPos;
         if (dbset.name ().ExistsName (vvchPrevArgs[0])
