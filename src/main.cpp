@@ -1132,25 +1132,24 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                                            GetHashForLog (),
                                            prevout.hash.ToLogString ());
 
-                /* Ensure that the isSpent vector is at least large enough
-                   that we don't fail later on when trying to mark it
-                   spent.  We don't yet know the actual size requirement
-                   as the txPrev is not yet loaded.  */
-                if (!fFound)
-                    txindex.ResizeOutputs (prevout.n + 1);
+                /* If we have a txindex already, do some additional checks.
+                   For !fFound they make no sense as we would have
+                   unspent / "empty" vSpent anyway.  */
+                if (fFound)
+                {
+                    /* Check range of prevout.n.  */
+                    if (prevout.n >= txindex.GetOutputCount ())
+                        return error ("ConnectInputs() : %s prevout.n %d out of"
+                                      " range %d\n",
+                                      GetHashForLog (),
+                                      prevout.n, txindex.GetOutputCount ());
 
-                /* Check range of prevout.n.  */
-                if (prevout.n >= txindex.GetOutputCount ())
-                    return error ("ConnectInputs() : %s prevout.n %d out of"
-                                  " range %d\n",
-                                  GetHashForLog (),
-                                  prevout.n, txindex.GetOutputCount ());
-
-                /* Check for conflicts with double-spends.  */
-                if (txindex.IsSpent (prevout.n))
-                    return fMiner ? false
-                                  : error ("ConnectInputs() : %s prev tx"
-                                           " already spent", GetHashForLog ());
+                    /* Check for conflicts with double-spends.  */
+                    if (txindex.IsSpent (prevout.n))
+                        return fMiner ? false
+                                      : error ("ConnectInputs() : %s prev tx"
+                                               " already spent", GetHashForLog ());
+                }
 
                 /* FIXME: Can we optimise the below away for player death
                    transactions so that it is not necessary to load
@@ -1166,8 +1165,6 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                             return error("ConnectInputs() : %s mapTransactions prev not found %s", GetHashForLog (), prevout.hash.ToLogString ());
                         txPrev = mapTransactions[prevout.hash];
                     }
-                    if (!fFound)
-                        txindex.ResizeOutputs (txPrev.vout.size ());
                 }
                 else
                 {
@@ -1220,8 +1217,9 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
             }
 
             /* Mark previous outpoints as spent.  */
-            if (!prevout.IsNull ())
+            if (!prevout.IsNull () && (fBlock || fMiner))
             {
+                assert (fFound);
                 txindex.SetSpent (prevout.n, *this);
 
                 if (fBlock)
@@ -1229,8 +1227,9 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                     if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
                         return error("ConnectInputs() : UpdateTxIndex failed");
                 }
-                else if (fMiner)
+                else
                 {
+                    assert (fMiner);
                     mapTestPool[prevout.hash] = txindex;
                 }
             }
