@@ -1216,7 +1216,10 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                     return error("ConnectInputs() : txin values out of range");
             }
 
-            /* Mark previous outpoints as spent.  */
+            /* Mark previous outpoints as spent.  This is only necessary
+               when either fBlock or fMiner.  While the txindex is used
+               later also for vTxindex and the ConnectInputs hook,
+               vSpent is never actually used there.  */
             if (!prevout.IsNull () && (fBlock || fMiner))
             {
                 assert (fFound);
