@@ -1283,6 +1283,12 @@ bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CTrans
 
 bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, int nHashType)
 {
+    /* If the receiving transaction is a game transaction, this shouldn't
+       ever be called.  They are generated deterministically (on player death)
+       and thus no check for a signature is necessary.  Thus, this call
+       should have been bypassed already in ConnectInputs.  */
+    assert (!txTo.IsGameTx ());
+
     assert(nIn < txTo.vin.size());
     const CTxIn& txin = txTo.vin[nIn];
     if (txin.prevout.n >= txFrom.vout.size())
@@ -1291,10 +1297,6 @@ bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsig
 
     if (txin.prevout.hash != txFrom.GetHash())
         return false;
-
-    // Transactions generated deterministically by the game don't need to be signed
-    if (txTo.IsGameTx())
-        return true;
 
     if (!VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, nHashType))
         return false;

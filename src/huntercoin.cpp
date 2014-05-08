@@ -866,7 +866,7 @@ Value name_show(const Array& params, bool fHelp)
             oName.push_back(Pair("address", strAddress));
             oLastName = oName;
         }
-        else if (tx.nVersion == GAME_TX_VERSION)
+        else if (tx.IsGameTx ())
         {
             oName.push_back(Pair("name", name));
             oName.push_back(Pair("value", VALUE_DEAD));
@@ -924,7 +924,7 @@ Value name_history(const Array& params, bool fHelp)
                 oName.push_back(Pair("address", strAddress));
                 oRes.push_back(oName);
             }
-            else if (tx.nVersion == GAME_TX_VERSION)
+            else if (tx.IsGameTx ())
             {
                 oName.push_back(Pair("name", name));
                 oName.push_back(Pair("value", VALUE_DEAD));
@@ -2633,7 +2633,7 @@ CHuntercoinHooks::DisconnectInputs (DatabaseSet& dbset, const CTransaction& tx,
                                     CBlockIndex* pindexBlock)
 {
     if (tx.IsGameTx ())
-        return DisconnectInputsGameTx(dbset, tx, pindexBlock);
+        return DisconnectInputsGameTx (dbset, tx, pindexBlock);
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;

@@ -1111,90 +1111,128 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
             CTransaction txPrev;
             CTxIndex txindex;
 
-            if (prevout.IsNull() && IsGameTx())
-            {
-                vTxPrev.push_back(txPrev);
-                vTxindex.push_back(txindex);
-                continue;
-            }
-
-            // Read txindex
+            /* Get the previous txindex if we have a prevout.  */
             bool fFound = true;
-            if (fMiner && mapTestPool.count(prevout.hash))
+            if (!prevout.IsNull ())
             {
-                // Get txindex from current proposed changes
-                txindex = mapTestPool[prevout.hash];
-            }
-            else
-            {
-                // Read txindex from txdb
-                fFound = dbset.tx ().ReadTxIndex(prevout.hash, txindex);
-            }
-            if (!fFound && (fBlock || fMiner))
-                return fMiner ? false : error("ConnectInputs() : %s prev tx %s index entry not found", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
-
-            // Read txPrev
-            if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
-            {
-                // Get prev tx from single transactions in memory
-                CRITICAL_BLOCK(cs_mapTransactions)
+                if (fMiner && mapTestPool.count(prevout.hash))
                 {
-                    if (!mapTransactions.count(prevout.hash))
-                        return error("ConnectInputs() : %s mapTransactions prev not found %s", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
-                    txPrev = mapTransactions[prevout.hash];
+                    // Get txindex from current proposed changes
+                    txindex = mapTestPool[prevout.hash];
                 }
+                else
+                {
+                    // Read txindex from txdb
+                    fFound = dbset.tx ().ReadTxIndex (prevout.hash, txindex);
+                }
+                if (!fFound && (fBlock || fMiner))
+                    return fMiner ? false
+                                  : error ("ConnectInputs() : %s prev tx %s"
+                                           " index entry not found",
+                                           GetHashForLog (),
+                                           prevout.hash.ToLogString ());
+
+                /* Ensure that the isSpent vector is at least large enough
+                   that we don't fail later on when trying to mark it
+                   spent.  We don't yet know the actual size requirement
+                   as the txPrev is not yet loaded.  */
                 if (!fFound)
-                  txindex.ResizeOutputs (txPrev.vout.size ());
+                    txindex.ResizeOutputs (prevout.n + 1);
+
+                /* Check range of prevout.n.  */
+                if (prevout.n >= txindex.GetOutputCount ())
+                    return error ("ConnectInputs() : %s prevout.n %d out of"
+                                  " range %d\n",
+                                  GetHashForLog (),
+                                  prevout.n, txindex.GetOutputCount ());
+
+                /* Check for conflicts with double-spends.  */
+                if (txindex.IsSpent (prevout.n))
+                    return fMiner ? false
+                                  : error ("ConnectInputs() : %s prev tx"
+                                           " already spent", GetHashForLog ());
+
+                /* FIXME: Can we optimise the below away for player death
+                   transactions so that it is not necessary to load
+                   all the txn's from disk for a disaster???  */
+
+                // Read txPrev
+                if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
+                {
+                    // Get prev tx from single transactions in memory
+                    CRITICAL_BLOCK(cs_mapTransactions)
+                    {
+                        if (!mapTransactions.count(prevout.hash))
+                            return error("ConnectInputs() : %s mapTransactions prev not found %s", GetHashForLog (), prevout.hash.ToLogString ());
+                        txPrev = mapTransactions[prevout.hash];
+                    }
+                    if (!fFound)
+                        txindex.ResizeOutputs (txPrev.vout.size ());
+                }
+                else
+                {
+                    // Get prev tx from disk
+                    if (!txPrev.ReadFromDisk(txindex.pos))
+                        return error("ConnectInputs() : %s ReadFromDisk prev tx %s failed", GetHashForLog (),  prevout.hash.ToLogString ());
+                }
+
+                if (prevout.n >= txPrev.vout.size())
+                    return error ("ConnectInputs() : %s prevout.n %d out of"
+                                  " range %d prev tx %s\n%s",
+                                  GetHashForLog (),
+                                  prevout.n, txPrev.vout.size (),
+                                  prevout.hash.ToLogString (),
+                                  txPrev.GetHashForLog ());
             }
-            else
+
+            /* If this is a game transaction, we can bypass most of the
+               logic below.  But we have to potentially mark the outpoint
+               spent (if this is a player death) and also collect
+               everything into the vTxPrev and vTxindex vectors.  */
+            if (!IsGameTx ())
             {
-                // Get prev tx from disk
-                if (!txPrev.ReadFromDisk(txindex.pos))
-                    return error("ConnectInputs() : %s ReadFromDisk prev tx %s failed", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
+                if (prevout.IsNull ())
+                    return error ("ConnectInputs() : prevout is null for"
+                                  " non-game and non-coinbase transaction");
+
+                // If prev is coinbase, check that it's matured
+                if (txPrev.IsCoinBase())
+                {
+                    for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
+                        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
+                            return error("ConnectInputs() : tried to spend coinbase at depth %d", pindexBlock->nHeight - pindex->nHeight);
+                }
+                else if (txPrev.IsGameTx())
+                {
+                    for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < GAME_REWARD_MATURITY; pindex = pindex->pprev)
+                        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
+                            return error("ConnectInputs() : tried to spend game reward at depth %d", pindexBlock->nHeight - pindex->nHeight);
+                }
+
+                // Verify signature
+                if (!VerifySignature(txPrev, *this, i))
+                    return error("ConnectInputs() : %s VerifySignature failed", GetHash().ToString().substr(0,10).c_str());
+
+                // Check for negative or overflow input values
+                nValueIn += txPrev.vout[prevout.n].nValue;
+                if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
+                    return error("ConnectInputs() : txin values out of range");
             }
 
-            if (prevout.n >= txPrev.vout.size() || prevout.n >= txindex.GetOutputCount ())
-                return error("ConnectInputs() : %s prevout.n out of range %d %d %d prev tx %s\n%s", GetHash().ToString().substr(0,10).c_str(), prevout.n, txPrev.vout.size(), txindex.GetOutputCount (), prevout.hash.ToString().substr(0,10).c_str(), txPrev.ToString().c_str());
-
-            // If prev is coinbase, check that it's matured
-            if (txPrev.IsCoinBase())
+            /* Mark previous outpoints as spent.  */
+            if (!prevout.IsNull ())
             {
-                for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
-                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
-                        return error("ConnectInputs() : tried to spend coinbase at depth %d", pindexBlock->nHeight - pindex->nHeight);
-            }
-            else if (txPrev.IsGameTx())
-            {
-                for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < GAME_REWARD_MATURITY; pindex = pindex->pprev)
-                    if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
-                        return error("ConnectInputs() : tried to spend game reward at depth %d", pindexBlock->nHeight - pindex->nHeight);
-            }
+                txindex.SetSpent (prevout.n, *this);
 
-            // Verify signature
-            if (!VerifySignature(txPrev, *this, i))
-                return error("ConnectInputs() : %s VerifySignature failed", GetHash().ToString().substr(0,10).c_str());
-
-            // Check for conflicts
-            if (txindex.IsSpent (prevout.n))
-                return fMiner ? false : error("ConnectInputs() : %s prev tx already spent", GetHash().ToString().substr(0,10).c_str());
-
-            // Check for negative or overflow input values
-            nValueIn += txPrev.vout[prevout.n].nValue;
-            if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
-                return error("ConnectInputs() : txin values out of range");
-
-            // Mark outpoints as spent
-            txindex.SetSpent (prevout.n, *this);
-
-            // Write back
-            if (fBlock)
-            {
-                if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
-                    return error("ConnectInputs() : UpdateTxIndex failed");
-            }
-            else if (fMiner)
-            {
-                mapTestPool[prevout.hash] = txindex;
+                if (fBlock)
+                {
+                    if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
+                        return error("ConnectInputs() : UpdateTxIndex failed");
+                }
+                else if (fMiner)
+                {
+                    mapTestPool[prevout.hash] = txindex;
+                }
             }
 
             vTxPrev.push_back(txPrev);
