@@ -976,7 +976,7 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
     if (!hooks->DisconnectInputs (dbset, *this, pindex))
         return false;
 
-    bool fGameTx = IsGameTx();
+    const bool fGameTx = IsGameTx ();
 
     // Relinquish previous transactions' spent pointers
     if (!IsCoinBase())
@@ -1108,7 +1108,6 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
         for (int i = 0; i < vin.size(); i++)
         {
             COutPoint prevout = vin[i].prevout;
-            CTransaction txPrev;
             CTxIndex txindex;
 
             /* Get the previous txindex if we have a prevout.  */
@@ -1150,12 +1149,21 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                                       : error ("ConnectInputs() : %s prev tx"
                                                " already spent", GetHashForLog ());
                 }
+            }
 
-                /* FIXME: Can we optimise the below away for player death
-                   transactions so that it is not necessary to load
-                   all the txn's from disk for a disaster???  */
+            /* If this is a game transaction, we can bypass most of the
+               logic below.  But we have to potentially mark the outpoint
+               spent (if this is a player death).  */
+            if (!IsGameTx ())
+            {
+                if (prevout.IsNull ())
+                    return error ("ConnectInputs() : prevout is null for"
+                                  " non-game and non-coinbase transaction");
 
-                // Read txPrev
+                /* Read txPrev.  This is only used for non-game transactions,
+                   as game tx can be processed in ConnectInputsGameTx
+                   without previous transactions.  */
+                CTransaction txPrev;
                 if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
                 {
                     // Get prev tx from single transactions in memory
@@ -1179,18 +1187,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                                   GetHashForLog (),
                                   prevout.n, txPrev.vout.size (),
                                   prevout.hash.ToLogString (),
-                                  txPrev.GetHashForLog ());
-            }
-
-            /* If this is a game transaction, we can bypass most of the
-               logic below.  But we have to potentially mark the outpoint
-               spent (if this is a player death) and also collect
-               everything into the vTxPrev and vTxindex vectors.  */
-            if (!IsGameTx ())
-            {
-                if (prevout.IsNull ())
-                    return error ("ConnectInputs() : prevout is null for"
-                                  " non-game and non-coinbase transaction");
+                                  txPrev.ToString ().c_str ());
 
                 // If prev is coinbase, check that it's matured
                 if (txPrev.IsCoinBase())
@@ -1214,6 +1211,12 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                 nValueIn += txPrev.vout[prevout.n].nValue;
                 if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
                     return error("ConnectInputs() : txin values out of range");
+
+                /* Fill in vectors with previous transactions.  They are not
+                   used for game transactions and can thus stay empty
+                   for those.  */
+                vTxPrev.push_back (txPrev);
+                vTxindex.push_back (txindex);
             }
 
             /* Mark previous outpoints as spent.  This is only necessary
@@ -1236,9 +1239,6 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                     mapTestPool[prevout.hash] = txindex;
                 }
             }
-
-            vTxPrev.push_back(txPrev);
-            vTxindex.push_back(txindex);
         }
 
         if (!hooks->ConnectInputs (dbset, mapTestPool, *this, vTxPrev, vTxindex,

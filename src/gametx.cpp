@@ -117,6 +117,28 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
   return true;
 }
 
+bool
+IsPlayerDeathInput (const CTxIn& in, vchType& name)
+{
+  opcodetype opcode;
+  CScript::const_iterator pc = in.scriptSig.begin ();
+
+  if (!in.scriptSig.GetOp (pc, opcode, name))
+    return error ("could not extract name in game tx input");
+
+  if (!in.scriptSig.GetOp (pc, opcode))
+    return error ("could not extract game tx opcode");
+
+  switch (opcode - OP_1 + 1)
+    {
+    case GAMEOP_KILLED_BY:
+      return true;
+
+    default:
+      return false;
+    }
+}
+
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
                                  const char *nameStartTag /* = ""*/, const char *nameEndTag /* = ""*/,
                                  bool fUseColon /* = true*/)

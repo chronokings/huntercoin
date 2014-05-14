@@ -13,6 +13,7 @@
 #include "gamestate.h"
 #include "gamedb.h"
 #include "gamemovecreator.h"
+#include "gametx.h"
 
 #include "bitcoinrpc.h"
 
@@ -2375,10 +2376,9 @@ IsPlayerDead (const CWalletTx &nameTx, const CTxIndex &txindex)
   return false;
 }
 
-bool
+static bool
 ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
-                     const CTransaction& tx, vector<CTransaction>& vTxPrev,
-                     vector<CTxIndex>& vTxindex, CBlockIndex* pindexBlock,
+                     const CTransaction& tx, CBlockIndex* pindexBlock,
                      CDiskTxPos& txPos)
 {
     if (!tx.IsGameTx())
@@ -2387,34 +2387,27 @@ ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
     for (int i = 0; i < tx.vin.size(); i++)
     {
         if (tx.vin[i].prevout.IsNull())
-            continue;
-        int nout = tx.vin[i].prevout.n;
-        if (nout >= vTxPrev[i].vout.size())
-            return error("ConnectInputsGameTx: nout out of bounds");
-        CTxOut prevout = vTxPrev[i].vout[nout];
+          continue;
 
-        int prevOp;
-        vector<vchType> vvchPrevArgs;
-
-        if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
-            return error("ConnectInputsGameTx: prev is not name_update");
+        vchType name;
+        if (!IsPlayerDeathInput (tx.vin[i], name))
+          return error("ConnectInputsGameTx: prev is no player death");
 
         vector<CNameIndex> vtxPos;
-        if (dbset.name ().ExistsName(vvchPrevArgs[0])
-            && !dbset.name ().ReadName (vvchPrevArgs[0], vtxPos))
-          return error ("ConnectInputsGameTx() : failed to read from name DB");
-        CNameIndex txPos2;
-        txPos2.nHeight = pindexBlock->nHeight;
-        txPos2.vValue = vchFromString(VALUE_DEAD);
-        txPos2.txPos = txPos;
-        vtxPos.push_back(txPos2); // fin add
-        if (!dbset.name ().WriteName(vvchPrevArgs[0], vtxPos))
-            return error("ConnectInputsGameTx() : failed to write to name DB");
+        if (dbset.name ().ExistsName (name)
+            && !dbset.name ().ReadName (name, vtxPos))
+          return error ("ConnectInputsGameTx: failed to read from name DB");
+        CNameIndex txPos2(txPos, pindexBlock->nHeight,
+                          vchFromString (VALUE_DEAD));
+        vtxPos.push_back (txPos2);
+        if (!dbset.name ().WriteName (name, vtxPos))
+          return error ("ConnectInputsGameTx: failed to write to name DB");
     }
+
     return true;
 }
 
-bool
+static bool
 DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
                         CBlockIndex* pindexBlock)
 {
@@ -2423,6 +2416,9 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
+        /* FIXME: Implement for player deaths without loading the
+           prev tx from disk.  */
+
         if (tx.vin[i].prevout.IsNull())
             continue;
         CTransaction txPrev;
@@ -2470,9 +2466,15 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
       {
         if (fBlock)
           return ConnectInputsGameTx (dbset, mapTestPool, tx,
-                                      vTxPrev, vTxindex, pindexBlock, txPos);
+                                      pindexBlock, txPos);
         return true;
       }
+
+    /* For game transactions, the vectors of previous transactions
+       are not filled.  Check that they are filled properly if we have
+       a non-game transaction.  */
+    assert (vTxPrev.size () == tx.vin.size ()
+            && vTxindex.size () == tx.vin.size ());
 
     int nInput;
     bool found = false;
