@@ -1147,7 +1147,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
         bool isValid = AddressToHash160 (strAddress, hash160);
         if (!isValid)
             throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY,
-                                "Invalid namecoin address");
+                                "Invalid huntercoin address");
         scriptPubKeyOrig.SetBitcoinAddress (strAddress);
     }
     else
