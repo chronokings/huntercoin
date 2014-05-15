@@ -1378,7 +1378,7 @@ AddRawTxNameOperation (CTransaction& tx, const Object& obj)
   if (!IsValidBitcoinAddress (address))
     {
       std::ostringstream msg;
-      msg << "Invalid Namecoin address: " << address;
+      msg << "Invalid Huntercoin address: " << address;
       throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY, msg.str ());
     }
 
