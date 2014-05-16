@@ -104,7 +104,7 @@ bool DecodeNameScript(const CScript& script, int& op,
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress);
 bool GetNameAddress(const CTransaction& tx, uint160 &hash160);
 std::string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
-bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
+bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
 int64 GetNetworkFee(int nHeight);
 bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, std::vector<unsigned char>& name);
 void UnspendInputs(CWalletTx& wtx);
