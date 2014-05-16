@@ -1182,13 +1182,11 @@ Value name_firstupdate(const Array& params, bool fHelp)
 
         CScript scriptPubKey;
         scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchRand << vchValue << OP_2DROP << OP_2DROP;
+        scriptPubKey += scriptPubKeyOrig;
 
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
         vector<unsigned char> vchHash;
         bool found = false;
-
-        CScript scriptPubKeyOrig;
-
         BOOST_FOREACH(CTxOut& out, wtxIn.vout)
         {
             vector<vector<unsigned char> > vvch;
@@ -1197,8 +1195,6 @@ Value name_firstupdate(const Array& params, bool fHelp)
                 if (op != OP_NAME_NEW)
                     throw runtime_error("previous transaction wasn't a name_new");
                 vchHash = vvch[0];
-
-                scriptPubKeyOrig = RemoveNameScriptPrefix(out.scriptPubKey);
                 found = true;
             }
         }
@@ -1207,8 +1203,6 @@ Value name_firstupdate(const Array& params, bool fHelp)
         {
             throw runtime_error("previous tx on this name is not a name tx");
         }
-
-        scriptPubKey += scriptPubKeyOrig;
 
         vector<unsigned char> vchToHash(vchRand);
         vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
