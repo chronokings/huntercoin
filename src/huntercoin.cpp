@@ -2386,12 +2386,12 @@ ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
-        if (tx.vin[i].prevout.IsNull())
+        if (tx.vin[i].prevout.IsNull ())
           continue;
 
         vchType name;
         if (!IsPlayerDeathInput (tx.vin[i], name))
-          return error("ConnectInputsGameTx: prev is no player death");
+          return error ("ConnectInputsGameTx: prev is no player death");
 
         vector<CNameIndex> vtxPos;
         if (dbset.name ().ExistsName (name)
@@ -2416,40 +2416,28 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
-        /* FIXME: Implement for player deaths without loading the
-           prev tx from disk.  */
+        /* Skip bounty payouts.  */
+        if (tx.vin[i].prevout.IsNull ())
+          continue;
 
-        if (tx.vin[i].prevout.IsNull())
-            continue;
-        CTransaction txPrev;
-        CTxIndex txindex;
-        if (!dbset.tx ().ReadTxIndex (tx.vin[i].prevout.hash, txindex)
-            || txindex.pos == CDiskTxPos(1,1,1))
-            continue;
-        else if (!txPrev.ReadFromDisk(txindex.pos))
-            continue;
-        int nout = tx.vin[i].prevout.n;
-        if (nout >= txPrev.vout.size())
-            return error("DisconnectInputsGameTx: nout out of bounds");
-        CTxOut prevout = txPrev.vout[nout];
-
-        int prevOp;
-        vector<vchType> vvchPrevArgs;
-
-        if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
-            return error("DisconnectInputsGameTx: prev is not name_update");
+        vchType name;
+        if (!IsPlayerDeathInput (tx.vin[i], name))
+          return error ("DisconnectInputsGameTx: prev is no player death");
 
         vector<CNameIndex> vtxPos;
-        if (dbset.name ().ExistsName (vvchPrevArgs[0])
-            && !dbset.name ().ReadName (vvchPrevArgs[0], vtxPos))
+        if (dbset.name ().ExistsName (name)
+            && !dbset.name ().ReadName (name, vtxPos))
           return error("DisconnectInputsGameTx() : failed to read from name DB");
+
         if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight || vtxPos.back().vValue != vchFromString(VALUE_DEAD))
             printf("DisconnectInputsGameTx() : Warning: game transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
         while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
             vtxPos.pop_back();
+
         if (!dbset.name ().WriteName (vvchPrevArgs[0], vtxPos))
             return error("DisconnectInputsGameTx() : failed to write to name DB");
     }
+
     return true;
 }
 
