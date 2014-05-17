@@ -1190,9 +1190,6 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, map<uint256, CTxIndex>& mapTestPoo
 
         if (!IsGameTx())
         {
-            if (nValueIn < GetValueOut())
-                return error("ConnectInputs() : %s value in < value out", GetHash().ToString().substr(0,10).c_str());
-
             // Tally transaction fees
             int64 nTxFee = nValueIn - GetValueOut();
             if (nTxFee < 0)

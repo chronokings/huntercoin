@@ -54,7 +54,6 @@ extern std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;
 extern uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
 
 // forward decls
-extern bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc);
 extern bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash, int nHashType, CScript& scriptSigRet);
 extern bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn, int nHashType);
 extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& name);
@@ -1095,9 +1094,9 @@ Value name_scan(const Array& params, bool fHelp)
 
 Value name_firstupdate(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 3 || params.size() > 4)
+    if (fHelp || params.size() < 3 || params.size() > 5)
         throw runtime_error(
-                "name_firstupdate <name> <rand> [<tx>] <value>\n"
+                "name_firstupdate <name> <rand> [<tx>] <value> [<toaddress>]\n"
                 "Perform a first update after a name_new reservation.\n"
                 "Note that the first update will go into a block 2 blocks after the name_new, at the soonest."
                 + HelpRequiringPassphrase());
@@ -1139,6 +1138,23 @@ Value name_firstupdate(const Array& params, bool fHelp)
         }
     }
 
+    CScript scriptPubKeyOrig;
+    if (params.size () == 5)
+    {
+        const std::string strAddress = params[4].get_str ();
+        uint160 hash160;
+        bool isValid = AddressToHash160 (strAddress, hash160);
+        if (!isValid)
+            throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY,
+                                "Invalid huntercoin address");
+        scriptPubKeyOrig.SetBitcoinAddress (strAddress);
+    }
+    else
+    {
+        vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool ();
+        scriptPubKeyOrig.SetBitcoinAddress (vchPubKey);
+    }
+
     CRITICAL_BLOCK(cs_main)
     {
         EnsureWalletIsUnlocked();
@@ -1166,13 +1182,11 @@ Value name_firstupdate(const Array& params, bool fHelp)
 
         CScript scriptPubKey;
         scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchRand << vchValue << OP_2DROP << OP_2DROP;
+        scriptPubKey += scriptPubKeyOrig;
 
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
         vector<unsigned char> vchHash;
         bool found = false;
-
-        CScript scriptPubKeyOrig;
-
         BOOST_FOREACH(CTxOut& out, wtxIn.vout)
         {
             vector<vector<unsigned char> > vvch;
@@ -1181,8 +1195,6 @@ Value name_firstupdate(const Array& params, bool fHelp)
                 if (op != OP_NAME_NEW)
                     throw runtime_error("previous transaction wasn't a name_new");
                 vchHash = vvch[0];
-
-                scriptPubKeyOrig = RemoveNameScriptPrefix(out.scriptPubKey);
                 found = true;
             }
         }
@@ -1191,8 +1203,6 @@ Value name_firstupdate(const Array& params, bool fHelp)
         {
             throw runtime_error("previous tx on this name is not a name tx");
         }
-
-        scriptPubKey += scriptPubKeyOrig;
 
         vector<unsigned char> vchToHash(vchRand);
         vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
@@ -1329,6 +1339,70 @@ Value name_new(const Array& params, bool fHelp)
     res.push_back(wtx.GetHash().GetHex());
     res.push_back(HexStr(vchRand));
     return res;
+}
+
+/* Implement name operations for createrawtransaction.  */
+void
+AddRawTxNameOperation (CTransaction& tx, const Object& obj)
+{
+  Value val = find_value (obj, "op");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing op key.");
+  const std::string op = val.get_str ();
+
+  if (op != "name_update")
+    throw std::runtime_error ("Only name_update is implemented"
+                              " for raw transactions at the moment.");
+
+  val = find_value (obj, "name");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing name key.");
+  const std::string name = val.get_str ();
+  const std::vector<unsigned char> vchName = vchFromString (name);
+
+  val = find_value (obj, "value");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing value key.");
+  const std::string value = val.get_str ();
+
+  val = find_value (obj, "address");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing address key.");
+  const std::string address = val.get_str ();
+  if (!IsValidBitcoinAddress (address))
+    {
+      std::ostringstream msg;
+      msg << "Invalid Huntercoin address: " << address;
+      throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY, msg.str ());
+    }
+
+  /* Find the transaction input to add.  */
+
+  CRITICAL_BLOCK(cs_main)
+  {
+    CNameDB dbName("r");
+    CTransaction prevTx;
+    if (!GetTxOfName (dbName, vchName, prevTx))
+      throw std::runtime_error ("could not find a coin with this name");
+    const uint256 prevTxHash = prevTx.GetHash();
+    const int nTxOut = IndexOfNameOutput (prevTx);
+
+    CTxIn in(COutPoint(prevTxHash, nTxOut));
+    tx.vin.push_back (in);
+  }
+
+  /* Construct the transaction output.  */
+
+  CScript scriptPubKeyOrig;
+  scriptPubKeyOrig.SetBitcoinAddress (address);
+
+  CScript scriptPubKey;
+  scriptPubKey << OP_NAME_UPDATE << vchName << vchFromString (value)
+               << OP_2DROP << OP_DROP;
+  scriptPubKey += scriptPubKeyOrig;
+
+  CTxOut out(NAME_COIN_AMOUNT, scriptPubKey);
+  tx.vout.push_back (out);
 }
 
 static Value
@@ -1920,13 +1994,14 @@ CHooks* InitHook()
     return new CHuntercoinHooks();
 }
 
-bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch)
+bool DecodeNameScript(const CScript& script, int& op, vector<vchType> &vvch)
 {
     CScript::const_iterator pc = script.begin();
     return DecodeNameScript(script, op, vvch, pc);
 }
 
-bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc)
+bool DecodeNameScript(const CScript& script, int& op,
+                      vector<vchType> &vvch, CScript::const_iterator& pc)
 {
     opcodetype opcode;
     if (!script.GetOp(pc, opcode))
@@ -1963,7 +2038,8 @@ bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned cha
     return error("invalid number of arguments for name op");
 }
 
-bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut, vector<vector<unsigned char> >& vvch)
+bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut,
+                  vector<vchType>& vvch)
 {
     bool found = false;
 

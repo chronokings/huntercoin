@@ -1326,11 +1326,8 @@ bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsig
 
 bool ExtractDestination(const CScript& scriptPubKey, std::string& addressRet)
 {
-    uint160 h;
-    if (!ExtractHash160(scriptPubKey, h))
-        return false;
-    addressRet = Hash160ToAddress(h);
-    return true;
+    addressRet = scriptPubKey.GetBitcoinAddress();
+    return (addressRet != "");
 }
 
 static CScript PushAll(const vector<valtype>& values)
