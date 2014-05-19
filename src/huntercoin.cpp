@@ -2339,24 +2339,18 @@ IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name)
 }
 
 // Detect if player is dead by checking wheter his name is spent by a game transaction
-bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex)
+bool
+IsPlayerDead (const CWalletTx &nameTx, const CTxIndex &txindex)
 {
-    if (nameTx.IsGameTx())
-        return true;
-    int nOut = IndexOfNameOutput(nameTx);
-    if (nOut < txindex.GetOutputCount ())
-    {
-        CDiskTxPos spentPos = txindex.GetSpendingTx (nOut);
-        if (!spentPos.IsNull())
-        {
-            CTransaction tx;
-            if (!tx.ReadFromDisk(spentPos))
-                throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
-            if (tx.nVersion == GAME_TX_VERSION)
-                return true;
-        }
-    }
-    return false;
+  if (nameTx.IsGameTx ())
+      return true;
+
+  const unsigned nOut = IndexOfNameOutput (nameTx);
+  if (nOut < txindex.GetOutputCount ()
+      && txindex.GetSpent (nOut) == CTxIndex::SPENT_GAMETX)
+    return true;
+
+  return false;
 }
 
 bool

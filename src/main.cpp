@@ -672,6 +672,16 @@ bool CWalletTx::AcceptWalletTransaction()
     return AcceptWalletTransaction (dbset);
 }
 
+unsigned char
+CTxIndex::GetSpentType (const CTransaction& tx)
+{
+  if (tx.IsGameTx ())
+    return SPENT_GAMETX;
+  if (tx.nVersion == NAMECOIN_TX_VERSION)
+    return SPENT_NAMETX;
+  return SPENT_TX;
+}
+
 int CTxIndex::GetDepthInMainChain() const
 {
     // Read block header
@@ -988,7 +998,7 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
                 return error("DisconnectInputs() : prevout.n out of range");
 
             // Mark outpoint as not spent
-            txindex.MarkUnspent (prevout.n);
+            txindex.SetUnspent (prevout.n);
 
             // Write back
             if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
@@ -1174,7 +1184,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                 return error("ConnectInputs() : txin values out of range");
 
             // Mark outpoints as spent
-            txindex.MarkSpent (prevout.n, posThisTx);
+            txindex.SetSpent (prevout.n, *this);
 
             // Write back
             if (fBlock)
@@ -2006,7 +2016,7 @@ bool LoadBlockIndex(bool fAllowNew)
             printf ("FixTxIndexBug failed\n");
         }
 
-      if (nTxDbVersion < 1000800)
+      if (nTxDbVersion < 1000900)
         {
           CTxDB wtxdb;
           /* SerialisationVersion is set to VERSION by default.  */

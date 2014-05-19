@@ -58,6 +58,7 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
+static const int NAMECOIN_TX_VERSION = 0x7100;
 static const int GAME_TX_VERSION = 0x87100;
 
 
@@ -741,19 +742,28 @@ public:
 
 
 //
-// A txdb record that contains the disk location of a transaction and the
-// locations of transactions that spend its outputs.  vSpent is really only
-// used as a flag, but having the location is very helpful for debugging.
+// A txdb record that contains the disk location of a transaction and an array
+// of flags whether its outputs have already been spent.
 //
 class CTxIndex
 {
 public:
     CDiskTxPos pos;
 
-    /* vSpent is mostly used as a flag.  While transitioning it to a real
-       bool array, make it private and access it via methods.  */
+    /* Possible types of "spendings" for outputs.  It is necessary to record
+       when a name has been spent by a game tx, so that we know that the
+       player is dead.  */
+    static const unsigned char SPENT_UNSPENT = 0;
+    static const unsigned char SPENT_TX = 1;
+    static const unsigned char SPENT_NAMETX = 2;
+    static const unsigned char SPENT_GAMETX = 3;
+
 private:
-    std::vector<CDiskTxPos> vSpent;
+    std::vector<unsigned char> isSpent;
+
+    /* Given the spending tx of an output, decide what the correct SPENT_*
+       type is for the output.  */
+    static unsigned char GetSpentType (const CTransaction& tx);
 
 public:
 
@@ -765,7 +775,7 @@ public:
     CTxIndex(const CDiskTxPos& posIn, unsigned int nOutputs)
     {
         pos = posIn;
-        vSpent.resize(nOutputs);
+        isSpent.resize (nOutputs, SPENT_UNSPENT);
     }
 
     IMPLEMENT_SERIALIZE
@@ -773,13 +783,38 @@ public:
         if (!(nType & SER_GETHASH))
             READWRITE(nVersion);
         READWRITE(pos);
-        READWRITE(vSpent);
+
+        if (nVersion < 1000900)
+          {
+            assert (fRead); 
+            std::vector<CDiskTxPos> vSpent;
+            READWRITE (vSpent);
+
+            std::vector<unsigned char>& newIsSpent = const_cast<std::vector<unsigned char>&> (isSpent);
+            newIsSpent.resize (vSpent.size ());
+            for (unsigned i = 0; i < vSpent.size (); ++i)
+              {
+                if (vSpent[i].IsNull ())
+                  newIsSpent[i] = SPENT_UNSPENT;
+                else
+                  {
+                    const CDiskTxPos spentPos = vSpent[i];
+                    CTransaction tx;
+                    if (!tx.ReadFromDisk (spentPos))
+                      throw std::runtime_error ("failed to read spending tx");
+
+                    newIsSpent[i] = GetSpentType (tx);
+                  }
+              }
+          }
+        else
+          READWRITE(isSpent);
     )
 
     void SetNull()
     {
         pos.SetNull();
-        vSpent.clear();
+        isSpent.clear ();
     }
 
     bool IsNull()
@@ -790,50 +825,49 @@ public:
     inline unsigned
     GetOutputCount () const
     {
-      return vSpent.size ();
+      return isSpent.size ();
     }
 
     inline void
     ResizeOutputs (unsigned n)
     {
-      vSpent.resize (n);
+      isSpent.resize (n, SPENT_UNSPENT);
     }
 
     inline bool
     IsSpent (unsigned n) const
     {
-      assert (n < vSpent.size ());
-      return !vSpent[n].IsNull ();
+      assert (n < isSpent.size ());
+      return (isSpent[n] != SPENT_UNSPENT);
     }
 
-    inline CDiskTxPos
-    GetSpendingTx (unsigned n) const
+    inline unsigned char
+    GetSpent (unsigned n) const
     {
-      assert (n < vSpent.size ());
-      return vSpent[n];
-    }
-
-    inline void
-    MarkSpent (unsigned n, const CDiskTxPos& pos)
-    {
-      assert (n < vSpent.size ());
-      assert (vSpent[n].IsNull ());
-      vSpent[n] = pos;
-      assert (!vSpent[n].IsNull ());
+      assert (n < isSpent.size ());
+      return isSpent[n];
     }
 
     inline void
-    MarkUnspent (unsigned n)
+    SetSpent (unsigned n, const CTransaction& txSpending)
     {
-      assert (n < vSpent.size ());
-      assert (!vSpent[n].IsNull ());
-      vSpent[n].SetNull ();
+      assert (n < isSpent.size ());
+      assert (isSpent[n] == SPENT_UNSPENT);
+      isSpent[n] = GetSpentType (txSpending);
+    }
+
+    inline void
+    SetUnspent (unsigned n)
+    {
+      assert (n < isSpent.size ());
+      assert (isSpent[n] != SPENT_UNSPENT);
+      isSpent[n] = SPENT_UNSPENT;
     }
 
     friend bool operator==(const CTxIndex& a, const CTxIndex& b)
     {
         return (a.pos    == b.pos &&
-                a.vSpent == b.vSpent);
+                a.isSpent == b.isSpent);
     }
 
     friend bool operator!=(const CTxIndex& a, const CTxIndex& b)
