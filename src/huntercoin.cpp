@@ -1885,7 +1885,7 @@ bool CNameDB::ReconstructNameIndex()
         while (pindex)
         {  
             CBlock block;
-            block.ReadFromDisk(pindex, true);
+            block.ReadFromDisk(pindex);
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
                 if (tx.nVersion != NAMECOIN_TX_VERSION)

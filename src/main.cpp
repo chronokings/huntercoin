@@ -784,14 +784,9 @@ bool CBlock::ReadFromDisk(unsigned int nFile, unsigned int nBlockPos, bool fRead
     return true;
 }
 
-bool CBlock::ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions)
+bool CBlock::ReadFromDisk(const CBlockIndex* pindex)
 {
-    if (!fReadTransactions)
-    {
-        *this = pindex->GetBlockHeader();
-        return true;
-    }
-    if (!ReadFromDisk(pindex->nFile, pindex->nBlockPos, fReadTransactions))
+    if (!ReadFromDisk(pindex->nFile, pindex->nBlockPos, true))
         return false;
     if (GetHash() != pindex->GetBlockHash())
         return error("CBlock::ReadFromDisk() : GetHash() doesn't match index");
@@ -1971,25 +1966,45 @@ bool LoadBlockIndex(bool fAllowNew)
 
     hooks->MessageStart(pchMessageStart);
 
-    int nTxDbVersion = VERSION;
-
-    //
-    // Load block index
-    //
+    /* Load block index.  Update to the new format (without auxpow)
+       if necessary.  */
     {
-        CTxDB txdb("cr");
-        if (!txdb.LoadBlockIndex())
-            return false;
-        txdb.ReadVersion(nTxDbVersion);
-        txdb.Close();
-    }
+      int nTxDbVersion = VERSION;
+      CTxDB txdb("cr");
+      txdb.ReadVersion(nTxDbVersion);
+      txdb.SetSerialisationVersion (nTxDbVersion);
 
-    if (nTxDbVersion < 1000400)
-    {
-        CTxDB txdb("r+");
-        printf("FixTxIndexBug...\n");
-        if (!txdb.FixTxIndexBug())
-            printf("FixTxIndexBug failed\n");
+      if (!txdb.LoadBlockIndex())
+          return false;
+      txdb.Close();
+
+      if (nTxDbVersion < 1000400)
+        {
+          CTxDB txdb("r+");
+          printf ("FixTxIndexBug...\n");
+          if (!txdb.FixTxIndexBug ())
+            printf ("FixTxIndexBug failed\n");
+        }
+
+      if (nTxDbVersion < 1000800)
+        {
+          CTxDB wtxdb;
+          /* SerialisationVersion is set to VERSION by default.  */
+
+          /* Go through each blkindex object loaded into memory and
+             write it again to disk.  */
+          printf ("Updating blkindex.dat data format...\n");
+          map<uint256, CBlockIndex*>::const_iterator mi;
+          for (mi = mapBlockIndex.begin (); mi != mapBlockIndex.end (); ++mi)
+            {
+              CDiskBlockIndex disk(mi->second);
+              wtxdb.WriteBlockIndex (disk);
+            }
+          wtxdb.WriteVersion (VERSION);
+
+          /* Rewrite the database to compact the storage format.  */
+          wtxdb.Rewrite ();
+        }
     }
 
     //
@@ -2559,7 +2574,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             }
             pfrom->PushInventory(CInv(MSG_BLOCK, pindex->GetBlockHash()));
             CBlock block;
-            block.ReadFromDisk(pindex, true);
+            block.ReadFromDisk(pindex);
             nBytes += block.GetSerializeSize(SER_NETWORK);
             if (--nLimit <= 0 || nBytes >= SendBufferSize()/2)
             {
@@ -2575,6 +2590,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     else if (strCommand == "getheaders")
     {
+        /* 'getheaders' is never sent by the client code and thus also
+           not well tested.  Disable it for this reason until it is actually
+           used by some clients in production.  */
+        printf ("warning: ignored 'getheaders' message\n");
+#if 0
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;
@@ -2607,6 +2627,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
 
         pfrom->PushMessage("headers", vHeaders);
+#endif
     }
 
 
@@ -3960,13 +3981,10 @@ void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
 
 std::string CBlockIndex::ToString() const
 {
-    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, game-merkle=%s, hashBlock=%s, hashParentBlock=%s)",
+    return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, hashBlock=%s)",
             pprev, pnext, nFile, nBlockPos, nHeight,
             hashMerkleRoot.ToString().substr(0,10).c_str(),
-            hashGameMerkleRoot.ToString().substr(0,10).c_str(),
-            GetBlockHash().ToString().substr(0,20).c_str(),
-            (auxpow.get() != NULL) ? auxpow->GetParentBlockHash().ToString().substr(0,20).c_str() : "-"
-            );
+            GetBlockHash().ToString().substr(0,20).c_str());
 }
 
 CBigNum CBlockIndex::GetBlockWork() const
