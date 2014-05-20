@@ -1095,8 +1095,6 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
-public:
-
     CBlockIndex()
     {
         phashBlock = NULL;

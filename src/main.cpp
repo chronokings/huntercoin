@@ -1971,9 +1971,11 @@ bool LoadBlockIndex(bool fAllowNew)
     {
       int nTxDbVersion = VERSION;
       CTxDB txdb("cr");
+      txdb.ReadVersion(nTxDbVersion);
+      txdb.SetSerialisationVersion (nTxDbVersion);
+
       if (!txdb.LoadBlockIndex())
           return false;
-      txdb.ReadVersion(nTxDbVersion);
       txdb.Close();
 
       if (nTxDbVersion < 1000400)
@@ -1986,8 +1988,8 @@ bool LoadBlockIndex(bool fAllowNew)
 
       if (nTxDbVersion < 1000800)
         {
-          txdb.Close ();
           CTxDB wtxdb;
+          /* SerialisationVersion is set to VERSION by default.  */
 
           /* Go through each blkindex object loaded into memory and
              write it again to disk.  */
