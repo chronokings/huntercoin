@@ -1755,6 +1755,8 @@ Value analyseutxo (const Array& params, bool fHelp)
 
   unsigned txCnt = 0;
   unsigned txoCnt = 0;
+  unsigned totalTx = 0;
+  unsigned totalTxo = 0;
   int64_t amount = 0;
   const CBlockIndex* pInd = pindexBest;
   const unsigned startingHeight = pInd->nHeight;
@@ -1771,6 +1773,7 @@ Value analyseutxo (const Array& params, bool fHelp)
       for (unsigned i = 0; i < block.vgametx.size (); ++i)
         vTxs.push_back (&block.vgametx[i]);
 
+      totalTx += vTxs.size ();
       for (unsigned i = 0; i < vTxs.size (); ++i)
         {
           CTxIndex txindex;
@@ -1778,6 +1781,7 @@ Value analyseutxo (const Array& params, bool fHelp)
             throw std::runtime_error ("ReadTxIndex failed.");
 
           bool hasUnspent = false;
+          totalTxo += vTxs[i]->vout.size ();
           for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
             if (txindex.vSpent[j].IsNull ())
               {
@@ -1798,6 +1802,8 @@ Value analyseutxo (const Array& params, bool fHelp)
   res.push_back (Pair ("height", static_cast<int> (startingHeight)));
   res.push_back (Pair ("ntx", static_cast<int> (txCnt)));
   res.push_back (Pair ("ntxout", static_cast<int> (txoCnt)));
+  res.push_back (Pair ("total_tx", static_cast<int> (totalTx)));
+  res.push_back (Pair ("total_txout", static_cast<int> (totalTxo)));
   res.push_back (Pair ("total", ValueFromAmount (amount)));
 
   return res;
