@@ -2032,6 +2032,9 @@ bool LoadBlockIndex(bool fAllowNew)
             }
           wtxdb.WriteVersion (VERSION);
 
+          /* Rewrite the txindex.  */
+          wtxdb.RewriteTxIndex (nTxDbVersion);
+
           /* Rewrite the database to compact the storage format.  */
           wtxdb.Rewrite ();
         }

@@ -357,6 +357,9 @@ public:
     bool WriteBestInvalidWork(CBigNum bnBestInvalidWork);
     bool LoadBlockIndex();
     bool FixTxIndexBug();
+
+    /* Update txindex to new data format.  */
+    bool RewriteTxIndex (int oldVersion);
 };
 
 
