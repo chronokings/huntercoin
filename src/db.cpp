@@ -5,7 +5,6 @@
 #include "headers.h"
 #include "db.h"
 #include "net.h"
-#include "auxpow.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <zlib.h>
@@ -47,7 +46,7 @@ instance_of_cdbinit;
 
 
 CDB::CDB(const char* pszFile, const char* pszMode, int comp)
-  : pdb(NULL), desiredCompression(comp)
+  : pdb(NULL), desiredCompression(comp), nVersion(VERSION)
 {
     int ret;
     if (pszFile == NULL)
@@ -308,7 +307,7 @@ void static CheckpointLSN(const std::string &strFile)
     dbenv.lsn_reset(strFile.c_str(), 0);
 }
 
-bool CDB::Rewrite(const string& strFile, const char* pszSkip, int desiredComp)
+bool CDB::Rewrite(const string& strFile, int desiredComp)
 {
     while (!fShutdown)
     {
@@ -358,16 +357,7 @@ bool CDB::Rewrite(const string& strFile, const char* pszSkip, int desiredComp)
                                 fSuccess = false;
                                 break;
                             }
-                            if (pszSkip &&
-                                strncmp(&ssKey[0], pszSkip, std::min(ssKey.size(), strlen(pszSkip))) == 0)
-                                continue;
-                            if (CompareKeyString (ssKey, "version"))
-                            {
-                                // Update version:
-                                ssValue.clear();
-                                ssValue << VERSION;
-                            }
-                            else if (CompareKeyString (ssKey, "compression"))
+                            if (CompareKeyString (ssKey, "compression"))
                             {
                                 // Use desired compression setting.
                                 ssValue.clear ();
@@ -609,6 +599,7 @@ bool CTxDB::LoadBlockIndex()
         if (strType == "blockindex")
         {
             CDiskBlockIndex diskindex;
+            SetStreamVersion (ssValue);
             ssValue >> diskindex;
 
             // Construct block index object
@@ -624,7 +615,6 @@ bool CTxDB::LoadBlockIndex()
             pindexNew->nTime          = diskindex.nTime;
             pindexNew->nBits          = diskindex.nBits;
             pindexNew->nNonce         = diskindex.nNonce;
-            pindexNew->auxpow         = diskindex.auxpow;
 
             // Watch for genesis block
             if (pindexGenesisBlock == NULL && diskindex.GetBlockHash() == hashGenesisBlock)

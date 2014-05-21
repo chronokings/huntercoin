@@ -76,6 +76,10 @@ private:
     CDB(const CDB&);
     void operator=(const CDB&);
 
+    /* Store version of the DB here that will be set as version
+       for serialisation on the streams.  */
+    int nVersion;
+
     /**
      * Check if a data stream key matches a given string.
      * @param ssKey Key stream.
@@ -133,7 +137,7 @@ protected:
             return false;
 
         // Key
-        CDataStream ssKey(SER_DISK);
+        CDataStream ssKey(SER_DISK, nVersion);
         ssKey.reserve(1000);
         ssKey << key;
         const int usedComp = UseCompression (ssKey, compression);
@@ -148,7 +152,7 @@ protected:
             return false;
 
         // Unserialize value
-        CDataStream ssValue;
+        CDataStream ssValue(SER_DISK, nVersion);
         Uncompress (datValue, ssValue, usedComp);
         ssValue >> value;
 
@@ -167,13 +171,13 @@ protected:
             assert(("Write called on database in read-only mode", false));
 
         // Key
-        CDataStream ssKey(SER_DISK);
+        CDataStream ssKey(SER_DISK, nVersion);
         ssKey.reserve(1000);
         ssKey << key;
         Dbt datKey(&ssKey[0], ssKey.size());
 
         // Value
-        CDataStream ssValue(SER_DISK);
+        CDataStream ssValue(SER_DISK, nVersion);
         ssValue.reserve(10000);
         ssValue << value;
         Dbt datValue;
@@ -202,7 +206,7 @@ protected:
             assert(("Erase called on database in read-only mode", false));
 
         // Key
-        CDataStream ssKey(SER_DISK);
+        CDataStream ssKey(SER_DISK, nVersion);
         ssKey.reserve(1000);
         ssKey << key;
         Dbt datKey(&ssKey[0], ssKey.size());
@@ -222,7 +226,7 @@ protected:
             return false;
 
         // Key
-        CDataStream ssKey(SER_DISK);
+        CDataStream ssKey(SER_DISK, nVersion);
         ssKey.reserve(1000);
         ssKey << key;
         Dbt datKey(&ssKey[0], ssKey.size());
@@ -284,6 +288,14 @@ protected:
         return 0;
     }
 
+    /* Update the stream to our serialisation version.  This is useful
+       for ReadAtCursor users.  */
+    inline void
+    SetStreamVersion (CDataStream& ss) const
+    {
+      ss.nVersion = nVersion;
+    }
+
 public:
     DbTxn* GetTxn()
     {
@@ -337,9 +349,28 @@ public:
     {
         return Write(std::string("version"), nVersion);
     }
+
+    /**
+     * Set version for stream serialisation.
+     * @param v Version to use for serialisation streams.
+     */
+    inline void
+    SetSerialisationVersion (int v)
+    {
+      nVersion = v;
+    }
     
-    bool static Rewrite(const std::string& strFile, const char* pszSkip = NULL,
+    bool static Rewrite(const std::string& strFile,
                         int desiredComp = COMPRESS_NONE);
+
+    /* Rewrite the DB with this database's name.  This closes it.  */
+    inline bool
+    Rewrite ()
+    {
+      Close ();
+      Rewrite (strFile);
+    }
+
 };
 
 
