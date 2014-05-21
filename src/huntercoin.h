@@ -4,51 +4,6 @@
 #include <boost/thread/thread.hpp>
 #include "json/json_spirit.h"
 
-typedef std::vector<unsigned char> vchType;
-
-class CNameDB : public CDB
-{
-public:
-    CNameDB(const char* pszMode="r+") : CDB("nameindexfull.dat", pszMode) { }
-
-    CNameDB(const char* pszMode, CDB& parent) : CDB("nameindexfull.dat", pszMode) {
-        vTxn.push_back(parent.GetTxn());
-        ownTxn.push_back(false);
-    }
-
-    //bool WriteName(std::vector<unsigned char>& name, std::vector<CDiskTxPos> vtxPos)
-    bool WriteName(const std::vector<unsigned char>& name, std::vector<CNameIndex>& vtxPos)
-    {
-        return Write(make_pair(std::string("namei"), name), vtxPos);
-    }
-
-    //bool ReadName(std::vector<unsigned char>& name, std::vector<CDiskTxPos>& vtxPos)
-    bool ReadName(const std::vector<unsigned char>& name, std::vector<CNameIndex>& vtxPos)
-    {
-        return Read(make_pair(std::string("namei"), name), vtxPos);
-    }
-
-    bool ExistsName(const std::vector<unsigned char>& name)
-    {
-        return Exists(make_pair(std::string("namei"), name));
-    }
-
-    bool EraseName(const std::vector<unsigned char>& name)
-    {
-        return Erase(make_pair(std::string("namei"), name));
-    }
-
-    bool ScanNames(
-            const std::vector<unsigned char>& vchName,
-            int nMax,
-            std::vector<std::pair<std::vector<unsigned char>, CNameIndex> >& nameScan);
-            //std::vector<std::pair<std::vector<unsigned char>, CDiskTxPos> >& nameScan);
-
-    bool test();
-
-    bool ReconstructNameIndex();
-};
-
 static const int NAMECOIN_TX_VERSION = 0x7100;
 static const int64 NAME_COIN_AMOUNT = 1 * COIN;
 // We can make name_new cheaper, if we want, separately from name_(first)update
