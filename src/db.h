@@ -43,6 +43,10 @@ protected:
     std::vector<DbTxn*> vTxn;
     bool fReadOnly;
 
+    /* Store version of the DB here that will be set as version
+       for serialisation on the streams.  */
+    int nVersion;
+
     explicit CDB(const char* pszFile, const char* pszMode="r+");
     ~CDB() { Close(); }
 public:
@@ -50,10 +54,6 @@ public:
 private:
     CDB(const CDB&);
     void operator=(const CDB&);
-
-    /* Store version of the DB here that will be set as version
-       for serialisation on the streams.  */
-    int nVersion;
 
 protected:
     template<typename K, typename T>
