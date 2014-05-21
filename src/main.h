@@ -1057,7 +1057,7 @@ public:
 
     bool DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex);
     bool ConnectBlock(CTxDB& txdb, CBlockIndex* pindex);
-    bool ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions=true);
+    bool ReadFromDisk(const CBlockIndex* pindex);
     bool SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew);
     bool AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos);
     bool CheckBlock(int nHeight) const;
@@ -1095,10 +1095,6 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
-    // if this is an aux work block
-    boost::shared_ptr<CAuxPow> auxpow;
-
-
     CBlockIndex()
     {
         phashBlock = NULL;
@@ -1115,7 +1111,6 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
-        auxpow.reset();
     }
 
     CBlockIndex(unsigned int nFileIn, unsigned int nBlockPosIn, CBlock& block)
@@ -1134,12 +1129,28 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
-        auxpow         = block.auxpow;
     }
 
+    /* GetBlockHeader is never actually used in the code, thus disable
+       it since it can't reliably be tested.  It can be re-enabled
+       when necessary later.  */
+#if 0
     CBlock GetBlockHeader() const
     {
         CBlock block;
+
+        /* If this block has auxpow but it is not yet loaded, do this
+           now and keep it in memory.  */
+        if (hasAuxpow && !auxpow)
+          {
+            printf ("GetBlockHeader(): reading auxpow from disk");
+            if (!block.ReadFromDisk (nFile, nBlockPos, false))
+              throw std::runtime_error ("CBlock::ReadFromDisk failed while"
+                                        " retrieving auxpow");
+            auxpow = block.auxpow;
+            return block;
+          }
+
         block.nVersion       = nVersion;
         if (pprev)
             block.hashPrevBlock = pprev->GetBlockHash();
@@ -1149,8 +1160,11 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.auxpow         = auxpow;
+        assert ((hasAuxpow && block.auxpow) || (!hasAuxpow && !block.auxpow));
+
         return block;
     }
+#endif
     
     // 0 - SHA-256d
     // 1 - scrypt
@@ -1236,8 +1250,23 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
-        if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        /* This is only written to disk.  */
+        assert (nType & SER_DISK);
+        /* If the version is not up-to-date (with the latest format change
+           for this class), then it means we're upgrading and thus reading
+           and old-format entry.  */
+        assert (nVersion >= 1000800 || fRead);
+
+        /* Previously, the version was stored in each entry.  This is
+           now replaced with having serialisation version set.  In the old
+           format, read and ignore the version.  */
+        if (nVersion < 1000800)
+          {
+            assert (fRead);
+            int nDummyVersion;
+            READWRITE(nDummyVersion);
+            assert (nDummyVersion < 1000800);
+          }
 
         READWRITE(hashNext);
         READWRITE(nFile);
@@ -1248,13 +1277,18 @@ public:
         READWRITE(this->nVersion);
         READWRITE(hashPrev);
         READWRITE(hashMerkleRoot);
-        if (!(nType & SER_GETHASH))
-            READWRITE(hashGameMerkleRoot);
+        READWRITE(hashGameMerkleRoot);
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
 
-        ReadWriteAuxPow(s, auxpow, nType, this->nVersion, ser_action);
+        /* In the old format, the auxpow is stored.  Load it and ignore.  */
+        if (nVersion < 1000800)
+          {
+            assert (fRead);
+            boost::shared_ptr<CAuxPow> auxpow;
+            ReadWriteAuxPow (s, auxpow, nType, this->nVersion, ser_action);
+          }
     )
 
     uint256 GetBlockHash() const
