@@ -32,7 +32,7 @@ int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
 int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight);
 CScript RemoveNameScriptPrefix(const CScript& scriptIn);
-bool NameAvailable(CTxDB& txdb, const std::vector<unsigned char> &vchName);
+bool NameAvailable (DatabaseSet& dbset, const vchType& vchName);
 bool GetTxOfName(CNameDB& dbName, const std::vector<unsigned char> &vchName, CTransaction& tx);
 bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx);
 int IndexOfNameOutput(const CTransaction& tx);
@@ -51,7 +51,7 @@ bool GetNameAddress(const CTransaction& tx, uint160 &hash160);
 std::string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
 bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
 int64 GetNetworkFee(int nHeight);
-bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, std::vector<unsigned char>& name);
+bool IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name);
 void UnspendInputs(CWalletTx& wtx);
 bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
 

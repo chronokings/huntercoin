@@ -28,7 +28,10 @@ enum
     GAMEOP_COLLECTED_BOUNTY = 2,
 };
 
-bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const StepResult &stepResult, std::vector<CTransaction> &outvgametx)
+bool
+CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
+                        const StepResult& stepResult,
+                        std::vector<CTransaction>& outvgametx)
 {
     // Create resulting game transactions
     // Transaction hashes must be unique
@@ -43,7 +46,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
     {
         std::vector<unsigned char> vchName = vchFromString(victim);
         CTransaction tx;
-        if (!pnameDb || !GetTxOfNameAtHeight(*pnameDb, vchName, gameState.nHeight, tx))
+        if (!GetTxOfNameAtHeight(nameDb, vchName, gameState.nHeight, tx))
             return error("Game engine killed a non-existing player %s", victim.c_str());
 
         CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
@@ -70,7 +73,7 @@ bool CreateGameTransactions(CNameDB *pnameDb, const GameState &gameState, const 
     {
         std::vector<unsigned char> vchName = vchFromString(bounty.first.player);
         CTransaction tx;
-        if (!pnameDb || !GetTxOfNameAtHeight(*pnameDb, vchName, gameState.nHeight, tx))
+        if (!GetTxOfNameAtHeight(nameDb, vchName, gameState.nHeight, tx))
             return error("Game engine created bounty for non-existing player");
 
         CTxOut txout;

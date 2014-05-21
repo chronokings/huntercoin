@@ -463,10 +463,10 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
 bool WalletModel::nameAvailable(const QString &name)
 {
     std::string strName = name.toStdString();
-    std::vector<unsigned char> vchName(strName.begin(), strName.end());
+    vchType vchName(strName.begin(), strName.end());
 
-    CTxDB txdb("r");
-    return NameAvailable(txdb, vchName);
+    DatabaseSet dbset("r");
+    return NameAvailable (dbset, vchName);
 }
 
 WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)

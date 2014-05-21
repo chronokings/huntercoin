@@ -19,7 +19,9 @@ class CNameDB;
 class CScript;
 
 // Create resulting game transactions for the given StepResult
-bool CreateGameTransactions(CNameDB *pnameDb, const Game::GameState &gameState, const Game::StepResult &stepResult, std::vector<CTransaction> &outvgametx);
+bool CreateGameTransactions (CNameDB& pnameDb, const Game::GameState& gameState,
+                             const Game::StepResult& stepResult,
+                             std::vector<CTransaction>& outvgametx);
 
 // Format human-readable description of a single input of game tx.
 // Note: the caller must know the structure of game transactions, to correctly match txin and txout

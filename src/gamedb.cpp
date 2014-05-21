@@ -15,22 +15,13 @@ static const unsigned IN_MEMORY_STATE_CACHE = 10;
 
 class CGameDB : public CDB
 {
-protected:
-    bool fHaveParent;
 public:
-    CGameDB(const char* pszMode="r+") : CDB("game.dat", pszMode) {
-        fHaveParent = false;
-    }
+    CGameDB(const char* pszMode="r+") : CDB("game.dat", pszMode) { }
 
-    CGameDB(const char* pszMode, CDB& parent) : CDB("game.dat", pszMode) {
-        vTxn.push_back(parent.GetTxn());
-        fHaveParent = true;
-    }
-
-    ~CGameDB()
+    CGameDB(const char* pszMode, CDB& parent) : CDB("game.dat", pszMode)
     {
-        if (fHaveParent)
-            vTxn.erase(vTxn.begin());
+      vTxn.push_back (parent.GetTxn ());
+      ownTxn.push_back (false);
     }
 
     bool Read(unsigned int nHeight, GameState &gameState)
@@ -52,31 +43,31 @@ public:
 class GameStepValidator
 {
     bool fOwnState;
-    bool fOwnTxDB;
+    bool fOwnDb;
     
-    CTxDB *pTxDB;
+    DatabaseSet* pdbset;
 
     // Detect duplicates (multiple moves per block). Probably already handled by NameDB and not needed.
     std::set<PlayerID> dup;
 
     // Temporary variables
-    std::vector<unsigned char> vchName;
-    std::vector<unsigned char> vchValue;
+    vchType vchName;
+    vchType vchValue;
 
 protected:
     const GameState *pstate;
 
 public:
     GameStepValidator(const GameState *pstate_)
-        : fOwnState(false), pTxDB(NULL), pstate(pstate_)
+        : fOwnState(false), pdbset(NULL), pstate(pstate_)
     {
     }
 
-    GameStepValidator(CTxDB &txdb, CBlockIndex *pindex)
-        : fOwnState(true), fOwnTxDB(false), pTxDB(&txdb)
+    GameStepValidator(DatabaseSet& dbset, CBlockIndex *pindex)
+        : fOwnState(true), fOwnDb(true), pdbset(&dbset)
     {
         GameState *newState = new GameState;
-        if (!GetGameState(txdb, pindex, *newState))
+        if (!GetGameState (dbset, pindex, *newState))
         {
             delete newState;
             throw std::runtime_error("GameStepValidator : cannot get previous game state");
@@ -86,10 +77,10 @@ public:
 
     ~GameStepValidator()
     {
-        if (fOwnState)
-            delete pstate;
-        if (pTxDB && fOwnTxDB)
-            delete pTxDB;
+      if (fOwnState)
+        delete pstate;
+      if (pdbset && fOwnDb)
+        delete pdbset;
     }
 
     // Returns:
@@ -117,17 +108,18 @@ public:
             // If one of inputs has address equal to addressLock, then that input has been signed by the address owner
             // and thus authorizes the address change operation
             bool found = false;
-            if (!pTxDB)
+            if (!pdbset)
             {
-                pTxDB = new CTxDB("r");
-                fOwnTxDB = true;
+                pdbset = new DatabaseSet("r");
+                fOwnDb = true;
             }
             for (int i = 0; i < tx.vin.size(); i++)
             {
                 COutPoint prevout = tx.vin[i].prevout;
                 CTransaction txPrev;
                 CTxIndex txindex;
-                if (!pTxDB->ReadTxIndex(prevout.hash, txindex) || txindex.pos == CDiskTxPos(1,1,1))
+                if (!pdbset->tx ().ReadTxIndex (prevout.hash, txindex)
+                    || txindex.pos == CDiskTxPos(1,1,1))
                     continue;
                 else if (!txPrev.ReadFromDisk(txindex.pos))
                     continue;
@@ -169,10 +161,10 @@ class GameStepMinerImpl : public GameStepValidator
 {
     StepData stepData;
 public:
-    GameStepMinerImpl(CTxDB &txdb, CBlockIndex *pindex)
-        : GameStepValidator(txdb, pindex)
+    GameStepMinerImpl (DatabaseSet& dbset, CBlockIndex *pindex)
+      : GameStepValidator (dbset, pindex)
     {
-        InitStepData(stepData, *pstate);
+      InitStepData (stepData, *pstate);
     }
 
     bool AddTx(const CTransaction& tx)
@@ -202,10 +194,9 @@ public:
 
 // A simple wrapper (pImpl pattern) to remove dependency on the game-related headers when miner just wants to check transactions
 // (declared in hooks.h)
-GameStepMiner::GameStepMiner(CTxDB &txdb, CBlockIndex *pindex)
-    : pImpl(new GameStepMinerImpl(txdb, pindex))
-{
-}
+GameStepMiner::GameStepMiner (DatabaseSet& dbset, CBlockIndex *pindex)
+  : pImpl(new GameStepMinerImpl(dbset, pindex))
+{}
 
 GameStepMiner::~GameStepMiner()
 {
@@ -222,7 +213,10 @@ int64 GameStepMiner::ComputeTax()
     return pImpl->ComputeTax();
 }
 
-bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block, int64 &nTax, GameState &outState, std::vector<CTransaction> &outvgametx)
+bool
+PerformStep (CNameDB& nameDb, const GameState& inState, const CBlock* block,
+             int64& nTax, GameState& outState,
+             std::vector<CTransaction>& outvgametx)
 {
     if (block->hashPrevBlock != inState.hashBlock)
         return error("PerformStep: game state for wrong block");
@@ -248,7 +242,7 @@ bool PerformStep(CNameDB *pnameDb, const GameState &inState, const CBlock *block
 
     nTax = stepResult.nTaxAmount;
 
-    return CreateGameTransactions(pnameDb, outState, stepResult, outvgametx);
+    return CreateGameTransactions (nameDb, outState, stepResult, outvgametx);
 }
 
 /* ************************************************************************** */
@@ -420,8 +414,8 @@ const GameState& GetCurrentGameState()
 
     /* Else, calulate the state.  */
     GameState cur;
-    CTxDB txdb("r");
-    GetGameState(txdb, pindexBest, cur);
+    DatabaseSet dbset("r");
+    GetGameState (dbset, pindexBest, cur);
 
     /* If it is still not in the cache, store it explicitly.  */
     state = stateCache.query (*pindexBest->phashBlock);
@@ -438,7 +432,8 @@ const GameState& GetCurrentGameState()
 
 // pindex must belong to the main branch, i.e. corresponding blocks must be connected
 // Returns a copy of the game state
-bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
+bool
+GetGameState (DatabaseSet& dbset, CBlockIndex *pindex, GameState &outState)
 {
     if (!pindex)
     {
@@ -451,7 +446,7 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
       return true;
 
     // Get the latest saved state
-    CGameDB gameDb("cr", txdb);
+    CGameDB gameDb("cr", dbset.tx ());
 
     if (gameDb.Read(pindex->nHeight, outState))
     {
@@ -482,9 +477,6 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
     printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
     printf("GetGameState: last saved block has height %d\n", lastState.nHeight);
 
-    // When connecting genesis block, there is no nameindexfull.dat file yet
-    std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
-
     // Integrate steps starting from the last saved state
     // FIXME: Might want to store intermediate steps in stateCache, too.
     loop
@@ -495,7 +487,8 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
         block.ReadFromDisk(plast);
 
         int64 nTax;
-        if (!PerformStep(nameDb.get(), lastState, &block, nTax, outState, vgametx))
+        if (!PerformStep (dbset.name (), lastState, &block, nTax,
+                          outState, vgametx))
             return false;
         if (block.vgametx != vgametx)
         {
@@ -532,7 +525,7 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 
     if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
     {
-        CGameDB gameDb("r+", txdb);
+        CGameDB gameDb("r+", dbset.tx ());
         gameDb.Write(outState.nHeight, outState);
     }
 
@@ -540,11 +533,13 @@ bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, GameState &outState)
 }
 
 // Called from ConnectBlock
-bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nFees)
+bool
+AdvanceGameState (DatabaseSet& dbset, CBlockIndex* pindex,
+                  CBlock* block, int64& nFees)
 {
     GameState currentState, outState;
 
-    if (!GetGameState(txdb, pindex->pprev, currentState))
+    if (!GetGameState (dbset, pindex->pprev, currentState))
         return error("AdvanceGameState: cannot get current game state");
 
     if (currentState.nHeight != pindex->nHeight - 1)
@@ -554,20 +549,16 @@ bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nF
 
     int64 nTax = 0;
 
-    {
-        // When connecting genesis block, there is no nameindexfull.dat file yet
-        std::auto_ptr<CNameDB> nameDb(pindex == pindexGenesisBlock ? NULL : new CNameDB("r", txdb));
-
-        if (!PerformStep(nameDb.get(), currentState, block, nTax, outState, block->vgametx))
-            return false;
-    }
+    if (!PerformStep (dbset.name (), currentState, block, nTax,
+                      outState, block->vgametx))
+      return false;
 
     if (outState.nHeight != pindex->nHeight)
         return error("AdvanceGameState: incorrect height stored");
     if (outState.hashBlock != *pindex->phashBlock)
         return error("AdvanceGameState: incorrect hash stored");
 
-    CGameDB gameDb("cr+", txdb);
+    CGameDB gameDb("cr+", dbset.tx ());
     gameDb.Write(pindex->nHeight, outState);
     // Prune old states from DB, keeping every Nth for quick lookup (intermediate states can be obtained by integrating blocks)
     if (pindex->nHeight - 1 <= 0 || (pindex->nHeight - 1) % KEEP_EVERY_NTH_STATE != 0)
@@ -605,13 +596,15 @@ void EraseBadMoveTransactions()
         GameStepValidator gameStepValidator(&GetCurrentGameState ());
 
         {
-            CTxDB txdb("r");
+            DatabaseSet dbset("r");
             BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
             {
                 CWalletTx& wtx = item.second;
 
-                if (wtx.GetDepthInMainChain() < 1 && (IsConflictedTx(txdb, wtx, vchName) || !gameStepValidator.IsValid(wtx)))
-                    mapRemove[wtx.GetHash()] = wtx;
+                if (wtx.GetDepthInMainChain () < 1
+                    && (IsConflictedTx (dbset, wtx, vchName)
+                        || !gameStepValidator.IsValid (wtx)))
+                  mapRemove[wtx.GetHash()] = wtx;
             }
         }
 
