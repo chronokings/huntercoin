@@ -67,6 +67,10 @@ protected:
     std::vector<DbTxn*> vTxn;
     bool fReadOnly;
 
+    /* Store version of the DB here that will be set as version
+       for serialisation on the streams.  */
+    int nVersion;
+
     explicit CDB(const char* pszFile, const char* pszMode = "r+",
                  int comp = COMPRESS_NONE);
     ~CDB() { Close(); }
@@ -75,10 +79,6 @@ public:
 private:
     CDB(const CDB&);
     void operator=(const CDB&);
-
-    /* Store version of the DB here that will be set as version
-       for serialisation on the streams.  */
-    int nVersion;
 
     /**
      * Check if a data stream key matches a given string.
