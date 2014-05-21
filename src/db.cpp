@@ -7,6 +7,7 @@
 #include "net.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <zlib.h>
 
 using namespace std;
 using namespace boost;
@@ -44,12 +45,17 @@ public:
 instance_of_cdbinit;
 
 
-CDB::CDB(const char* pszFile, const char* pszMode)
-  : pdb(NULL), nVersion(VERSION)
+CDB::CDB(const char* pszFile, const char* pszMode, int comp)
+  : pdb(NULL), desiredCompression(comp), nVersion(VERSION)
 {
     int ret;
     if (pszFile == NULL)
         return;
+
+    /* Set compression to COMPRESS_NONE for now.  Later on, we either set
+       it to the desired compression if the file was created, or the compression
+       set in the DB if the file exists.  */
+    compression = COMPRESS_NONE;
 
     fReadOnly = (!strchr(pszMode, '+') && !strchr(pszMode, 'w'));
     bool fCreate = strchr(pszMode, 'c');
@@ -119,8 +125,12 @@ CDB::CDB(const char* pszFile, const char* pszMode)
                 throw runtime_error(strprintf("CDB() : can't open database file %s, error %d", pszFile, ret));
             }
 
+            /* If we create the database, use desired compression settings.  */
             if (fCreate && !Exists(string("version")))
             {
+                compression = desiredCompression;
+                Write (std::string ("compression"), compression);
+
                 bool fTmp = fReadOnly;
                 fReadOnly = false;
                 WriteVersion(VERSION);
@@ -129,6 +139,12 @@ CDB::CDB(const char* pszFile, const char* pszMode)
 
             mapDb[strFile] = pdb;
         }
+
+        /* Read compression settings from the DB.  */
+        if (!Exists (std::string ("compression")))
+            compression = COMPRESS_NONE;
+        else
+            Read (std::string ("compression"), compression);
     }
 }
 
@@ -165,6 +181,109 @@ CDB::Close ()
     --mapFileUseCount[strFile];
 }
 
+/* Compression routines.  */
+
+void
+CDB::Uncompress (const Dbt& in, CDataStream& out, int comp)
+{
+  const char* data = static_cast<const char*> (in.get_data ());
+  size_t sz = in.get_size ();
+
+  out.clear ();
+  switch (comp)
+    {
+    case COMPRESS_NONE:
+      out.insert (out.begin (), data, data + sz);
+      break;
+
+    case COMPRESS_ZLIB:
+      {
+        uint32_t origLen;
+        if (sz < sizeof (origLen))
+          throw std::runtime_error ("ZLIB compressed entry is too short");
+        std::copy (data, data + sizeof (origLen),
+                   reinterpret_cast<char*> (&origLen));
+        data += sizeof (origLen);
+        sz -= sizeof (origLen);
+
+        if (origLen < sz)
+          throw std::runtime_error ("ZLIB uncompressed data is too short");
+
+        /* No compression used.  */
+        if (origLen == sz)
+          out.insert (out.begin (), data, data + sz);
+        /* Actually compressed.  */
+        else
+          {
+            assert (origLen > sz);
+            out.resize (origLen);
+            uLongf actualLen = origLen;
+            const int res = uncompress (reinterpret_cast<Bytef*> (&out[0]),
+                                        &actualLen,
+                                        reinterpret_cast<const Bytef*> (data),
+                                        sz);
+            if (res != Z_OK)
+              throw std::runtime_error ("ZLIB uncompress failed");
+            if (actualLen != origLen)
+              throw std::runtime_error ("ZLIB uncompress: unexpected length");
+          }
+
+        break;
+      }
+    
+    default:
+      throw std::runtime_error ("wrong compression setting in DB");
+    }
+}
+
+void
+CDB::Compress (const CDataStream& in, Dbt& out, int comp)
+{
+  switch (comp)
+    {
+    case COMPRESS_NONE:
+      out.set_data (new char[in.size ()]);
+      out.set_size (in.size ());
+      std::copy (in.begin (), in.end (), static_cast<char*> (out.get_data ()));
+      break;
+
+    case COMPRESS_ZLIB:
+      {
+        const uint32_t origLen = in.size ();
+
+        uLongf compLen = compressBound (origLen);
+        char* buf = new char[sizeof (origLen) + compLen];
+
+        const char* ptr = reinterpret_cast<const char*> (&origLen);
+        std::copy (ptr, ptr + sizeof (origLen), buf);
+
+        Bytef* bufStart = reinterpret_cast<Bytef*> (buf + sizeof (origLen));
+        const int res = compress (bufStart, &compLen,
+                                  reinterpret_cast<const Bytef*> (&in[0]),
+                                  origLen);
+        if (res != Z_OK)
+          {
+            delete[] buf;
+            throw std::runtime_error ("ZLIB compression failed");
+          }
+
+        if (compLen < origLen)
+          out.set_size (sizeof (origLen) + compLen);
+        else
+          {
+            out.set_size (sizeof (origLen) + origLen);
+            std::copy (in.begin (), in.end (), buf + sizeof (origLen));
+          }
+
+        out.set_data (buf);
+        break;
+      }
+    
+    default:
+      throw std::runtime_error ("wrong compression setting in DB");
+    }
+}
+
 void static CloseDb(const string& strFile)
 {
     CRITICAL_BLOCK(cs_db)
@@ -188,7 +307,7 @@ void static CheckpointLSN(const std::string &strFile)
     dbenv.lsn_reset(strFile.c_str(), 0);
 }
 
-bool CDB::Rewrite(const string& strFile)
+bool CDB::Rewrite(const string& strFile, int desiredComp)
 {
     while (!fShutdown)
     {
@@ -238,9 +357,19 @@ bool CDB::Rewrite(const string& strFile)
                                 fSuccess = false;
                                 break;
                             }
+                            if (CompareKeyString (ssKey, "compression"))
+                            {
+                                // Use desired compression setting.
+                                ssValue.clear ();
+                                ssValue << desiredComp;
+                            }
                             Dbt datKey(&ssKey[0], ssKey.size());
-                            Dbt datValue(&ssValue[0], ssValue.size());
+                            Dbt datValue;
+                            const int comp = UseCompression (ssKey, desiredComp);
+                            Compress (ssValue, datValue, comp);
                             int ret2 = pdbCopy->put(NULL, &datKey, &datValue, DB_NOOVERWRITE);
+                            delete[] static_cast<char*> (datValue.get_data ());
+
                             if (ret2 > 0)
                                 fSuccess = false;
                         }

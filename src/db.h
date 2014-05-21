@@ -38,12 +38,41 @@ void PrintSettingsToLog();
 class CDB
 {
 protected:
+
+    /* Allow transparent compression/decompression when writing/reading
+       the DB values.  The database stores the compression settings used
+       in a special "compression" value, similar to the "version" one.  The
+       values below are the ones possible.  "version" and "compression"
+       themselves are not compressed.  */
+
+    /* No compression at all, this is the old format and the default.  */
+    static const int COMPRESS_NONE = 0;
+    /* Compress using zlib's compress/uncompress functions, but only if
+       it gives a benefit.  Each value is prefixed with four bytes containing
+       the uncompressed length.  If it is equal to the remaining data size,
+       then no compression was used.  If it is greater, then decompress
+       the remaining data using zlib.  */
+    static const int COMPRESS_ZLIB = 1;
+
+private:
+
+    /* This database's compression setting.  */
+    int compression;
+    /* Desired compression setting.  */
+    int desiredCompression;
+
+protected:
     Db* pdb;
     std::string strFile;
     std::vector<DbTxn*> vTxn;
     bool fReadOnly;
 
-    explicit CDB(const char* pszFile, const char* pszMode="r+");
+    /* Store version of the DB here that will be set as version
+       for serialisation on the streams.  */
+    int nVersion;
+
+    explicit CDB(const char* pszFile, const char* pszMode = "r+",
+                 int comp = COMPRESS_NONE);
     ~CDB() { Close(); }
 public:
     void Close();
@@ -51,9 +80,54 @@ private:
     CDB(const CDB&);
     void operator=(const CDB&);
 
-    /* Store version of the DB here that will be set as version
-       for serialisation on the streams.  */
-    int nVersion;
+    /**
+     * Check if a data stream key matches a given string.
+     * @param ssKey Key stream.
+     * @param str Literal string value.
+     * @return True iff the key matches the given string.
+     */
+    static inline bool
+    CompareKeyString (const CDataStream& ssKey, const char* str)
+    {
+      const size_t len = strlen (str);
+      assert (len > 0);
+      if (ssKey.size () != len + 1 || ssKey[0] != len)
+        return false;
+
+      return (strncmp (&ssKey[1], str, len) == 0);
+    }
+
+    /**
+     * Get the compression setting to use for the given key.  If it is
+     * "compression", always use COMPRESS_NONE.  Otherwise, use the
+     * given setting.
+     * @param sKey Key stream.
+     * @param comp Compression setting to use in the default case.
+     * @return comp if the key is not "compress", COMPRESS_NONE if it is.
+     */
+    static inline bool
+    UseCompression (const CDataStream& ssKey, int comp)
+    {
+      if (CompareKeyString (ssKey, "compression"))
+        return COMPRESS_NONE;
+      return comp;
+    }
+
+    /**
+     * Uncompress data from a Dbt value into a CDataStream.
+     * @param in Dbt record containing the data.
+     * @param out CDataStream will be initialised.
+     * @param comp Compression setting.
+     */
+    static void Uncompress (const Dbt& in, CDataStream& out, int comp);
+
+    /**
+     * Compress data from a CDataStream to a Dbt value.
+     * @param in CDataStream containing the data to compress.
+     * @param out Dbt value to initialise.
+     * @param comp Compression setting.
+     */
+    static void Compress (const CDataStream& in, Dbt& out, int comp);
 
 protected:
     template<typename K, typename T>
@@ -66,6 +140,7 @@ protected:
         CDataStream ssKey(SER_DISK, nVersion);
         ssKey.reserve(1000);
         ssKey << key;
+        const int usedComp = UseCompression (ssKey, compression);
         Dbt datKey(&ssKey[0], ssKey.size());
 
         // Read
@@ -77,9 +152,8 @@ protected:
             return false;
 
         // Unserialize value
-        CDataStream ssValue((char*)datValue.get_data(),
-                            (char*)datValue.get_data() + datValue.get_size(),
-                            SER_DISK, nVersion);
+        CDataStream ssValue(SER_DISK, nVersion);
+        Uncompress (datValue, ssValue, usedComp);
         ssValue >> value;
 
         // Clear and free memory
@@ -89,7 +163,7 @@ protected:
     }
 
     template<typename K, typename T>
-    bool Write(const K& key, const T& value, bool fOverwrite=true)
+    bool Write(const K& key, const T& value, bool fOverwrite = true)
     {
         if (!pdb)
             return false;
@@ -106,7 +180,8 @@ protected:
         CDataStream ssValue(SER_DISK, nVersion);
         ssValue.reserve(10000);
         ssValue << value;
-        Dbt datValue(&ssValue[0], ssValue.size());
+        Dbt datValue;
+        Compress (ssValue, datValue, UseCompression (ssKey, compression));
 
         // Write
         int ret = pdb->put(GetTxn(), &datKey, &datValue, (fOverwrite ? 0 : DB_NOOVERWRITE));
@@ -114,6 +189,11 @@ protected:
         // Clear memory in case it was a private key
         memset(datKey.get_data(), 0, datKey.get_size());
         memset(datValue.get_data(), 0, datValue.get_size());
+
+        // Free memory in datValue, which is a copy (because it needs to be
+        // modified in case of compression).  It is allocated in Compress.
+        delete[] static_cast<char*> (datValue.get_data ());
+
         return (ret == 0);
     }
 
@@ -198,8 +278,7 @@ protected:
         ssKey.clear();
         ssKey.write((char*)datKey.get_data(), datKey.get_size());
         ssValue.SetType(SER_DISK);
-        ssValue.clear();
-        ssValue.write((char*)datValue.get_data(), datValue.get_size());
+        Uncompress (datValue, ssValue, UseCompression (ssKey, compression));
 
         // Clear and free memory
         memset(datKey.get_data(), 0, datKey.get_size());
@@ -281,7 +360,8 @@ public:
       nVersion = v;
     }
     
-    bool static Rewrite(const std::string& strFile);
+    bool static Rewrite(const std::string& strFile,
+                        int desiredComp = COMPRESS_NONE);
 
     /* Rewrite the DB with this database's name.  This closes it.  */
     inline bool
@@ -290,6 +370,7 @@ public:
       Close ();
       Rewrite (strFile);
     }
+
 };
 
 
