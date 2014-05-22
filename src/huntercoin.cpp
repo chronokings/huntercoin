@@ -1701,9 +1701,9 @@ void rescanfornames()
 {
     printf("Scanning blockchain for names to create fast index...\n");
 
-    CNameDB dbName("cr+");
+    /* The database should already be created although empty.  */
 
-    // scan blockchain
+    CNameDB dbName("r+");
     dbName.ReconstructNameIndex();
 }
 
