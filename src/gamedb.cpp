@@ -59,12 +59,12 @@ protected:
 
 public:
     GameStepValidator(const GameState *pstate_)
-        : fOwnState(false), pdbset(NULL), pstate(pstate_)
+        : fOwnState(false), fOwnDb(false), pdbset(NULL), pstate(pstate_)
     {
     }
 
     GameStepValidator(DatabaseSet& dbset, CBlockIndex *pindex)
-        : fOwnState(true), fOwnDb(true), pdbset(&dbset)
+        : fOwnState(true), fOwnDb(false), pdbset(&dbset)
     {
         GameState *newState = new GameState;
         if (!GetGameState (dbset, pindex, *newState))
