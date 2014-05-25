@@ -372,6 +372,20 @@ bool AppInit2(int argc, char* argv[])
         strErrors += _("Error loading addr.dat      \n");
     printf(" addresses   %15"PRI64d"ms\n", GetTimeMillis() - nStart);
 
+    /* See if the name index exists and create at least the database file
+       if not.  This is necessary so that DatabaseSet can be used without
+       failing due to a missing file in LoadBlockIndex.  */
+    bool needNameRescan = false;
+    {
+      filesystem::path nmindex;
+      nmindex = filesystem::path (GetDataDir ()) / "nameindexfull.dat";
+
+      if (!filesystem::exists (nmindex))
+        needNameRescan = true;
+
+      CNameDB dbName("cr+");
+    }
+
     printf("Loading block index...\n");
     nStart = GetTimeMillis();
     if (!LoadBlockIndex())
@@ -390,6 +404,10 @@ bool AppInit2(int argc, char* argv[])
     printf(" wallet      %15"PRI64d"ms\n", GetTimeMillis() - nStart);
 
     RegisterWallet(pwalletMain);
+
+    /* Rescan for name index now if we need to do it.  */
+    if (needNameRescan)
+      rescanfornames ();
     
     // Read -mininput before -rescan, otherwise rescan will skip transactions
     // lower than the default mininput
@@ -543,14 +561,6 @@ bool AppInit2(int argc, char* argv[])
         return false;
 
     RandAddSeedPerfmon();
-
-    filesystem::path nameindexfile = filesystem::path(GetDataDir()) / "nameindexfull.dat";
-    if (!filesystem::exists(nameindexfile))
-    {   
-        //PrintConsole("Scanning blockchain for names to create fast index...");
-        rescanfornames();
-        //PrintConsole("\n");
-    }
 
     if (!CreateThread(StartNode, NULL))
         wxMessageBox("Error: CreateThread(StartNode) failed", "Huntercoin");

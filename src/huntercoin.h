@@ -4,61 +4,6 @@
 #include <boost/thread/thread.hpp>
 #include "json/json_spirit.h"
 
-typedef std::vector<unsigned char> vchType;
-
-class CNameDB : public CDB
-{
-protected:
-    bool fHaveParent;
-public:
-    CNameDB(const char* pszMode="r+") : CDB("nameindexfull.dat", pszMode) {
-        fHaveParent = false;
-    }
-
-    CNameDB(const char* pszMode, CDB& parent) : CDB("nameindexfull.dat", pszMode) {
-        vTxn.push_back(parent.GetTxn());
-        fHaveParent = true;
-    }
-
-    ~CNameDB()
-    {
-        if (fHaveParent)
-            vTxn.erase(vTxn.begin());
-    }
-
-    //bool WriteName(std::vector<unsigned char>& name, std::vector<CDiskTxPos> vtxPos)
-    bool WriteName(const std::vector<unsigned char>& name, std::vector<CNameIndex>& vtxPos)
-    {
-        return Write(make_pair(std::string("namei"), name), vtxPos);
-    }
-
-    //bool ReadName(std::vector<unsigned char>& name, std::vector<CDiskTxPos>& vtxPos)
-    bool ReadName(const std::vector<unsigned char>& name, std::vector<CNameIndex>& vtxPos)
-    {
-        return Read(make_pair(std::string("namei"), name), vtxPos);
-    }
-
-    bool ExistsName(const std::vector<unsigned char>& name)
-    {
-        return Exists(make_pair(std::string("namei"), name));
-    }
-
-    bool EraseName(const std::vector<unsigned char>& name)
-    {
-        return Erase(make_pair(std::string("namei"), name));
-    }
-
-    bool ScanNames(
-            const std::vector<unsigned char>& vchName,
-            int nMax,
-            std::vector<std::pair<std::vector<unsigned char>, CNameIndex> >& nameScan);
-            //std::vector<std::pair<std::vector<unsigned char>, CDiskTxPos> >& nameScan);
-
-    bool test();
-
-    bool ReconstructNameIndex();
-};
-
 static const int NAMECOIN_TX_VERSION = 0x7100;
 static const int64 NAME_COIN_AMOUNT = 1 * COIN;
 // We can make name_new cheaper, if we want, separately from name_(first)update
@@ -87,7 +32,7 @@ int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
 int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight);
 CScript RemoveNameScriptPrefix(const CScript& scriptIn);
-bool NameAvailable(CTxDB& txdb, const std::vector<unsigned char> &vchName);
+bool NameAvailable (DatabaseSet& dbset, const vchType& vchName);
 bool GetTxOfName(CNameDB& dbName, const std::vector<unsigned char> &vchName, CTransaction& tx);
 bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx);
 int IndexOfNameOutput(const CTransaction& tx);
@@ -106,7 +51,7 @@ bool GetNameAddress(const CTransaction& tx, uint160 &hash160);
 std::string SendMoneyWithInputTx(const CScript& scriptPubKey, int64 nValue, int64 nNetFee, const CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
 bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
 int64 GetNetworkFee(int nHeight);
-bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, std::vector<unsigned char>& name);
+bool IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name);
 void UnspendInputs(CWalletTx& wtx);
 bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
 

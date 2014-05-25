@@ -137,9 +137,10 @@ CDB::Close ()
 {
   if (!pdb)
     return;
-  if (!vTxn.empty ())
+  if (!vTxn.empty () && ownTxn.front ())
     vTxn.front ()->abort ();
   vTxn.clear ();
+  ownTxn.clear ();
   pdb = NULL;
 
   if (!fReadOnly)
@@ -552,8 +553,9 @@ bool CTxDB::LoadBlockIndex()
         CBlock block;
         if (!block.ReadFromDisk(pindexFork))
             return error("LoadBlockIndex() : block.ReadFromDisk failed");
-        CTxDB txdb;
-        block.SetBestChain(txdb, pindexFork);
+
+        DatabaseSet dbset;
+        block.SetBestChain (dbset, pindexFork);
     }
 
     return true;
