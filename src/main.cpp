@@ -923,8 +923,8 @@ bool IsInitialBlockDownload()
         pindexLastBest = pindexBest;
         nLastUpdate = GetTime();
     }
-    return (GetTime() - nLastUpdate < 10 &&
-            pindexBest->GetBlockTime() < GetTime() - 24 * 60 * 60);
+    return (GetTime() - nLastUpdate < 60 &&
+            pindexBest->GetBlockTime() < GetTime() - 3600);
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
