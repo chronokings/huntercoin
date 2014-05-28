@@ -781,12 +781,12 @@ public:
     IMPLEMENT_SERIALIZE
     (
         assert (nType == SER_DISK);
-        if (nVersion < 37500)
+        if (nVersion < 1000900)
           {
             assert (fRead);
             int nVersionDummy;
             READWRITE(nVersionDummy);
-            assert (nVersionDummy < 37500);
+            assert (nVersionDummy < 1000900);
           }
         READWRITE(pos);
 
