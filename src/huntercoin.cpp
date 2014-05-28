@@ -12,6 +12,7 @@
 
 #include "gamestate.h"
 #include "gamedb.h"
+#include "gamemovecreator.h"
 
 #include "bitcoinrpc.h"
 
@@ -1594,6 +1595,47 @@ Value game_getplayerstate(const Array& params, bool fHelp)
     return mi->second.ToJsonValue(crown_index);
 }
 
+/* Give access to the game's shortest path algorithm to calculate
+   paths from one coordinate to another one.  */
+Value
+game_getpath (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () != 2)
+    throw runtime_error ("game_getpath [fromX,fromY] [toX,toY]\n"
+                         "Return a set of way points that travels in a\n"
+                         "shortest path between the given coordinates.\n");
+
+  if (params[0].type () != array_type || params[1].type () != array_type)
+    throw runtime_error ("arguments must be arrays");
+
+  const Array from = params[0].get_array ();
+  const Array to = params[1].get_array ();
+
+  if (from.size () != 2 || to.size () != 2)
+    throw runtime_error ("invalid coordinates given");
+
+  const Game::Coord fromC(from[0].get_int (), from[1].get_int ());
+  const Game::Coord toC(to[0].get_int (), to[1].get_int ());
+
+  std::vector<Game::Coord> path = FindPath (fromC, toC);
+
+  Array res;
+  bool first = true;
+  BOOST_FOREACH(const Game::Coord& c, path)
+    {
+      if (first)
+        {
+          first = false;
+          continue;
+        }
+
+      res.push_back (c.x);
+      res.push_back (c.y);
+    }
+
+  return res;
+}
+
 void UnspendInputs(CWalletTx& wtx)
 {
     set<CWalletTx*> setCoins;
@@ -1955,6 +1997,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("game_getstate", &game_getstate));
     mapCallTable.insert(make_pair("game_waitforchange", &game_waitforchange));
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
+    mapCallTable.insert(make_pair("game_getpath", &game_getpath));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
     setCallAsync.insert("game_waitforchange");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];

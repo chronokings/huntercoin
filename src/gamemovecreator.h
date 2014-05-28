@@ -3,8 +3,9 @@
 
 // Advanced client-side path finding that computes shortest path
 
-#include "../gamestate.h"
-#include <deque>
+#include "gamestate.h"
+
+#include <vector>
 
 std::vector<Game::Coord> FindPath(const Game::Coord &start, const Game::Coord &goal);
 

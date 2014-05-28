@@ -2,7 +2,7 @@
 #define MANAGENAMESPAGE_H
 
 #include "../gamestate.h"
-#include "gamemovecreator.h"
+#include "../gamemovecreator.h"
 
 #include <QWidget>
 
