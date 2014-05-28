@@ -757,6 +757,7 @@ public:
     static const unsigned char SPENT_TX = 1;
     static const unsigned char SPENT_NAMETX = 2;
     static const unsigned char SPENT_GAMETX = 3;
+    static const unsigned char SPENT_UNKNOWN = 128;
 
 private:
     std::vector<unsigned char> isSpent;
@@ -804,12 +805,11 @@ public:
                   newIsSpent[i] = SPENT_UNSPENT;
                 else
                   {
-                    const CDiskTxPos spentPos = vSpent[i];
-                    CTransaction tx;
-                    if (!tx.ReadFromDisk (spentPos))
-                      throw std::runtime_error ("failed to read spending tx");
-
-                    newIsSpent[i] = GetSpentType (tx);
+                    /* Set value to SPENT_UNKNOWN for now.  This should only
+                       ever be used during database upgrading, and there
+                       the correct spending type is set later while
+                       iterating through all possible spending tx.  */
+                    newIsSpent[i] = SPENT_UNKNOWN;
                   }
               }
           }
@@ -858,7 +858,9 @@ public:
     SetSpent (unsigned n, const CTransaction& txSpending)
     {
       assert (n < isSpent.size ());
-      assert (isSpent[n] == SPENT_UNSPENT);
+      /* Allow also SPENT_UNKNOWN to be "reset" so that the correct type
+         can be set during the upgrade procedure.  */
+      assert (isSpent[n] == SPENT_UNSPENT || isSpent[n] == SPENT_UNKNOWN);
       isSpent[n] = GetSpentType (txSpending);
     }
 

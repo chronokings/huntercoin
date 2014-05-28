@@ -2030,12 +2030,12 @@ bool LoadBlockIndex(bool fAllowNew)
               CDiskBlockIndex disk(mi->second);
               wtxdb.WriteBlockIndex (disk);
             }
-          wtxdb.WriteVersion (VERSION);
 
           /* Rewrite the txindex.  */
           wtxdb.RewriteTxIndex (nTxDbVersion);
 
           /* Rewrite the database to compact the storage format.  */
+          wtxdb.WriteVersion (VERSION);
           wtxdb.Rewrite ();
         }
     }
