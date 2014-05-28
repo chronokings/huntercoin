@@ -1783,7 +1783,7 @@ Value analyseutxo (const Array& params, bool fHelp)
           bool hasUnspent = false;
           totalTxo += vTxs[i]->vout.size ();
           for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
-            if (txindex.vSpent[j].IsNull ())
+            if (!txindex.IsSpent (j))
               {
                 hasUnspent = true;
                 ++txoCnt;

@@ -806,6 +806,13 @@ public:
       return !vSpent[n].IsNull ();
     }
 
+    inline CDiskTxPos
+    GetSpendingTx (unsigned n) const
+    {
+      assert (n < vSpent.size ());
+      return vSpent[n];
+    }
+
     inline void
     MarkSpent (unsigned n, const CDiskTxPos& pos)
     {

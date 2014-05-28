@@ -2344,9 +2344,9 @@ bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex)
     if (nameTx.IsGameTx())
         return true;
     int nOut = IndexOfNameOutput(nameTx);
-    if (nOut < txindex.vSpent.size())
+    if (nOut < txindex.GetOutputCount ())
     {
-        CDiskTxPos spentPos = txindex.vSpent[nOut];
+        CDiskTxPos spentPos = txindex.GetSpendingTx (nOut);
         if (!spentPos.IsNull())
         {
             CTransaction tx;
