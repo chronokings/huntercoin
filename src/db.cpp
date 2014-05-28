@@ -812,11 +812,17 @@ CTxDB::RewriteTxIndex (int oldVersion)
 
   /* Now write everything back.  */
   printf ("Writing everything back...\n");
+  unsigned count = 0;
+  const unsigned totalCount = txindex.size ();
   SetSerialisationVersion (VERSION);
   BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& item, txindex)
     {
       if (!UpdateTxIndex (item.first, item.second))
         return error ("RewriteTxIndex: UpdateTxIndex failed");
+
+      ++count;
+      if (count % 100000 == 0)
+        printf ("  %dk / %dk tx done...\n", count / 1000, totalCount / 1000);
     }
 
   return true;
