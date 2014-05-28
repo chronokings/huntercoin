@@ -720,6 +720,7 @@ CTxDB::RewriteTxIndex (int oldVersion)
   /* Load everything in memory first.  This avoids conflicts between reading
      from the cursor and writing to the DB.  */
   std::map<uint256, CTxIndex> txindex;
+  unsigned count = 0;
 
   /* Get database cursor.  */
   Dbc* pcursor = GetCursor ();
@@ -757,6 +758,11 @@ CTxDB::RewriteTxIndex (int oldVersion)
       /* Store in map.  */
       assert (txindex.find (hash) == txindex.end ());
       txindex.insert (std::make_pair (hash, obj));
+
+      /* Print status.  */
+      ++count;
+      if (count % 10000 == 0)
+        printf ("%dk tx entries done.\n", count / 1000);
     }
   pcursor->close ();
 
