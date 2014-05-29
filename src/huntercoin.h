@@ -5,11 +5,10 @@
 #include "json/json_spirit.h"
 
 static const int NAMECOIN_TX_VERSION = 0x7100;
-static const int64 NAME_COIN_AMOUNT = 1 * COIN;
 // We can make name_new cheaper, if we want, separately from name_(first)update
 // This can be used e.g. to send short messages in the hash field. The coin will be
 // destroyed in this case. We can try setting it to 0 though.
-static const int64 NAMENEW_COIN_AMOUNT = NAME_COIN_AMOUNT / 5;
+static const int64 NAMENEW_COIN_AMOUNT = COIN / 5;
 static const int MAX_NAME_LENGTH = 10;
 static const int MAX_VALUE_LENGTH = 4095;
 static const int OP_NAME_INVALID = 0x00;
@@ -51,6 +50,7 @@ bool GetNameAddress(const CTransaction& tx, uint160 &hash160);
 std::string SendMoneyWithInputTx(const CScript& scriptPubKey, int64 nValue, int64 nNetFee, const CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
 bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
 int64 GetNetworkFee(int nHeight);
+int64 GetNameCoinAmount (unsigned nHeight, bool frontEnd = false);
 bool IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name);
 void UnspendInputs(CWalletTx& wtx);
 bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
