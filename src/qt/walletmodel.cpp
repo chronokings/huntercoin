@@ -278,9 +278,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     nNetFee += CENT - 1;
     nNetFee = (nNetFee / CENT) * CENT;
 
-    //return SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, nNetFee, wtxIn, wtx, false);
-
-    int64 nValue = NAME_COIN_AMOUNT;
+    const int64 nValue = NAME_COIN_AMOUNT;
 
     if (wtxIn.IsGameTx())
         return _("Error: nameFirstUpdateCreateTx trying to spend a game-created transaction");
@@ -303,6 +301,8 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     if (!CreateTransactionWithInputTx(vecSend, wtxIn, nTxOut, wtx, reservekey, nFeeRequired))
     {
         std::string strError;
+        /* FIXME: Should the check include nNetFee also?  It doesn't matter
+           for now, since the network fee is zero anyway.  */
         if (nValue + nFeeRequired > wallet->GetBalance())
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds "), FormatMoney(nFeeRequired).c_str());
         else
