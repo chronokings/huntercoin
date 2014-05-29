@@ -212,8 +212,9 @@ struct CharacterState
         READWRITE(stay_in_spawn_area);
 
         /* Old versions had a never-used string "attack" stored.  */
-        if (nVersion < 1000800)
+        if (nVersion < 1000900)
           {
+            assert (fRead);
             std::string attack;
             READWRITE(attack);
           }
@@ -304,6 +305,9 @@ struct GameState
     
     IMPLEMENT_SERIALIZE
     (
+        /* Should be only ever written to disk.  */
+        assert (nType & SER_DISK);
+
         READWRITE(players);
         if (nVersion >= 1000500)
             READWRITE(dead_players_chat);
