@@ -236,7 +236,14 @@ int64 GetNetworkFee(int nHeight)
 int64
 GetNameCoinAmount (unsigned nHeight, bool frontEnd)
 {
-  return COIN;
+  /* FIXME: Update to real main-net hardfork block number!!!  */
+  unsigned forkHeight = 300000;
+
+  /* For front-ends, increase the amount a little earlier.  */
+  if (frontEnd)
+    forkHeight -= 10;
+
+  return (nHeight < forkHeight ? COIN : 20 * COIN);
 }
 
 int GetTxPosHeight(const CNameIndex& txPos)
