@@ -8,9 +8,7 @@
 #include <boost/assign/list_of.hpp>
 #include <boost/foreach.hpp>
 
-#include "util.h"
-#include "bignum.h"
-#include "base58.h"
+#include "headers.h"
 
 using namespace Game;
 
@@ -275,6 +273,8 @@ void Move::ApplySpawn(GameState &state, RandomGenerator &rnd) const
     if (pl.next_character_index == 0)
     {
         pl.color = color;
+        assert (pl.coinAmount == -1 && coinAmount >= 0);
+        pl.coinAmount = coinAmount;
         for (int i = 0; i < NUM_INITIAL_CHARACTERS; i++)
             pl.SpawnCharacter(rnd);
     }
@@ -532,6 +532,7 @@ json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = fals
 
     Object obj;
     obj.push_back(Pair("color", (int)color));
+    obj.push_back(Pair("coinAmount", ValueFromAmount(coinAmount)));
     if (!message.empty())
     {
         obj.push_back(Pair("msg", message));
@@ -611,6 +612,16 @@ void GameState::UpdateVersion(int oldVersion)
         BOOST_FOREACH(const PlayerID &p, toErase)
             players.erase(p);
     }
+
+    if (oldVersion < 1000900)
+      {
+        /* Set player's coinAmount to the old value of COIN.  */
+        BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState)& p, players)
+          {
+            assert (p.second.coinAmount == -1);
+            p.second.coinAmount = COIN;
+          }
+      }
 }
 
 json_spirit::Value GameState::ToJsonValue() const
@@ -954,6 +965,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                     for (std::multimap<Coord, AttackableCharacter>::const_iterator it = its.first; it != its.second; it++)
                     {
                         const AttackableCharacter &a = it->second;
+                        PlayerState& victim = outState.players[*a.name];
+
                         if (a.color == pl.color)
                             continue;  // Do not kill same color
                         if (a.index == 0)
@@ -961,22 +974,25 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                             stepResult.killedBy.insert(std::make_pair(*a.name, chid));
                             stepResult.killedPlayers.insert(*a.name);
                         }
-                        if (outState.players[*a.name].characters.count(a.index))
+                        if (victim.characters.count(a.index))
                         {
-                            CharacterState &ch = outState.players[*a.name].characters[a.index];
+                            const CharacterState& ch = victim.characters[a.index];
                             // Drop loot
                             int64 nAmount = ch.loot.nAmount;
                             if (a.index == 0)
-                                nAmount += stepData.nNameCoinAmount;
+                              {
+                                assert (victim.coinAmount >= 0);
+                                nAmount += victim.coinAmount;
+                              }
                             if (nAmount > 0)
-                            {
+                              {
                                 // Tax from killing: 4%
                                 int64 nTax = nAmount / 25;
                                 stepResult.nTaxAmount += nTax;
                                 nAmount -= nTax;
                                 outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-                            }
-                            outState.players[*a.name].characters.erase(a.index);
+                              }
+                            victim.characters.erase(a.index);
                         }
                     }
                 }
@@ -986,15 +1002,18 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                 // Drop loot
                 int64 nAmount = pl.characters.find(i)->second.loot.nAmount;
                 if (i == 0)
-                    nAmount += stepData.nNameCoinAmount;
+                  {
+                    assert (pl.coinAmount >= 0);
+                    nAmount += pl.coinAmount;
+                  }
                 if (nAmount > 0)
-                {
+                  {
                     // Tax from killing: 4%
                     int64 nTax = nAmount / 25;
                     stepResult.nTaxAmount += nTax;
                     nAmount -= nTax;
                     outState.AddLoot(PushCoordOutOfSpawnArea(pl.characters.find(i)->second.coord), nAmount);
-                }
+                  }
                 outState.players[m.player].characters.erase(i);
             }
             if (i == 0)
@@ -1023,7 +1042,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                     int64 nAmount = ch.loot.nAmount;
                     if (i == 0)
                     {
-                        nAmount += stepData.nNameCoinAmount;
+                        assert (p.second.coinAmount >= 0);
+                        nAmount += p.second.coinAmount;
                         stepResult.killedPlayers.insert(p.first);
                     }
                     if (nAmount > 0)

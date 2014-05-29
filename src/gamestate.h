@@ -106,13 +106,16 @@ struct Move
     boost::optional<std::string> address;
     boost::optional<std::string> addressLock;
 
-    unsigned char color;   // For spawn move
+    /* For spawning moves.  */
+    unsigned char color;
+    int64 coinAmount;
+
     std::map<int, WaypointVector> waypoints;
     std::set<int> destruct;
 
-    Move() : color(0xFF)
-    {
-    }
+    Move ()
+      : color(0xFF), coinAmount(-1)
+    {}
 
     std::string AddressOperationPermission(const GameState &state) const;
 
@@ -244,7 +247,12 @@ struct CharacterState
 
 struct PlayerState
 {
-    unsigned char color;                        // Color represents player team
+    /* Colour represents player team.  */
+    unsigned char color;
+    /* Value locked by the general's name.  This is the amount that will
+       be placed back onto the map when the player dies, and it should
+       match the actual coin value.  */
+    int64 coinAmount;
 
     std::map<int, CharacterState> characters;   // Characters owned by the player (0 is the main character)
     int next_character_index;                   // Index of the next spawned character
@@ -263,9 +271,19 @@ struct PlayerState
         READWRITE(message_block);
         READWRITE(address);
         READWRITE(addressLock);
+
+        /* Old version did not have coinAmount field.  Don't set it here to
+           the old value of COIN, but just leave it as "uninitialised".  It
+           will be set during upgrading of the database.  */
+        if (nVersion >= 1000900)
+          READWRITE(coinAmount);
     )
 
-    PlayerState() : color(0xFF), next_character_index(0), message_block(0) { }
+    PlayerState ()
+      : color(0xFF), coinAmount(-1),
+        next_character_index(0), message_block(0)
+    {}
+
     void SpawnCharacter(RandomGenerator &rnd);
     bool CanSpawnCharacter()
     {
@@ -338,7 +356,7 @@ struct GameState
 
 struct StepData : boost::noncopyable
 {
-    int64 nNameCoinAmount, nTreasureAmount;
+    int64 nTreasureAmount;
     uint256 newHash;
     std::vector<Move> vMoves;
 };
