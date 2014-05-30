@@ -1,7 +1,7 @@
 #ifndef GAMEMAPVIEW_H
 #define GAMEMAPVIEW_H
 
-#include "gamemovecreator.h"
+#include "../gamemovecreator.h"
 
 #include <QGraphicsView>
 #include <QGraphicsScene>

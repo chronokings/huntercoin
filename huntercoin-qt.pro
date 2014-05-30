@@ -120,7 +120,7 @@ DEPENDPATH += src src/json src/cryptopp src/qt
 
 HUNTERCOIN_HEADERS = headers.h strlcpy.h serialize.h uint256.h util.h key.h bignum.h base58.h scrypt.h \
     script.h allocators.h db.h walletdb.h crypter.h net.h irc.h keystore.h main.h wallet.h bitcoinrpc.h uibase.h ui.h noui.h init.h auxpow.h \
-    gamestate.h gamemap.h gamedb.h gametx.h
+    gamestate.h gamemap.h gamedb.h gametx.h gamemovecreator.h
 
 HUNTERCOIN_SOURCES = \
     auxpow.cpp \
@@ -144,7 +144,8 @@ HUNTERCOIN_SOURCES = \
     gamestate.cpp \
     gamemap.cpp \
     gamedb.cpp \
-    gametx.cpp
+    gametx.cpp \
+    gamemovecreator.cpp
 
 HEADERS += $$join(HUNTERCOIN_HEADERS, " src/", " src/",)
 SOURCES += $$join(HUNTERCOIN_SOURCES, " src/", " src/",)
@@ -189,7 +190,6 @@ HEADERS += \
     src/qt/ui_interface.h \
     src/qt/gamemapview.h \
     src/qt/gamechatview.h \
-    src/qt/gamemovecreator.h \
     src/qt/rpcconsole.h \
     src/json/json_spirit_writer_template.h \
     src/json/json_spirit_writer.h \
@@ -241,7 +241,6 @@ SOURCES += \
     src/qt/paymentserver.cpp \
     src/qt/gamemapview.cpp \
     src/qt/gamechatview.cpp \
-    src/qt/gamemovecreator.cpp \
     src/qt/rpcconsole.cpp
 
 RESOURCES += src/qt/bitcoin.qrc src/qt/gamemap.qrc
