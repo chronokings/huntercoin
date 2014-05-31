@@ -16,7 +16,6 @@ static const int MAX_WAYPOINTS = 100;                      // Maximum number of 
 static const unsigned char MAX_STAY_IN_SPAWN_AREA = 30;
 static const int DESTRUCT_RADIUS = 1;
 static const int DESTRUCT_RADIUS_MAIN = 2;                 // Destruction radius for main character
-static const int NUM_INITIAL_CHARACTERS = 3;               // Initial number of characters to spawn for new player (includes main character)
 static const int MAX_CHARACTERS_PER_PLAYER = 20;           // Maximum number of characters per player at the same time
 static const int MAX_CHARACTERS_PER_PLAYER_TOTAL = 1000;   // Maximum number of characters per player in the lifetime
 static const int HEART_EVERY_NTH_BLOCK = 10;               // Spawn rate of hearts
@@ -352,6 +351,14 @@ struct GameState
     void UpdateCrownState(bool &respawn_crown);
     void CollectCrown(RandomGenerator &rnd, bool respawn_crown);
     void CrownBonus(int64 nAmount);
+
+    /**
+     * Get the number of initial characters for players created in this
+     * game state.  This was initially 3, and is changed in a hardfork
+     * depending on the block height.
+     * @return Number of initial characters to create (including general).
+     */
+    unsigned GetNumInitialCharacters () const;
 };
 
 struct StepData : boost::noncopyable

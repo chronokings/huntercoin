@@ -9,6 +9,7 @@
 #include <boost/foreach.hpp>
 
 #include "headers.h"
+#include "huntercoin.h"
 
 using namespace Game;
 
@@ -267,17 +268,20 @@ std::string Move::AddressOperationPermission(const GameState &state) const
     return mi->second.addressLock;
 }
 
-void Move::ApplySpawn(GameState &state, RandomGenerator &rnd) const
+void
+Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 {
-    PlayerState &pl = state.players[player];
-    if (pl.next_character_index == 0)
-    {
-        pl.color = color;
-        assert (pl.coinAmount == -1 && coinAmount >= 0);
-        pl.coinAmount = coinAmount;
-        for (int i = 0; i < NUM_INITIAL_CHARACTERS; i++)
-            pl.SpawnCharacter(rnd);
-    }
+  PlayerState &pl = state.players[player];
+  if (pl.next_character_index == 0)
+  {
+    pl.color = color;
+    assert (pl.coinAmount == -1 && coinAmount >= 0);
+    pl.coinAmount = coinAmount;
+
+    const unsigned limit = state.GetNumInitialCharacters ();
+    for (unsigned i = 0; i < limit; i++)
+      pl.SpawnCharacter (rnd);
+  }
 }
 
 void Move::ApplyWaypoints(GameState &state) const
@@ -792,6 +796,12 @@ void GameState::CrownBonus(int64 nAmount)
         CharacterState &ch = players[crownHolder.player].characters[crownHolder.index];
         ch.loot.Collect(LootInfo(nAmount, nHeight), nHeight);
     }
+}
+
+unsigned
+GameState::GetNumInitialCharacters () const
+{
+  return (nHeight < FORK_HEIGHT_POISON ? 3 : 1);
 }
 
 void GameState::CollectHearts(RandomGenerator &rnd)

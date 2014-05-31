@@ -236,8 +236,7 @@ int64 GetNetworkFee(int nHeight)
 int64
 GetNameCoinAmount (unsigned nHeight, bool frontEnd)
 {
-  /* FIXME: Update to real main-net hardfork block number!!!  */
-  unsigned forkHeight = 300000;
+  unsigned forkHeight = FORK_HEIGHT_POISON;
 
   /* For front-ends, increase the amount a little earlier.  */
   if (frontEnd)
