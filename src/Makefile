@@ -102,7 +102,7 @@ obj/%.o: %.cpp $(HEADERS)
 
 obj/huntercoin.o: huntercoin.h gamestate.h gamedb.h gamemovecreator.h
 
-obj/gamestate.o: gamestate.h gamemap.h
+obj/gamestate.o: huntercoin.h gamestate.h gamemap.h
 
 obj/gamemap.o: gamemap.h
 
