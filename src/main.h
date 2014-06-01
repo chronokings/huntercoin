@@ -782,16 +782,16 @@ public:
     IMPLEMENT_SERIALIZE
     (
         assert (nType == SER_DISK);
-        if (nVersion < 1000900)
+        if (nVersion < 1001000)
           {
             assert (fRead);
             int nVersionDummy;
             READWRITE(nVersionDummy);
-            assert (nVersionDummy < 1000900);
+            assert (nVersionDummy < 1001000);
           }
         READWRITE(pos);
 
-        if (nVersion < 1000900)
+        if (nVersion < 1001000)
           {
             assert (fRead); 
             std::vector<CDiskTxPos> vSpent;

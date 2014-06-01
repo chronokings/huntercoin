@@ -764,7 +764,7 @@ CTxDB::RewriteTxIndex (int oldVersion)
 
   /* Go through all possible spending transactions and set their inputs'
      spent type accordingly.  */
-  if (oldVersion < 1000900)
+  if (oldVersion < 1001000)
     {
       printf ("Fixing tx spent types...\n");
       CBlockIndex* pindex = pindexGenesisBlock;

@@ -2016,7 +2016,7 @@ bool LoadBlockIndex(bool fAllowNew)
             printf ("FixTxIndexBug failed\n");
         }
 
-      if (nTxDbVersion < 1000900)
+      if (nTxDbVersion < 1001000)
         {
           CTxDB wtxdb;
           /* SerialisationVersion is set to VERSION by default.  */
