@@ -226,6 +226,26 @@ int64 GetNetworkFee(int nHeight)
         return 0;
 }
 
+/* Return the minimum necessary amount of locked coins.  This replaces the
+   old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
+   change it with hard forks.  If the frontEnd flag is set, return the
+   amount advised for the front-ends and not the protocol-enforced one.
+   This allows to increase the amount for front-ends earlier than when
+   it is enforced in the protocol, so that a prepared name_firstupdate
+   won't get stuck.  */
+int64
+GetNameCoinAmount (unsigned nHeight, bool frontEnd)
+{
+  /* FIXME: Update to real main-net hardfork block number!!!  */
+  unsigned forkHeight = 300000;
+
+  /* For front-ends, increase the amount a little earlier.  */
+  if (frontEnd)
+    forkHeight -= 10;
+
+  return (nHeight < forkHeight ? COIN : 20 * COIN);
+}
+
 int GetTxPosHeight(const CNameIndex& txPos)
 {
     return txPos.nHeight;
@@ -1185,7 +1205,12 @@ Value name_firstupdate(const Array& params, bool fHelp)
         // Round up to CENT
         nNetFee += CENT - 1;
         nNetFee = (nNetFee / CENT) * CENT;
-        string strError = SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, nNetFee, wtxIn, wtx, false);
+
+        const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+
+        std::string strError;
+        strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
+                                         nNetFee, wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1221,18 +1246,17 @@ Value name_update(const Array& params, bool fHelp)
 
         EnsureWalletIsUnlocked();
 
-        CNameDB dbName("r");
         CTransaction tx;
-        if (!GetTxOfName(dbName, vchName, tx))
         {
+          CNameDB dbName("r");
+          if (!GetTxOfName(dbName, vchName, tx))
             throw runtime_error("could not find a coin with this name");
         }
 
-        if (tx.nVersion == GAME_TX_VERSION)
+        if (tx.IsGameTx ())
           throw std::runtime_error ("this player is dead");
 
-        uint256 wtxInHash = tx.GetHash();
-
+        const uint256 wtxInHash = tx.GetHash ();
         if (!pwalletMain->mapWallet.count(wtxInHash))
         {
             error("name_update() : this coin is not in your wallet %s",
@@ -1241,7 +1265,6 @@ Value name_update(const Array& params, bool fHelp)
         }
 
         CScript scriptPubKeyOrig;
-
         if (params.size() == 3)
         {
             string strAddress = params[2].get_str();
@@ -1259,8 +1282,14 @@ Value name_update(const Array& params, bool fHelp)
         }
         scriptPubKey += scriptPubKeyOrig;
 
+        /* Find amount locked in this name.  */
+        const int nTxOut = IndexOfNameOutput (tx);
+        const int64 nCoinAmount = tx.vout[nTxOut].nValue;
+
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
-        string strError = SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, false);
+        string strError;
+        strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
+                                         0, wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1296,7 +1325,13 @@ Value name_new(const Array& params, bool fHelp)
     {
         EnsureWalletIsUnlocked();
 
-        string strError = pwalletMain->SendMoney(scriptPubKey, NAME_COIN_AMOUNT, wtx, false);
+        /* We could send NAMENEW_COIN_AMOUNT instead and let name_firstupdate
+           add the missing funds, but this will lead to problems while all
+           clients update and older ones expect an exact amount.  */
+        const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+
+        string strError = pwalletMain->SendMoney (scriptPubKey, nCoinAmount,
+                                                  wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
         mapMyNames[vchName] = wtx.GetHash();
@@ -1349,6 +1384,7 @@ AddRawTxNameOperation (CTransaction& tx, const Object& obj)
 
   /* Find the transaction input to add.  */
 
+  int64 nCoinAmount = -1;
   CRITICAL_BLOCK(cs_main)
   {
     CNameDB dbName("r");
@@ -1360,7 +1396,10 @@ AddRawTxNameOperation (CTransaction& tx, const Object& obj)
 
     CTxIn in(COutPoint(prevTxHash, nTxOut));
     tx.vin.push_back (in);
+
+    nCoinAmount = prevTx.vout[nTxOut].nValue;
   }
+  assert (nCoinAmount >= 0);
 
   /* Construct the transaction output.  */
 
@@ -1372,7 +1411,7 @@ AddRawTxNameOperation (CTransaction& tx, const Object& obj)
                << OP_2DROP << OP_DROP;
   scriptPubKey += scriptPubKeyOrig;
 
-  CTxOut out(NAME_COIN_AMOUNT, scriptPubKey);
+  CTxOut out(nCoinAmount, scriptPubKey);
   tx.vout.push_back (out);
 }
 
@@ -2423,11 +2462,12 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     bool found = false;
 
     int prevOp;
+    int64 prevCoinAmount = -1;
     vector<vchType> vvchPrevArgs;
 
     for (int i = 0 ; i < tx.vin.size(); i++)
     {
-        CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
+        const CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
         vector<vchType> vvchPrevArgsRead;
         if (DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgsRead))
         {
@@ -2436,6 +2476,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             found = true;
             nInput = i;
             vvchPrevArgs = vvchPrevArgsRead;
+            prevCoinAmount = out.nValue;
         }
     }
 
@@ -2486,10 +2527,9 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                     return error("ConnectInputsHook() : name_firstupdate hash mismatch");
             }
 
-            // We expect exact amount of the locked coin, because if another player kills this player,
-            // this coin is destroyed and NAME_COIN_AMOUNT is given to the killer as a bounty
-            if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
-                return error("ConnectInputsHook() : name_firstupdate tx: incorrect amount of the locked coin");
+            if (tx.vout[nOut].nValue < GetNameCoinAmount (pindexBlock->nHeight))
+                return error ("ConnectInputsHook: name_firstupdate tx:"
+                              " insufficient amount of the locked coin");
             if (!NameAvailable (dbset, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], MIN_FIRSTUPDATE_DEPTH);
@@ -2522,6 +2562,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
         case OP_NAME_UPDATE:
             if (!found || (prevOp != OP_NAME_FIRSTUPDATE && prevOp != OP_NAME_UPDATE))
                 return error("name_update tx without previous update tx");
+            assert (prevCoinAmount >= 0);
 
             // Check name
             if (vvchPrevArgs[0] != vvchArgs[0])
@@ -2531,7 +2572,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
             if ((fBlock || fMiner) && nDepth < 0)
                 return error("ConnectInputsHook() : name_update on an expired name, or there is a pending transaction on the name");
-            if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
+            if (tx.vout[nOut].nValue != prevCoinAmount)
                 return error("ConnectInputsHook() : name_update tx: incorrect amount of the locked coin");
             break;
         default:

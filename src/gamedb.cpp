@@ -88,12 +88,39 @@ public:
     //   true  - non-move tx or valid tx
     bool IsValid(const CTransaction& tx, Move &outMove)
     {
-        if (!GetNameOfTx(tx, vchName) || !GetValueOfNameTx(tx, vchValue))
-            return true;
+        if (tx.nVersion != NAMECOIN_TX_VERSION)
+          return true;
 
-        std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
+        std::vector<vchType> vvchArgs;
+        int op, nOut;
+        if (!DecodeNameTx (tx, op, nOut, vvchArgs))
+          return error ("GameStepValidator: could not decode a name tx");
+
+        vchType vchName, vchValue;
+        switch (op)
+        {
+        case OP_NAME_FIRSTUPDATE:
+          vchName = vvchArgs[0];
+          vchValue = vvchArgs[2];
+          break;
+
+        case OP_NAME_UPDATE:
+          vchName = vvchArgs[0];
+          vchValue = vvchArgs[1];
+          break;
+
+        case OP_NAME_NEW:
+          return true;
+
+        default:
+          return error ("GameStepValidator: invalid name tx found");
+        }
+
+        const std::string sName = stringFromVch(vchName);
+        const std::string sValue = stringFromVch(vchValue);
         if (dup.count(sName))
-            return error("GameStepValidator: duplicate player name %s", sName.c_str());
+            return error ("GameStepValidator: duplicate player name %s",
+                          sName.c_str ());
         dup.insert(sName);
 
         Move m;
@@ -102,6 +129,19 @@ public:
             return error("GameStepValidator: cannot parse move %s for player %s", sValue.c_str(), sName.c_str());
         if (!m.IsValid(*pstate))
             return error("GameStepValidator: invalid move for the game state: move %s for player %s", sValue.c_str(), sName.c_str());
+
+        /* If this is a spawn move, find out the coin's value and set
+           the spawned player's value to it.  */
+        if (m.IsSpawn ())
+          {
+            if (op != OP_NAME_FIRSTUPDATE)
+              return error ("GameStepValidator: spawn is not firstupdate");
+
+            m.coinAmount = tx.vout[nOut].nValue;
+          }
+        else if (op != OP_NAME_UPDATE)
+          return error ("GameStepValidator: name_firstupdate is not spawn");
+
         std::string addressLock = m.AddressOperationPermission(*pstate);
         if (!addressLock.empty())
         {
@@ -151,7 +191,6 @@ public:
 
 static void InitStepData(StepData &stepData, const GameState &state)
 {
-    stepData.nNameCoinAmount = NAME_COIN_AMOUNT;
     int64 nSubsidy = GetBlockValue(state.nHeight + 1, 0);
     // Miner subsidy is 10%, thus game treasure is 9 times the subsidy
     stepData.nTreasureAmount = nSubsidy * 9;
@@ -667,22 +706,22 @@ bool UpgradeGameDB()
         gameDb.Close();
     }
 
-    if (nGameDbVersion < 1000500)
+    if (nGameDbVersion < 1000900)
     {
         printf("Updating GameDB...\n");
 
         CGameDB gameDb("r+");
 
         GameState state;
-        state.nVersion = nGameDbVersion;
         for (unsigned int i = 0; i <= nBestHeight; i++)
         {
+            gameDb.SetSerialisationVersion (nGameDbVersion);
             if (gameDb.Read(i, state))
             {
-                state.UpdateVersion();
+                state.UpdateVersion (nGameDbVersion);
+                gameDb.SetSerialisationVersion (VERSION);
                 if (!gameDb.Write(i, state))
                     return false;
-                state.nVersion = nGameDbVersion;
             }
         }
 

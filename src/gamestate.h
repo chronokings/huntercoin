@@ -106,13 +106,16 @@ struct Move
     boost::optional<std::string> address;
     boost::optional<std::string> addressLock;
 
-    unsigned char color;   // For spawn move
+    /* For spawning moves.  */
+    unsigned char color;
+    int64 coinAmount;
+
     std::map<int, WaypointVector> waypoints;
     std::set<int> destruct;
 
-    Move() : color(0xFF)
-    {
-    }
+    Move ()
+      : color(0xFF), coinAmount(-1)
+    {}
 
     std::string AddressOperationPermission(const GameState &state) const;
 
@@ -196,9 +199,11 @@ struct CharacterState
     WaypointVector waypoints;           // Waypoints (stored in reverse so removal of the first waypoint is fast)
     CollectedLootInfo loot;             // Loot collected by player but not banked yet
     unsigned char stay_in_spawn_area;   // Auto-kill players who stay in the spawn area too long
-    std::string attack;
 
-    CharacterState() : coord(0, 0), dir(0), from(0, 0), stay_in_spawn_area(0) { }
+    CharacterState ()
+      : coord(0, 0), dir(0), from(0, 0),
+        stay_in_spawn_area(0)
+    {}
 
     IMPLEMENT_SERIALIZE
     (
@@ -208,7 +213,14 @@ struct CharacterState
         READWRITE(waypoints);
         READWRITE(loot);
         READWRITE(stay_in_spawn_area);
-        READWRITE(attack);
+
+        /* Old versions had a never-used string "attack" stored.  */
+        if (nVersion < 1000900)
+          {
+            assert (fRead);
+            std::string attack;
+            READWRITE(attack);
+          }
     )
 
     void Spawn(int color, RandomGenerator &rnd);
@@ -235,7 +247,12 @@ struct CharacterState
 
 struct PlayerState
 {
-    unsigned char color;                        // Color represents player team
+    /* Colour represents player team.  */
+    unsigned char color;
+    /* Value locked by the general's name.  This is the amount that will
+       be placed back onto the map when the player dies, and it should
+       match the actual coin value.  */
+    int64 coinAmount;
 
     std::map<int, CharacterState> characters;   // Characters owned by the player (0 is the main character)
     int next_character_index;                   // Index of the next spawned character
@@ -254,9 +271,19 @@ struct PlayerState
         READWRITE(message_block);
         READWRITE(address);
         READWRITE(addressLock);
+
+        /* Old version did not have coinAmount field.  Don't set it here to
+           the old value of COIN, but just leave it as "uninitialised".  It
+           will be set during upgrading of the database.  */
+        if (nVersion >= 1000900)
+          READWRITE(coinAmount);
     )
 
-    PlayerState() : color(0xFF), next_character_index(0), message_block(0) { }
+    PlayerState ()
+      : color(0xFF), coinAmount(-1),
+        next_character_index(0), message_block(0)
+    {}
+
     void SpawnCharacter(RandomGenerator &rnd);
     bool CanSpawnCharacter()
     {
@@ -268,9 +295,6 @@ struct PlayerState
 struct GameState
 {
     GameState();
-
-    // Memory-only version. Is not read/written. Used by UpgradeGameDB.
-    int nVersion;
 
     // Player states
     std::map<PlayerID, PlayerState> players;
@@ -299,8 +323,11 @@ struct GameState
     
     IMPLEMENT_SERIALIZE
     (
+        /* Should be only ever written to disk.  */
+        assert (nType & SER_DISK);
+
         READWRITE(players);
-        if (this->nVersion >= 1000500)
+        if (nVersion >= 1000500)
             READWRITE(dead_players_chat);
         else if (fRead)
             (const_cast<std::map<PlayerID, PlayerState>&>(dead_players_chat)).clear();
@@ -314,7 +341,7 @@ struct GameState
         READWRITE(hashBlock);
     )
 
-    void UpdateVersion();
+    void UpdateVersion(int oldVersion);
 
     json_spirit::Value ToJsonValue() const;
 
@@ -329,7 +356,7 @@ struct GameState
 
 struct StepData : boost::noncopyable
 {
-    int64 nNameCoinAmount, nTreasureAmount;
+    int64 nTreasureAmount;
     uint256 newHash;
     std::vector<Move> vMoves;
 };
