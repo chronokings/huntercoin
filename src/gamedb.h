@@ -17,13 +17,18 @@ class CTransaction;
 class CBlockIndex;
 class CTxDB;
 class CNameDB;
+class DatabaseSet;
 class CScript;
 
-bool PerformStep(CNameDB *pnameDb, const Game::GameState &inState, const CBlock *block, int64 &nTax, Game::GameState &outState, std::vector<CTransaction> &outvgametx);
+bool PerformStep (CNameDB& pnameDb, const Game::GameState& inState,
+                  const CBlock* block, int64& nTax, Game::GameState& outState,
+                  std::vector<CTransaction>& outvgametx);
 
 // Caller of these functions must hold cs_main lock
-bool GetGameState(CTxDB &txdb, CBlockIndex *pindex, Game::GameState &outState);
-bool AdvanceGameState(CTxDB &txdb, CBlockIndex *pindex, CBlock *block, int64 &nFees);
+bool GetGameState (DatabaseSet& dbset, CBlockIndex* pindex,
+                   Game::GameState& outState);
+bool AdvanceGameState (DatabaseSet& dbset, CBlockIndex* pindex,
+                       CBlock* block, int64& nFees);
 void RollbackGameState(CTxDB& txdb, CBlockIndex* pindex);
 const Game::GameState &GetCurrentGameState();
 

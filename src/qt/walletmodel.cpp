@@ -278,9 +278,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     nNetFee += CENT - 1;
     nNetFee = (nNetFee / CENT) * CENT;
 
-    //return SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, nNetFee, wtxIn, wtx, false);
-
-    int64 nValue = NAME_COIN_AMOUNT;
+    const int64 nValue = GetNameCoinAmount (pindexBest->nHeight, true);
 
     if (wtxIn.IsGameTx())
         return _("Error: nameFirstUpdateCreateTx trying to spend a game-created transaction");
@@ -303,6 +301,8 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     if (!CreateTransactionWithInputTx(vecSend, wtxIn, nTxOut, wtx, reservekey, nFeeRequired))
     {
         std::string strError;
+        /* FIXME: Should the check include nNetFee also?  It doesn't matter
+           for now, since the network fee is zero anyway.  */
         if (nValue + nFeeRequired > wallet->GetBalance())
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds "), FormatMoney(nFeeRequired).c_str());
         else
@@ -463,10 +463,10 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
 bool WalletModel::nameAvailable(const QString &name)
 {
     std::string strName = name.toStdString();
-    std::vector<unsigned char> vchName(strName.begin(), strName.end());
+    vchType vchName(strName.begin(), strName.end());
 
-    CTxDB txdb("r");
-    return NameAvailable(txdb, vchName);
+    DatabaseSet dbset("r");
+    return NameAvailable (dbset, vchName);
 }
 
 WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
@@ -516,7 +516,11 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
 
             // Prepare name_new, but do not commit until we prepare name_firstupdate
             printf("name_new GUI: SendMoneyPrepare (pass %d)\n", pass);
-            std::string strError = wallet->SendMoneyPrepare(scriptPubKey, NAME_COIN_AMOUNT + nFirstUpdateFee, wtx, reservekey, pass == 1);
+            const int64 nValue = GetNameCoinAmount (pindexBest->nHeight, true);
+            std::string strError;
+            strError = wallet->SendMoneyPrepare (scriptPubKey,
+                                                 nValue + nFirstUpdateFee,
+                                                 wtx, reservekey, pass == 1);
             if (!strError.empty())
             {
                 printf("name_new GUI error: %s\n", strError.c_str());
@@ -637,13 +641,14 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
             return tr("There are pending operations on that name");
         }
 
-        CNameDB dbName("r");
         CTransaction tx;
-        if (!GetTxOfName(dbName, vchName, tx))
+        {
+          CNameDB dbName("r");
+          if (!GetTxOfName (dbName, vchName, tx))
             return tr("Could not find a coin with this name");
+        }
 
-        uint256 wtxInHash = tx.GetHash();
-
+        const uint256 wtxInHash = tx.GetHash();
         if (!wallet->mapWallet.count(wtxInHash))
         {
             error("name_update() : this coin is not in your wallet %s",
@@ -651,10 +656,7 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
             return tr("This coin is not in your wallet");
         }
 
-        CWalletTx& wtxIn = wallet->mapWallet[wtxInHash];
-
         CScript scriptPubKeyOrig;
-
         if (transferToAddress != "")
         {
             std::string strAddress = transferToAddress.toStdString();
@@ -672,9 +674,18 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
         }
         scriptPubKey += scriptPubKeyOrig;
 
+        /* Find amount locked in this name.  */
+        const int nTxOut = IndexOfNameOutput (tx);
+        const int64 nCoinAmount = tx.vout[nTxOut].nValue;
+
         /* Don't ask for fee confirmation here since name_update includes
            a mandatory minimum fee.  */
-        return QString::fromStdString(SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, false));
+        CWalletTx& wtxIn = wallet->mapWallet[wtxInHash];
+        std::string strError;
+        strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
+                                         0, wtxIn, wtx, false);
+
+        return QString::fromStdString (strError);
     }
 }
 

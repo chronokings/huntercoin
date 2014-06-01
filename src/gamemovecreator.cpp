@@ -1,5 +1,7 @@
 #include "gamemovecreator.h"
-#include "../gamemap.h"
+#include "gamemap.h"
+
+#include <deque>
 
 #include <boost/graph/astar_search.hpp>
 #include <boost/graph/grid_graph.hpp>

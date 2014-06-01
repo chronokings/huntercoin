@@ -12,6 +12,7 @@
 
 #include "gamestate.h"
 #include "gamedb.h"
+#include "gamemovecreator.h"
 
 #include "bitcoinrpc.h"
 
@@ -54,10 +55,8 @@ extern std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;
 extern uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType);
 
 // forward decls
-extern bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc);
 extern bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash, int nHashType, CScript& scriptSigRet);
 extern bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn, int nHashType);
-extern bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& name);
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
@@ -77,7 +76,7 @@ public:
     virtual bool IsStandard(const CScript& scriptPubKey);
     virtual void AddToWallet(CWalletTx& tx);
     virtual bool CheckTransaction(const CTransaction& tx);
-    virtual bool ConnectInputs(CTxDB& txdb,
+    virtual bool ConnectInputs(DatabaseSet& dbset,
             map<uint256, CTxIndex>& mapTestPool,
             const CTransaction& tx,
             vector<CTransaction>& vTxPrev,
@@ -86,19 +85,23 @@ public:
             CDiskTxPos& txPos,
             bool fBlock,
             bool fMiner);
-    virtual bool DisconnectInputs(CTxDB& txdb,
+    virtual bool DisconnectInputs (DatabaseSet& dbset,
             const CTransaction& tx,
             CBlockIndex* pindexBlock);
-    virtual bool ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex, int64 &nFees, unsigned int nPosAfterTx);
-    virtual void NewBlockAdded();
-    virtual bool DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex);
+    virtual bool ConnectBlock (CBlock& block, DatabaseSet& txdb,
+                               CBlockIndex* pindex, int64 &nFees,
+                               unsigned int nPosAfterTx);
+    virtual void NewBlockAdded ();
+    virtual bool DisconnectBlock (CBlock& block, DatabaseSet& txdb,
+                                  CBlockIndex* pindex);
     virtual bool ExtractAddress(const CScript& script, string& address);
     virtual bool GenesisBlock(CBlock& block);
     virtual bool Lockin(int nHeight, uint256 hash);
     virtual int LockinHeight();
     virtual string IrcPrefix();
-    virtual void AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx);
-    virtual void RemoveFromMemoryPool(const CTransaction& tx);
+    virtual void AcceptToMemoryPool (DatabaseSet& dbset,
+                                     const CTransaction& tx);
+    virtual void RemoveFromMemoryPool (const CTransaction& tx);
 
     virtual void MessageStart(char* pchMessageStart)
     {
@@ -223,6 +226,26 @@ int64 GetNetworkFee(int nHeight)
         return 0;
 }
 
+/* Return the minimum necessary amount of locked coins.  This replaces the
+   old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
+   change it with hard forks.  If the frontEnd flag is set, return the
+   amount advised for the front-ends and not the protocol-enforced one.
+   This allows to increase the amount for front-ends earlier than when
+   it is enforced in the protocol, so that a prepared name_firstupdate
+   won't get stuck.  */
+int64
+GetNameCoinAmount (unsigned nHeight, bool frontEnd)
+{
+  /* FIXME: Update to real main-net hardfork block number!!!  */
+  unsigned forkHeight = 300000;
+
+  /* For front-ends, increase the amount a little earlier.  */
+  if (frontEnd)
+    forkHeight -= 10;
+
+  return (nHeight < forkHeight ? COIN : 20 * COIN);
+}
+
 int GetTxPosHeight(const CNameIndex& txPos)
 {
     return txPos.nHeight;
@@ -250,15 +273,14 @@ int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight)
     return nHeight;
 }
 
-
-bool NameAvailable(CTxDB& txdb, const vector<unsigned char> &vchName)
+bool
+NameAvailable (DatabaseSet& dbset, const vector<unsigned char> &vchName)
 {
-    CNameDB dbName("cr", txdb);
     vector<CNameIndex> vtxPos;
-    if (!dbName.ExistsName(vchName))
+    if (!dbset.name ().ExistsName (vchName))
         return true;
 
-    if (!dbName.ReadName(vchName, vtxPos))
+    if (!dbset.name ().ReadName (vchName, vtxPos))
         return error("NameAvailable() : failed to read from name DB");
     if (vtxPos.empty())
         return true;
@@ -283,32 +305,6 @@ CScript RemoveNameScriptPrefix(const CScript& scriptIn)
     return CScript(pc, scriptIn.end());
 }
 
-bool SignNameSignature(const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL, CScript scriptPrereq=CScript())
-{
-    assert(nIn < txTo.vin.size());
-    CTxIn& txin = txTo.vin[nIn];
-    assert(txin.prevout.n < txFrom.vout.size());
-    const CTxOut& txout = txFrom.vout[txin.prevout.n];
-
-    // Leave out the signature from the hash, since a signature can't sign itself.
-    // The checksig op will also drop the signatures from its hash.
-
-    const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
-    uint256 hash = SignatureHash(scriptPrereq + txout.scriptPubKey, txTo, nIn, nHashType);
-
-    if (!Solver(*pwalletMain, scriptPubKey, hash, nHashType, txin.scriptSig))
-        return false;
-
-    txin.scriptSig = scriptPrereq + txin.scriptSig;
-
-    // Test solution
-    if (scriptPrereq.empty())
-        if (!VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, 0))
-            return false;
-
-    return true;
-}
-
 bool IsMyName(const CTransaction& tx, const CTxOut& txout)
 {
     const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
@@ -318,7 +314,7 @@ bool IsMyName(const CTransaction& tx, const CTxOut& txout)
     return true;
 }
 
-bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet)
+bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet)
 {
     int64 nValue = 0;
     BOOST_FOREACH(const PAIRTYPE(CScript, int64)& s, vecSend)
@@ -417,16 +413,8 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
                 int nIn = 0;
                 BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int)& coin, vecCoins)
                 {
-                    if (coin.first == &wtxIn && coin.second == nTxOut)
-                    {
-                        if (!SignNameSignature(*coin.first, wtxNew, nIn++))
-                            throw runtime_error("could not sign name coin output");
-                    }
-                    else
-                    {
-                        if (!SignSignature(*pwalletMain, *coin.first, wtxNew, nIn++))
-                            return false;
-                    }
+                    if (!SignSignature(*pwalletMain, *coin.first, wtxNew, nIn++))
+                        return false;
                 }
 
                 // Limit size
@@ -460,7 +448,7 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
 
 // nTxOut is the output from wtxIn that we should grab
 // requires cs_main lock
-string SendMoneyWithInputTx(CScript scriptPubKey, int64 nValue, int64 nNetFee, CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee)
+string SendMoneyWithInputTx(const CScript& scriptPubKey, int64 nValue, int64 nNetFee, const CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee)
 {
     if (wtxIn.IsGameTx())
         return _("Error: SendMoneyWithInputTx trying to spend a game-created transaction");
@@ -1095,9 +1083,9 @@ Value name_scan(const Array& params, bool fHelp)
 
 Value name_firstupdate(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 3 || params.size() > 4)
+    if (fHelp || params.size() < 3 || params.size() > 5)
         throw runtime_error(
-                "name_firstupdate <name> <rand> [<tx>] <value>\n"
+                "name_firstupdate <name> <rand> [<tx>] <value> [<toaddress>]\n"
                 "Perform a first update after a name_new reservation.\n"
                 "Note that the first update will go into a block 2 blocks after the name_new, at the soonest."
                 + HelpRequiringPassphrase());
@@ -1139,6 +1127,23 @@ Value name_firstupdate(const Array& params, bool fHelp)
         }
     }
 
+    CScript scriptPubKeyOrig;
+    if (params.size () == 5)
+    {
+        const std::string strAddress = params[4].get_str ();
+        uint160 hash160;
+        bool isValid = AddressToHash160 (strAddress, hash160);
+        if (!isValid)
+            throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY,
+                                "Invalid huntercoin address");
+        scriptPubKeyOrig.SetBitcoinAddress (strAddress);
+    }
+    else
+    {
+        vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool ();
+        scriptPubKeyOrig.SetBitcoinAddress (vchPubKey);
+    }
+
     CRITICAL_BLOCK(cs_main)
     {
         EnsureWalletIsUnlocked();
@@ -1166,13 +1171,11 @@ Value name_firstupdate(const Array& params, bool fHelp)
 
         CScript scriptPubKey;
         scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchRand << vchValue << OP_2DROP << OP_2DROP;
+        scriptPubKey += scriptPubKeyOrig;
 
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
         vector<unsigned char> vchHash;
         bool found = false;
-
-        CScript scriptPubKeyOrig;
-
         BOOST_FOREACH(CTxOut& out, wtxIn.vout)
         {
             vector<vector<unsigned char> > vvch;
@@ -1181,8 +1184,6 @@ Value name_firstupdate(const Array& params, bool fHelp)
                 if (op != OP_NAME_NEW)
                     throw runtime_error("previous transaction wasn't a name_new");
                 vchHash = vvch[0];
-
-                scriptPubKeyOrig = RemoveNameScriptPrefix(out.scriptPubKey);
                 found = true;
             }
         }
@@ -1191,8 +1192,6 @@ Value name_firstupdate(const Array& params, bool fHelp)
         {
             throw runtime_error("previous tx on this name is not a name tx");
         }
-
-        scriptPubKey += scriptPubKeyOrig;
 
         vector<unsigned char> vchToHash(vchRand);
         vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
@@ -1206,7 +1205,12 @@ Value name_firstupdate(const Array& params, bool fHelp)
         // Round up to CENT
         nNetFee += CENT - 1;
         nNetFee = (nNetFee / CENT) * CENT;
-        string strError = SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, nNetFee, wtxIn, wtx, false);
+
+        const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+
+        std::string strError;
+        strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
+                                         nNetFee, wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1242,18 +1246,17 @@ Value name_update(const Array& params, bool fHelp)
 
         EnsureWalletIsUnlocked();
 
-        CNameDB dbName("r");
         CTransaction tx;
-        if (!GetTxOfName(dbName, vchName, tx))
         {
+          CNameDB dbName("r");
+          if (!GetTxOfName(dbName, vchName, tx))
             throw runtime_error("could not find a coin with this name");
         }
 
-        if (tx.nVersion == GAME_TX_VERSION)
+        if (tx.IsGameTx ())
           throw std::runtime_error ("this player is dead");
 
-        uint256 wtxInHash = tx.GetHash();
-
+        const uint256 wtxInHash = tx.GetHash ();
         if (!pwalletMain->mapWallet.count(wtxInHash))
         {
             error("name_update() : this coin is not in your wallet %s",
@@ -1262,7 +1265,6 @@ Value name_update(const Array& params, bool fHelp)
         }
 
         CScript scriptPubKeyOrig;
-
         if (params.size() == 3)
         {
             string strAddress = params[2].get_str();
@@ -1280,8 +1282,14 @@ Value name_update(const Array& params, bool fHelp)
         }
         scriptPubKey += scriptPubKeyOrig;
 
+        /* Find amount locked in this name.  */
+        const int nTxOut = IndexOfNameOutput (tx);
+        const int64 nCoinAmount = tx.vout[nTxOut].nValue;
+
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
-        string strError = SendMoneyWithInputTx(scriptPubKey, NAME_COIN_AMOUNT, 0, wtxIn, wtx, false);
+        string strError;
+        strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
+                                         0, wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1317,7 +1325,13 @@ Value name_new(const Array& params, bool fHelp)
     {
         EnsureWalletIsUnlocked();
 
-        string strError = pwalletMain->SendMoney(scriptPubKey, NAME_COIN_AMOUNT, wtx, false);
+        /* We could send NAMENEW_COIN_AMOUNT instead and let name_firstupdate
+           add the missing funds, but this will lead to problems while all
+           clients update and older ones expect an exact amount.  */
+        const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+
+        string strError = pwalletMain->SendMoney (scriptPubKey, nCoinAmount,
+                                                  wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
         mapMyNames[vchName] = wtx.GetHash();
@@ -1329,6 +1343,76 @@ Value name_new(const Array& params, bool fHelp)
     res.push_back(wtx.GetHash().GetHex());
     res.push_back(HexStr(vchRand));
     return res;
+}
+
+/* Implement name operations for createrawtransaction.  */
+void
+AddRawTxNameOperation (CTransaction& tx, const Object& obj)
+{
+  Value val = find_value (obj, "op");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing op key.");
+  const std::string op = val.get_str ();
+
+  if (op != "name_update")
+    throw std::runtime_error ("Only name_update is implemented"
+                              " for raw transactions at the moment.");
+
+  val = find_value (obj, "name");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing name key.");
+  const std::string name = val.get_str ();
+  const std::vector<unsigned char> vchName = vchFromString (name);
+
+  val = find_value (obj, "value");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing value key.");
+  const std::string value = val.get_str ();
+
+  val = find_value (obj, "address");
+  if (val.type () != str_type)
+    throw JSONRPCError (RPC_INVALID_PARAMETER, "Missing address key.");
+  const std::string address = val.get_str ();
+  if (!IsValidBitcoinAddress (address))
+    {
+      std::ostringstream msg;
+      msg << "Invalid Huntercoin address: " << address;
+      throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY, msg.str ());
+    }
+
+  tx.nVersion = NAMECOIN_TX_VERSION;
+
+  /* Find the transaction input to add.  */
+
+  int64 nCoinAmount = -1;
+  CRITICAL_BLOCK(cs_main)
+  {
+    CNameDB dbName("r");
+    CTransaction prevTx;
+    if (!GetTxOfName (dbName, vchName, prevTx))
+      throw std::runtime_error ("could not find a coin with this name");
+    const uint256 prevTxHash = prevTx.GetHash();
+    const int nTxOut = IndexOfNameOutput (prevTx);
+
+    CTxIn in(COutPoint(prevTxHash, nTxOut));
+    tx.vin.push_back (in);
+
+    nCoinAmount = prevTx.vout[nTxOut].nValue;
+  }
+  assert (nCoinAmount >= 0);
+
+  /* Construct the transaction output.  */
+
+  CScript scriptPubKeyOrig;
+  scriptPubKeyOrig.SetBitcoinAddress (address);
+
+  CScript scriptPubKey;
+  scriptPubKey << OP_NAME_UPDATE << vchName << vchFromString (value)
+               << OP_2DROP << OP_DROP;
+  scriptPubKey += scriptPubKeyOrig;
+
+  CTxOut out(nCoinAmount, scriptPubKey);
+  tx.vout.push_back (out);
 }
 
 static Value
@@ -1450,8 +1534,8 @@ Value game_getstate(const Array& params, bool fHelp)
                 throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot find block at specified height");
         }
 
-        CTxDB txdb("r");
-        if (!GetGameState(txdb, pindex, state))
+        DatabaseSet dbset("r");
+        if (!GetGameState (dbset, pindex, state))
             throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot compute game state at specified height");
     }
 
@@ -1536,8 +1620,8 @@ Value game_getplayerstate(const Array& params, bool fHelp)
                 throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot find block at specified height");
         }
 
-        CTxDB txdb("r");
-        if (!GetGameState(txdb, pindex, state))
+        DatabaseSet dbset("r");
+        if (!GetGameState (dbset, pindex, state))
             throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot compute game state at specified height");
     }
 
@@ -1548,6 +1632,47 @@ Value game_getplayerstate(const Array& params, bool fHelp)
 
     int crown_index = player_name == state.crownHolder.player ? state.crownHolder.index : -1;
     return mi->second.ToJsonValue(crown_index);
+}
+
+/* Give access to the game's shortest path algorithm to calculate
+   paths from one coordinate to another one.  */
+Value
+game_getpath (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () != 2)
+    throw runtime_error ("game_getpath [fromX,fromY] [toX,toY]\n"
+                         "Return a set of way points that travels in a\n"
+                         "shortest path between the given coordinates.\n");
+
+  if (params[0].type () != array_type || params[1].type () != array_type)
+    throw runtime_error ("arguments must be arrays");
+
+  const Array from = params[0].get_array ();
+  const Array to = params[1].get_array ();
+
+  if (from.size () != 2 || to.size () != 2)
+    throw runtime_error ("invalid coordinates given");
+
+  const Game::Coord fromC(from[0].get_int (), from[1].get_int ());
+  const Game::Coord toC(to[0].get_int (), to[1].get_int ());
+
+  std::vector<Game::Coord> path = FindPath (fromC, toC);
+
+  Array res;
+  bool first = true;
+  BOOST_FOREACH(const Game::Coord& c, path)
+    {
+      if (first)
+        {
+          first = false;
+          continue;
+        }
+
+      res.push_back (c.x);
+      res.push_back (c.y);
+    }
+
+  return res;
 }
 
 void UnspendInputs(CWalletTx& wtx)
@@ -1625,9 +1750,9 @@ void rescanfornames()
 {
     printf("Scanning blockchain for names to create fast index...\n");
 
-    CNameDB dbName("cr+");
+    /* The database should already be created although empty.  */
 
-    // scan blockchain
+    CNameDB dbName("r+");
     dbName.ReconstructNameIndex();
 }
 
@@ -1644,12 +1769,13 @@ Value name_clean(const Array& params, bool fHelp)
         printf("-----------------------------\n");
 
         {
-            CTxDB txdb("r");
+            DatabaseSet dbset("r");
             BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
             {
                 CWalletTx& wtx = item.second;
-                vector<unsigned char> vchName;
-                if (wtx.GetDepthInMainChain() < 1 && IsConflictedTx(txdb, wtx, vchName))
+                vchType vchName;
+                if (wtx.GetDepthInMainChain () < 1
+                    && IsConflictedTx (dbset, wtx, vchName))
                 {
                     uint256 hash = wtx.GetHash();
                     mapRemove[hash] = wtx;
@@ -1799,19 +1925,17 @@ bool CNameDB::ScanNames(
 bool CNameDB::ReconstructNameIndex()
 {
     CTxDB txdb("r");
-    vector<unsigned char> vchName;
-    vector<unsigned char> vchValue;
+    vchType vchName;
+    vchType vchValue;
     CTxIndex txindex;
     CBlockIndex* pindex = pindexGenesisBlock;
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
-        //CNameDB dbName("cr+", txdb);
-        TxnBegin();
-
         while (pindex)
         {  
+            TxnBegin();
             CBlock block;
-            block.ReadFromDisk(pindex, true);
+            block.ReadFromDisk(pindex);
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
                 if (tx.nVersion != NAMECOIN_TX_VERSION)
@@ -1868,7 +1992,7 @@ bool CNameDB::ReconstructNameIndex()
                     CTxOut prevout = txPrev.vout[nout];
 
                     int prevOp;
-                    vector<vector<unsigned char> > vvchPrevArgs;
+                    vector<vchType> vvchPrevArgs;
 
                     if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
                         continue;
@@ -1889,9 +2013,8 @@ bool CNameDB::ReconstructNameIndex()
                 }
             }
             pindex = pindex->pnext;
+            TxnCommit();
         }
-
-        TxnCommit();
     }
 }
 
@@ -1913,6 +2036,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("game_getstate", &game_getstate));
     mapCallTable.insert(make_pair("game_waitforchange", &game_waitforchange));
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
+    mapCallTable.insert(make_pair("game_getpath", &game_getpath));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
     setCallAsync.insert("game_waitforchange");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];
@@ -1920,13 +2044,14 @@ CHooks* InitHook()
     return new CHuntercoinHooks();
 }
 
-bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch)
+bool DecodeNameScript(const CScript& script, int& op, vector<vchType> &vvch)
 {
     CScript::const_iterator pc = script.begin();
     return DecodeNameScript(script, op, vvch, pc);
 }
 
-bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned char> > &vvch, CScript::const_iterator& pc)
+bool DecodeNameScript(const CScript& script, int& op,
+                      vector<vchType> &vvch, CScript::const_iterator& pc)
 {
     opcodetype opcode;
     if (!script.GetOp(pc, opcode))
@@ -1963,7 +2088,8 @@ bool DecodeNameScript(const CScript& script, int& op, vector<vector<unsigned cha
     return error("invalid number of arguments for name op");
 }
 
-bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut, vector<vector<unsigned char> >& vvch)
+bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut,
+                  vector<vchType>& vvch)
 {
     bool found = false;
 
@@ -2096,7 +2222,9 @@ bool CHuntercoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool 
     return false;
 }
 
-void CHuntercoinHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
+void
+CHuntercoinHooks::AcceptToMemoryPool (DatabaseSet& dbset,
+                                      const CTransaction& tx)
 {
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return;
@@ -2107,7 +2235,7 @@ void CHuntercoinHooks::AcceptToMemoryPool(CTxDB& txdb, const CTransaction& tx)
         return;
     }
 
-    vector<vector<unsigned char> > vvch;
+    vector<vchType> vvch;
 
     int op;
     int nOut;
@@ -2184,11 +2312,12 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
     return false;
 }
 
-bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& name)
+bool
+IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name)
 {
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
-    vector<vector<unsigned char> > vvchArgs;
+    vector<vchType> vvchArgs;
     int op;
     int nOut;
 
@@ -2203,7 +2332,7 @@ bool IsConflictedTx(CTxDB& txdb, const CTransaction& tx, vector<unsigned char>& 
     {
         case OP_NAME_FIRSTUPDATE:
             name = vvchArgs[0];
-            if (!NameAvailable(txdb, name))
+            if (!NameAvailable (dbset, name))
                 return true;
     }
     return false;
@@ -2230,18 +2359,14 @@ bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex)
     return false;
 }
 
-bool ConnectInputsGameTx(CTxDB& txdb,
-        map<uint256, CTxIndex>& mapTestPool,
-        const CTransaction& tx,
-        vector<CTransaction>& vTxPrev,
-        vector<CTxIndex>& vTxindex,
-        CBlockIndex* pindexBlock,
-        CDiskTxPos& txPos)
+bool
+ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
+                     const CTransaction& tx, vector<CTransaction>& vTxPrev,
+                     vector<CTxIndex>& vTxindex, CBlockIndex* pindexBlock,
+                     CDiskTxPos& txPos)
 {
     if (!tx.IsGameTx())
         return error("ConnectInputsGameTx called for non-game tx");
-    // Update name records for killed players
-    CNameDB dbName("r+", txdb);
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
@@ -2253,38 +2378,32 @@ bool ConnectInputsGameTx(CTxDB& txdb,
         CTxOut prevout = vTxPrev[i].vout[nout];
 
         int prevOp;
-        vector<vector<unsigned char> > vvchPrevArgs;
+        vector<vchType> vvchPrevArgs;
 
         if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
             continue;
 
-        dbName.TxnBegin();
-
         vector<CNameIndex> vtxPos;
-        if (dbName.ExistsName(vvchPrevArgs[0]))
-        {
-            if (!dbName.ReadName(vvchPrevArgs[0], vtxPos))
-                return error("ConnectInputsGameTx() : failed to read from name DB");
-        }
+        if (dbset.name ().ExistsName(vvchPrevArgs[0])
+            && !dbset.name ().ReadName (vvchPrevArgs[0], vtxPos))
+          return error ("ConnectInputsGameTx() : failed to read from name DB");
         CNameIndex txPos2;
         txPos2.nHeight = pindexBlock->nHeight;
         txPos2.vValue = vchFromString(VALUE_DEAD);
         txPos2.txPos = txPos;
         vtxPos.push_back(txPos2); // fin add
-        if (!dbName.WriteName(vvchPrevArgs[0], vtxPos))
+        if (!dbset.name ().WriteName(vvchPrevArgs[0], vtxPos))
             return error("ConnectInputsGameTx() : failed to write to name DB");
-
-        dbName.TxnCommit();
     }
     return true;
 }
 
-bool DisconnectInputsGameTx(CTxDB& txdb, const CTransaction& tx, CBlockIndex* pindexBlock)
+bool
+DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
+                        CBlockIndex* pindexBlock)
 {
     if (!tx.IsGameTx())
         return error("DisconnectInputsGameTx called for non-game tx");
-    // Update name records for killed players
-    CNameDB dbName("r+", txdb);
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
@@ -2292,7 +2411,8 @@ bool DisconnectInputsGameTx(CTxDB& txdb, const CTransaction& tx, CBlockIndex* pi
             continue;
         CTransaction txPrev;
         CTxIndex txindex;
-        if (!txdb.ReadTxIndex(tx.vin[i].prevout.hash, txindex) || txindex.pos == CDiskTxPos(1,1,1))
+        if (!dbset.tx ().ReadTxIndex (tx.vin[i].prevout.hash, txindex)
+            || txindex.pos == CDiskTxPos(1,1,1))
             continue;
         else if (!txPrev.ReadFromDisk(txindex.pos))
             continue;
@@ -2302,58 +2422,53 @@ bool DisconnectInputsGameTx(CTxDB& txdb, const CTransaction& tx, CBlockIndex* pi
         CTxOut prevout = txPrev.vout[nout];
 
         int prevOp;
-        vector<vector<unsigned char> > vvchPrevArgs;
+        vector<vchType> vvchPrevArgs;
 
         if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
             continue;
 
-        dbName.TxnBegin();
-
         vector<CNameIndex> vtxPos;
-        if (dbName.ExistsName(vvchPrevArgs[0]))
-        {
-            if (!dbName.ReadName(vvchPrevArgs[0], vtxPos))
-                return error("DisconnectInputsGameTx() : failed to read from name DB");
-        }
+        if (dbset.name ().ExistsName (vvchPrevArgs[0])
+            && !dbset.name ().ReadName (vvchPrevArgs[0], vtxPos))
+          return error("DisconnectInputsGameTx() : failed to read from name DB");
         if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight || vtxPos.back().vValue != vchFromString(VALUE_DEAD))
             printf("DisconnectInputsGameTx() : Warning: game transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
         while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
             vtxPos.pop_back();
-        if (!dbName.WriteName(vvchPrevArgs[0], vtxPos))
+        if (!dbset.name ().WriteName (vvchPrevArgs[0], vtxPos))
             return error("DisconnectInputsGameTx() : failed to write to name DB");
-
-        dbName.TxnCommit();
     }
     return true;
 }
 
-bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
-        map<uint256, CTxIndex>& mapTestPool,
-        const CTransaction& tx,
-        vector<CTransaction>& vTxPrev,
-        vector<CTxIndex>& vTxindex,
-        CBlockIndex* pindexBlock,
-        CDiskTxPos& txPos,
-        bool fBlock,
-        bool fMiner)
+bool
+CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
+                                 map<uint256, CTxIndex>& mapTestPool,
+                                 const CTransaction& tx,
+                                 vector<CTransaction>& vTxPrev,
+                                 vector<CTxIndex>& vTxindex,
+                                 CBlockIndex* pindexBlock, CDiskTxPos& txPos,
+                                 bool fBlock, bool fMiner)
 {
-    if (tx.nVersion == GAME_TX_VERSION)
-    {
+    if (tx.IsGameTx ())
+      {
         if (fBlock)
-            return ConnectInputsGameTx(txdb, mapTestPool, tx, vTxPrev, vTxindex, pindexBlock, txPos);
+          return ConnectInputsGameTx (dbset, mapTestPool, tx,
+                                      vTxPrev, vTxindex, pindexBlock, txPos);
         return true;
-    }
+      }
 
     int nInput;
     bool found = false;
 
     int prevOp;
-    vector<vector<unsigned char> > vvchPrevArgs;
+    int64 prevCoinAmount = -1;
+    vector<vchType> vvchPrevArgs;
 
     for (int i = 0 ; i < tx.vin.size(); i++)
     {
-        CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
-        vector<vector<unsigned char> > vvchPrevArgsRead;
+        const CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
+        vector<vchType> vvchPrevArgsRead;
         if (DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgsRead))
         {
             if (found)
@@ -2361,6 +2476,7 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
             found = true;
             nInput = i;
             vvchPrevArgs = vvchPrevArgsRead;
+            prevCoinAmount = out.nValue;
         }
     }
 
@@ -2411,11 +2527,10 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
                     return error("ConnectInputsHook() : name_firstupdate hash mismatch");
             }
 
-            // We expect exact amount of the locked coin, because if another player kills this player,
-            // this coin is destroyed and NAME_COIN_AMOUNT is given to the killer as a bounty
-            if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
-                return error("ConnectInputsHook() : name_firstupdate tx: incorrect amount of the locked coin");
-            if (!NameAvailable(txdb, vvchArgs[0]))
+            if (tx.vout[nOut].nValue < GetNameCoinAmount (pindexBlock->nHeight))
+                return error ("ConnectInputsHook: name_firstupdate tx:"
+                              " insufficient amount of the locked coin");
+            if (!NameAvailable (dbset, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], MIN_FIRSTUPDATE_DEPTH);
             // Do not accept if in chain and not mature
@@ -2447,6 +2562,7 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
         case OP_NAME_UPDATE:
             if (!found || (prevOp != OP_NAME_FIRSTUPDATE && prevOp != OP_NAME_UPDATE))
                 return error("name_update tx without previous update tx");
+            assert (prevCoinAmount >= 0);
 
             // Check name
             if (vvchPrevArgs[0] != vvchArgs[0])
@@ -2456,7 +2572,7 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
             nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
             if ((fBlock || fMiner) && nDepth < 0)
                 return error("ConnectInputsHook() : name_update on an expired name, or there is a pending transaction on the name");
-            if (tx.vout[nOut].nValue != NAME_COIN_AMOUNT)
+            if (tx.vout[nOut].nValue != prevCoinAmount)
                 return error("ConnectInputsHook() : name_update tx: incorrect amount of the locked coin");
             break;
         default:
@@ -2467,17 +2583,11 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
     {
         if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
         {
-            CNameDB dbName("cr+", txdb);
-            dbName.TxnBegin();
-
-            //vector<CDiskTxPos> vtxPos;
             vector<CNameIndex> vtxPos;
-            if (dbName.ExistsName(vvchArgs[0]))
-            {
-                if (!dbName.ReadName(vvchArgs[0], vtxPos))
-                    return error("ConnectInputsHook() : failed to read from name DB");
-            }
-            vector<unsigned char> vchValue; // add
+            if (dbset.name ().ExistsName (vvchArgs[0])
+                && !dbset.name ().ReadName (vvchArgs[0], vtxPos))
+              return error("ConnectInputsHook() : failed to read from name DB");
+            vchType vchValue; // add
             int nHeight;
             uint256 hash;
             GetValueOfTxPos(txPos, vchValue, hash, nHeight);
@@ -2487,10 +2597,8 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
             txPos2.txPos = txPos;
             vtxPos.push_back(txPos2); // fin add
             //vtxPos.push_back(txPos);
-            if (!dbName.WriteName(vvchArgs[0], vtxPos))
+            if (!dbset.name ().WriteName (vvchArgs[0], vtxPos))
                 return error("ConnectInputsHook() : failed to write to name DB");
-
-            dbName.TxnCommit();
 
             CRITICAL_BLOCK(cs_main)
             {
@@ -2504,17 +2612,17 @@ bool CHuntercoinHooks::ConnectInputs(CTxDB& txdb,
     return true;
 }
 
-bool CHuntercoinHooks::DisconnectInputs(CTxDB& txdb,
-        const CTransaction& tx,
-        CBlockIndex* pindexBlock)
+bool
+CHuntercoinHooks::DisconnectInputs (DatabaseSet& dbset, const CTransaction& tx,
+                                    CBlockIndex* pindexBlock)
 {
-    if (tx.nVersion == GAME_TX_VERSION)
-        return DisconnectInputsGameTx(txdb, tx, pindexBlock);
+    if (tx.IsGameTx ())
+        return DisconnectInputsGameTx(dbset, tx, pindexBlock);
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;
 
-    vector<vector<unsigned char> > vvchArgs;
+    vector<vchType> vvchArgs;
     int op;
     int nOut;
 
@@ -2523,13 +2631,8 @@ bool CHuntercoinHooks::DisconnectInputs(CTxDB& txdb,
         return error("DisconnectInputsHook() : could not decode name tx");
     if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
     {
-        CNameDB dbName("cr+", txdb);
-
-        dbName.TxnBegin();
-
-        //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
-        if (!dbName.ReadName(vvchArgs[0], vtxPos))
+        if (!dbset.name ().ReadName (vvchArgs[0], vtxPos))
             return error("DisconnectInputsHook() : failed to read from name DB");
 
         // vtxPos might be empty if we pruned expired transactions.  However, it should normally still not
@@ -2539,10 +2642,8 @@ bool CHuntercoinHooks::DisconnectInputs(CTxDB& txdb,
         while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
             vtxPos.pop_back();
 
-        if (!dbName.WriteName(vvchArgs[0], vtxPos))
+        if (!dbset.name ().WriteName (vvchArgs[0], vtxPos))
             return error("DisconnectInputsHook() : failed to write to name DB");
-
-        dbName.TxnCommit();
     }
 
     return true;
@@ -2643,7 +2744,10 @@ bool CHuntercoinHooks::ExtractAddress(const CScript& script, string& address)
     return true;
 }
 
-bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex, int64 &nFees, unsigned int nPosAfterTx)
+bool
+CHuntercoinHooks::ConnectBlock (CBlock& block, DatabaseSet& dbset,
+                                CBlockIndex* pindex, int64 &nFees,
+                                unsigned int nPosAfterTx)
 {
     if (!block.vgametx.empty())
     {
@@ -2652,7 +2756,7 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
         printf("ConnectBlock hook : non-empty vgametx, clearing and re-creating\n");
     }
 
-    if (!AdvanceGameState(txdb, pindex, &block, nFees))
+    if (!AdvanceGameState (dbset, pindex, &block, nFees))
         return error("Connect block hook : AdvanceGameState failed");
 
     // If no game transactions or already written (e.g. if block was disconnected then reconnected),
@@ -2665,7 +2769,7 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
         {
             pindex->hashGameMerkleRoot = block.hashGameMerkleRoot;
             CDiskBlockIndex blockindex(pindex);
-            if (!txdb.WriteBlockIndex(blockindex))
+            if (!dbset.tx ().WriteBlockIndex (blockindex))
                 return error("ConnectBlock hook : WriteBlockIndex failed");
         }
 
@@ -2716,7 +2820,8 @@ bool CHuntercoinHooks::ConnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pin
         CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, block.nGameTxFile, nTxPos);
         nTxPos += ::GetSerializeSize(tx, SER_DISK);
 
-        if (!tx.ConnectInputs(txdb, mapUnused, posThisTx, pindex, nFees, true, false))
+        if (!tx.ConnectInputs (dbset, mapUnused, posThisTx, pindex,
+                               nFees, true, false))
             return error("ConnectBlock hook : ConnectInputs failed for game tx");
     }
 
@@ -2729,10 +2834,12 @@ CHuntercoinHooks::NewBlockAdded ()
   cv_stateChange.notify_all ();
 }
 
-bool CHuntercoinHooks::DisconnectBlock(CBlock& block, CTxDB& txdb, CBlockIndex* pindex)
+bool
+CHuntercoinHooks::DisconnectBlock (CBlock& block, DatabaseSet& dbset,
+                                   CBlockIndex* pindex)
 {
-    RollbackGameState(txdb, pindex);
-    return true;
+  RollbackGameState (dbset.tx (), pindex);
+  return true;
 }
 
 bool CHuntercoinHooks::GenesisBlock(CBlock& block)
