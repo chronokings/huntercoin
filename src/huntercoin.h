@@ -4,7 +4,6 @@
 #include <boost/thread/thread.hpp>
 #include "json/json_spirit.h"
 
-static const int NAMECOIN_TX_VERSION = 0x7100;
 // We can make name_new cheaper, if we want, separately from name_(first)update
 // This can be used e.g. to send short messages in the hash field. The coin will be
 // destroyed in this case. We can try setting it to 0 though.

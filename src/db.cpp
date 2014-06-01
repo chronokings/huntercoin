@@ -709,6 +709,123 @@ bool CTxDB::FixTxIndexBug()
 
     if (!WriteVersion(VERSION))
         return error("FixTxIndexBug: WriteVersion failed");
+
+  return true;
+}
+
+/* Rewrite all txindex objects in the DB to update the data format.  */
+bool
+CTxDB::RewriteTxIndex (int oldVersion)
+{
+  /* Load everything in memory first.  This avoids conflicts between reading
+     from the cursor and writing to the DB.  */
+  std::map<uint256, CTxIndex> txindex;
+
+  /* Get database cursor.  */
+  Dbc* pcursor = GetCursor ();
+  if (!pcursor)
+    return error ("RewriteTxIndex: could not get DB cursor");
+
+  /* Load to memory.  This doesn't yet set the correct spent types,
+     but sets each spent output to SPENT_UNKNOWN.  */
+  printf ("Reading in old tx entries...\n");
+  unsigned int fFlags = DB_SET_RANGE;
+  loop
+    {
+      /* Read next record.  */
+      CDataStream ssKey(SER_DISK, oldVersion);
+      if (fFlags == DB_SET_RANGE)
+        ssKey << std::make_pair (std::string ("tx"), uint256 (0));
+      CDataStream ssValue(SER_DISK, oldVersion);
+      int ret = ReadAtCursor (pcursor, ssKey, ssValue, fFlags);
+      fFlags = DB_NEXT;
+      if (ret == DB_NOTFOUND)
+        break;
+      if (ret != 0)
+        return error ("RewriteTxIndex: ReadAtCursor failed, ret = %d", ret);
+
+      /* Unserialize.  */
+
+      std::string strType;
+      ssKey >> strType;
+      if (strType != "tx")
+        break;
+      uint256 hash;
+      ssKey >> hash;
+
+      CTxIndex obj;
+      ssValue >> obj;
+
+      /* Store in map.  */
+      assert (txindex.find (hash) == txindex.end ());
+      txindex.insert (std::make_pair (hash, obj));
+    }
+  pcursor->close ();
+
+  /* Go through all possible spending transactions and set their inputs'
+     spent type accordingly.  */
+  if (oldVersion < 1001000)
+    {
+      printf ("Fixing tx spent types...\n");
+      CBlockIndex* pindex = pindexGenesisBlock;
+      for (const CBlockIndex* pindex = pindexGenesisBlock;
+           pindex; pindex = pindex->pnext)
+        {
+          if (pindex->nHeight % 1000 == 0)
+            printf ("  at height %d...\n", pindex->nHeight);
+
+          CBlock block;
+          block.ReadFromDisk (pindex);
+
+          std::vector<const CTransaction*> vtx;
+          vtx.reserve (block.vtx.size () + block.vgametx.size ());
+          BOOST_FOREACH(const CTransaction& tx, block.vtx)
+            {
+              vtx.push_back (&tx);
+            }
+          BOOST_FOREACH(const CTransaction& tx, block.vgametx)
+            {
+              vtx.push_back (&tx);
+            }
+
+          BOOST_FOREACH(const CTransaction* tx, vtx)
+            {
+              for (unsigned i = 0; i < tx->vin.size (); ++i)
+                if (!tx->vin[i].prevout.IsNull ())
+                  {
+                    const uint256& prevHash = tx->vin[i].prevout.hash;
+
+                    if (txindex.find (prevHash) == txindex.end ())
+                      return error ("RewriteTxIndex: Failed to find prev tx");
+                    txindex[prevHash].SetSpent (tx->vin[i].prevout.n, *tx);
+                  }
+            }
+        }
+
+      BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& item, txindex)
+        {
+          for (unsigned i = 0; i < item.second.GetOutputCount (); ++i)
+            if (item.second.GetSpent (i) == CTxIndex::SPENT_UNKNOWN)
+              return error ("RewriteTxIndex: Still unknown spent type");
+        }
+    }
+
+  /* Now write everything back.  */
+  printf ("Writing everything back...\n");
+  unsigned count = 0;
+  const unsigned totalCount = txindex.size ();
+  SetSerialisationVersion (VERSION);
+  BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& item, txindex)
+    {
+      if (!UpdateTxIndex (item.first, item.second))
+        return error ("RewriteTxIndex: UpdateTxIndex failed");
+
+      ++count;
+      if (count % 100000 == 0)
+        printf ("  %dk / %dk tx done...\n", count / 1000, totalCount / 1000);
+    }
+
+  return true;
 }
 
 
