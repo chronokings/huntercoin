@@ -2434,7 +2434,7 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
         while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
             vtxPos.pop_back();
 
-        if (!dbset.name ().WriteName (vvchPrevArgs[0], vtxPos))
+        if (!dbset.name ().WriteName (name, vtxPos))
             return error("DisconnectInputsGameTx() : failed to write to name DB");
     }
 
