@@ -531,6 +531,14 @@ json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = fals
     Object obj;
     obj.push_back(Pair("color", (int)color));
     obj.push_back(Pair("coinAmount", ValueFromAmount(coinAmount)));
+
+    /* If the character is poisoned, write that out.  Otherwise just
+       leave the field off.  */
+    if (remainingLive > 0)
+      obj.push_back (Pair("poison", remainingLive));
+    else
+      assert (remainingLive == -1);
+
     if (!message.empty())
     {
         obj.push_back(Pair("msg", message));

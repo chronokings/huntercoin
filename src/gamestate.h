@@ -260,6 +260,11 @@ struct PlayerState
     std::map<int, CharacterState> characters;   // Characters owned by the player (0 is the main character)
     int next_character_index;                   // Index of the next spawned character
 
+    /* Number of blocks the player still lives if poisoned.  If it is 1,
+       the player will be killed during the next game step.  -1 means
+       that there is no poisoning yet.  It should never be 0.  */
+    int remainingLive;
+
     std::string message;      // Last message, can be shown as speech bubble
     int message_block;        // Block number. Game visualizer can hide messages that are too old
     std::string address;      // Address for receiving rewards. Empty means receive to the name address
@@ -270,6 +275,15 @@ struct PlayerState
         READWRITE(color);
         READWRITE(characters);
         READWRITE(next_character_index);
+
+        /* Read in the remaining live time, unless this is an old format
+           game state.  In this case, no disaster / poisoning was implemented,
+           thus the value should be set to -1.  */
+        if (nVersion >= 1001100)
+          READWRITE(remainingLive);
+        else
+          assert (remainingLive == -1);
+
         READWRITE(message);
         READWRITE(message_block);
         READWRITE(address);
@@ -284,7 +298,7 @@ struct PlayerState
 
     PlayerState ()
       : color(0xFF), coinAmount(-1),
-        next_character_index(0), message_block(0)
+        next_character_index(0), remainingLive(-1), message_block(0)
     {}
 
     void SpawnCharacter(RandomGenerator &rnd);
