@@ -263,7 +263,7 @@ struct PlayerState
     /* Number of blocks the player still lives if poisoned.  If it is 1,
        the player will be killed during the next game step.  -1 means
        that there is no poisoning yet.  It should never be 0.  */
-    int remainingLive;
+    int remainingLife;
 
     std::string message;      // Last message, can be shown as speech bubble
     int message_block;        // Block number. Game visualizer can hide messages that are too old
@@ -276,13 +276,13 @@ struct PlayerState
         READWRITE(characters);
         READWRITE(next_character_index);
 
-        /* Read in the remaining live time, unless this is an old format
+        /* Read in the remaining life time, unless this is an old format
            game state.  In this case, no disaster / poisoning was implemented,
            thus the value should be set to -1.  */
         if (nVersion >= 1001100)
-          READWRITE(remainingLive);
+          READWRITE(remainingLife);
         else
-          assert (remainingLive == -1);
+          assert (remainingLife == -1);
 
         READWRITE(message);
         READWRITE(message_block);
@@ -298,7 +298,7 @@ struct PlayerState
 
     PlayerState ()
       : color(0xFF), coinAmount(-1),
-        next_character_index(0), remainingLive(-1), message_block(0)
+        next_character_index(0), remainingLife(-1), message_block(0)
     {}
 
     void SpawnCharacter(RandomGenerator &rnd);
@@ -395,6 +395,13 @@ struct GameState
        the state's list of players.  */
     void FinaliseKills (const PlayerSet& killedPlayers,
                         const KilledByMap& killedBy, int64& nTaxAmount);
+
+    /* Check if a disaster should happen at the current state given
+       the random numbers.  */
+    bool CheckForDisaster (RandomGenerator& rng) const;
+
+    /* Apply poison disaster to the state.  */
+    void ApplyPoison (RandomGenerator& rng);
 
 };
 

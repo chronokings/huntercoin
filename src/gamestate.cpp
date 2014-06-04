@@ -15,6 +15,17 @@ using namespace Game;
 
 json_spirit::Value ValueFromAmount(int64 amount);
 
+/* Parameters that determine when a poison-disaster will happen.  The
+   probability is 1/x at each block between min and max time.  */
+/* FIXME: Set actual values.  */
+static const unsigned PDISASTER_MIN_TIME = 1440;
+static const unsigned PDISASTER_MAX_TIME = 28 * 1440;
+static const unsigned PDISASTER_PROBABILITY = 10000;
+
+/* Parameters about how long a poisoned player may still live.  */
+static const unsigned POISON_MIN_LIFE = 1;
+static const unsigned POISON_MAX_LIFE = 100;
+
 namespace Game
 {
 
@@ -50,6 +61,16 @@ public:
             state = state0;
         }
         return state.DivideGetRemainder(modulo).getint();
+    }
+
+    /* Get an integer number in [a, b].  */
+    int GetIntRnd (int a, int b)
+    {
+      assert (a <= b);
+      const int mod = (b - a + 1);
+      const int res = GetIntRnd (mod) + a;
+      assert (res >= a && res <= b);
+      return res;
     }
 
 private:
@@ -534,10 +555,10 @@ json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = fals
 
     /* If the character is poisoned, write that out.  Otherwise just
        leave the field off.  */
-    if (remainingLive > 0)
-      obj.push_back (Pair("poison", remainingLive));
+    if (remainingLife > 0)
+      obj.push_back (Pair("poison", remainingLife));
     else
-      assert (remainingLive == -1);
+      assert (remainingLife == -1);
 
     if (!message.empty())
     {
@@ -958,6 +979,44 @@ GameState::FinaliseKills (const PlayerSet& killedPlayers,
     players.erase (victim);
 }
 
+bool
+GameState::CheckForDisaster (RandomGenerator& rng) const
+{
+  /* Before the hardfork, nothing should happen.  */
+  if (nHeight < FORK_HEIGHT_POISON)
+    return false;
+
+  /* Enforce max/min times.  */
+  const int dist = nHeight - nDisasterHeight;
+  assert (dist > 0);
+  if (dist < PDISASTER_MIN_TIME)
+    return false;
+  if (dist >= PDISASTER_MAX_TIME)
+    return true;
+
+  /* Check random chance.  */
+  return (rng.GetIntRnd (PDISASTER_PROBABILITY) == 0);
+}
+
+void
+GameState::ApplyPoison (RandomGenerator& rng)
+{
+  /* Set random life expectations for every player on the map.  */
+  BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState)& p, players)
+    {
+      /* Disasters should be so far apart, that all currently alive players
+         are not yet poisoned.  Check this.  In case we introduce a general
+         expiry, this can be changed accordingly -- but make sure that
+         poisoning doesn't actually *increase* the life expectation.  */
+      assert (p.second.remainingLife == -1);
+
+      p.second.remainingLife = rng.GetIntRnd (POISON_MIN_LIFE, POISON_MAX_LIFE);
+    }
+
+  /* Reset disaster counter.  */
+  nDisasterHeight = nHeight;
+}
+
 struct AttackableCharacter
 {
     const std::string *name;
@@ -1167,6 +1226,18 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         return true;
 
     RandomGenerator rnd(outState.hashBlock);
+
+    /* Decide about whether or not this will be a disaster.  It should be
+       the first action done with the RNG, so that it is possible to
+       verify whether or not a block hash leads to a disaster
+       relatively easily.  */
+    const bool isDisaster = outState.CheckForDisaster (rnd);
+    if (isDisaster)
+      {
+        printf ("POISON DISASTER @%d!\n", outState.nHeight);
+        outState.ApplyPoison (rnd);
+        assert (outState.nHeight == outState.nDisasterHeight);
+      }
 
     // Spawn new players
     BOOST_FOREACH(const Move &m, stepData.vMoves)
