@@ -419,8 +419,6 @@ void ManageNamesPage::setModel(WalletModel *walletModel)
     model->emitGameStateChanged();
 }
 
-extern bool IsValidPlayerName(const std::string &);
-
 void ManageNamesPage::on_newButton_clicked()
 {
     if (!walletModel)
@@ -436,7 +434,7 @@ void ManageNamesPage::on_newButton_clicked()
 
         if (!IsValidPlayerName(name.toStdString()))
             QMessageBox::warning(this, tr("Name registration error"),
-                  tr("The entered name is invalid. Allowed characters: alphanumeric, underscore, hyphen, whitespace (but not at start/end and no double whitespaces)."),
+                  tr("The entered name is invalid.  Allowed characters: alphanumeric, underscore, hyphen, whitespace (but not at start/end and no double whitespaces).  Maximum length is 10 characters."),
                   QMessageBox::Ok);
         else
             break;

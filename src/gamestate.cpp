@@ -15,17 +15,6 @@ using namespace Game;
 
 json_spirit::Value ValueFromAmount(int64 amount);
 
-bool IsValidPlayerName(const PlayerID &player)
-{
-    // Check player name validity
-    // Can contain letters, digits, underscore, hyphen and whitespace
-    // Cannot contain double whitespaces or start/end with whitespace
-    using namespace boost::xpressive;
-    static sregex regex = sregex::compile("^([a-zA-Z0-9_-]+ )*[a-zA-Z0-9_-]+$");
-    smatch match;
-    return regex_search(player, match, regex);
-}
-
 namespace Game
 {
 

@@ -200,15 +200,19 @@ int64 getAmount(Value value)
     return nAmount;
 }
 
-vector<unsigned char> vchFromValue(const Value& value) {
-    string strName = value.get_str();
-    unsigned char *strbeg = (unsigned char*)strName.c_str();
-    return vector<unsigned char>(strbeg, strbeg + strName.size());
+vchType
+vchFromValue (const Value& value)
+{
+  const std::string str = value.get_str ();
+  return vchFromString (str);
 }
 
-std::vector<unsigned char> vchFromString(const std::string &str) {
-    unsigned char *strbeg = (unsigned char*)str.c_str();
-    return vector<unsigned char>(strbeg, strbeg + str.size());
+vchType
+vchFromString (const std::string& str)
+{
+  const unsigned char* strbeg;
+  strbeg = reinterpret_cast<const unsigned char*> (str.c_str ());
+  return vchType(strbeg, strbeg + str.size ());
 }
 
 string stringFromVch(const vector<unsigned char> &vch) {
@@ -243,6 +247,21 @@ GetNameCoinAmount (unsigned nHeight, bool frontEnd)
     forkHeight -= 10;
 
   return (nHeight < forkHeight ? COIN : 20 * COIN);
+}
+
+bool
+IsValidPlayerName (const std::string& player)
+{
+    if (player.size () > MAX_NAME_LENGTH)
+      return false;
+
+    // Check player name validity
+    // Can contain letters, digits, underscore, hyphen and whitespace
+    // Cannot contain double whitespaces or start/end with whitespace
+    using namespace boost::xpressive;
+    static sregex regex = sregex::compile("^([a-zA-Z0-9_-]+ )*[a-zA-Z0-9_-]+$");
+    smatch match;
+    return regex_search(player, match, regex);
 }
 
 int GetTxPosHeight(const CNameIndex& txPos)
@@ -1302,18 +1321,22 @@ Value name_new(const Array& params, bool fHelp)
                 "name_new <name>"
                 + HelpRequiringPassphrase());
 
-    vector<unsigned char> vchName = vchFromValue(params[0]);
+    const std::string& name = params[0].get_str ();
+    if (!IsValidPlayerName (name))
+      throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid player name");
+
+    const vchType vchName = vchFromString (name);
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
 
     uint64 rand = GetRand((uint64)-1);
-    vector<unsigned char> vchRand = CBigNum(rand).getvch();
-    vector<unsigned char> vchToHash(vchRand);
+    const vchType vchRand = CBigNum(rand).getvch();
+    vchType vchToHash(vchRand);
     vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
-    uint160 hash = Hash160(vchToHash);
+    const uint160 hash = Hash160(vchToHash);
 
-    vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool();
+    const vchType vchPubKey = pwalletMain->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
     scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     CScript scriptPubKey;
@@ -2664,8 +2687,6 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
                 return error("name_new tx with incorrect hash length");
             break;
         case OP_NAME_FIRSTUPDATE:
-            if (vvch[0].size() > MAX_NAME_LENGTH)
-                return error("name transaction with name too long");
             if (vvch[1].size() > 20)
                 return error("name_firstupdate tx with rand too big");
             if (vvch[2].size() > MAX_VALUE_LENGTH)
@@ -2673,15 +2694,19 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
             m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
             if (!m)
                 return error("name_firstupdate : incorrect game move");
+            /* Move parsing already checks for valid player name, which
+               in turn includes the length check.  */
+            assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
         case OP_NAME_UPDATE:
-            if (vvch[0].size() > MAX_NAME_LENGTH)
-                return error("name transaction with name too long");
             if (vvch[1].size() > MAX_VALUE_LENGTH)
                 return error("name_update tx with value too long");
             m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[1]));
             if (!m)
                 return error("name_update : incorrect game move");
+            /* Move parsing already checks for valid player name, which
+               in turn includes the length check.  */
+            assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
         default:
             return error("name transaction has unknown op");
