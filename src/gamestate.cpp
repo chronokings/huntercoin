@@ -946,7 +946,9 @@ GameState::FinaliseKills (const PlayerSet& killedPlayers,
       const PlayerState& victimState = players.find (victim)->second;
 
       /* If killed by the game for staying in the spawn area, then no tax.  */
-      const bool apply_tax = (killedBy.count (victim) > 0);
+      const KilledByMap::const_iterator iter = killedBy.find (victim);
+      assert (iter != killedBy.end ());
+      const bool apply_tax = iter->second.HasDeathTax ();
 
       /* Kill all alive characters of the player.  */
       BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
@@ -1092,8 +1094,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                             continue;  // Do not kill same color
                         if (a.index == 0)
                         {
-                            stepResult.killedBy.insert(std::make_pair(*a.name, chid));
-                            stepResult.killedPlayers.insert(*a.name);
+                            const KilledByInfo killer(chid);
+                            stepResult.KillPlayer (*a.name, killer);
                         }
                         if (victim.characters.count(a.index))
                         {
@@ -1139,8 +1141,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             }
             if (i == 0)
             {
-                stepResult.killedPlayers.insert(m.player);
-                stepResult.killedBy.insert(std::make_pair(m.player, CharacterID(m.player, i)));
+                const KilledByInfo killer(CharacterID(m.player, i));
+                stepResult.KillPlayer (m.player, killer);
             }
         }
     }
@@ -1165,7 +1167,9 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                     {
                         assert (p.second.coinAmount >= 0);
                         nAmount += p.second.coinAmount;
-                        stepResult.killedPlayers.insert(p.first);
+
+                        const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
+                        stepResult.KillPlayer (p.first, killer);
                     }
                     if (nAmount > 0)
                         outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);

@@ -16,7 +16,7 @@ enum
     // Syntax (scriptSig):
     //     victim GAMEOP_KILLED_BY killer1 killer2 ... killerN
     // Player can be killed simultaneously by multiple other players.
-    // If N = 0, player was killed by the game (for staying for too long in the spawn area)
+    // If N = 0, player was killed for staying too long in spawn area.
     GAMEOP_KILLED_BY = 1,
 
     // Syntax (scriptSig):
@@ -52,14 +52,44 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
 
       CTxIn txin(tx.GetHash (), IndexOfNameOutput (tx));
 
-      txin.scriptSig << vchName << GAMEOP_KILLED_BY;
-
       /* List all killers, if player was simultaneously killed by several
-         other players.  */
-      typedef std::multimap<PlayerID, CharacterID>::const_iterator Iter;
+         other players.  If the reason was not KILLED_DESTRUCT, handle
+         it also.  */
+      typedef KilledByMap::const_iterator Iter;
       std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range (victim);
-      for (Iter it = iters.first; it != iters.second; ++it)
-        txin.scriptSig << vchFromString (it->second.ToString ());
+      if (iters.first == iters.second)
+        return error ("No reason for killed player %s", victim.c_str ());
+      const KilledByInfo::Reason reason = iters.first->second.reason;
+
+      {
+        Iter it = iters.first;
+        ++it;
+        if (reason != KilledByInfo::KILLED_DESTRUCT && it != iters.second)
+          return error ("Multiple non-destruct killed-by entries for %s",
+                        victim.c_str ());
+      }
+
+      switch (reason)
+        {
+        case KilledByInfo::KILLED_DESTRUCT:
+          txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+          for (Iter it = iters.first; it != iters.second; ++it)
+            {
+              if (it->second.reason != KilledByInfo::KILLED_DESTRUCT)
+                return error ("Different killed-by reasons for %s",
+                              victim.c_str ());
+              txin.scriptSig << vchFromString (it->second.killer.ToString ());
+            }
+          break;
+
+        case KilledByInfo::KILLED_SPAWN:
+          txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+          break;
+
+        default:
+          assert (false);
+        }
+
       txNew.vin.push_back (txin);
     }
   if (!txNew.IsNull ())

@@ -56,12 +56,13 @@ struct CharacterID
     bool operator>=(const CharacterID &that) const { return !(*this < that); }
 };
 
-// Define STL types used for killed player identification later on.
-typedef std::set<PlayerID> PlayerSet;
-typedef std::multimap<PlayerID, CharacterID> KilledByMap;
-
 class GameState;
 class RandomGenerator;
+class KilledByInfo;
+
+// Define STL types used for killed player identification later on.
+typedef std::set<PlayerID> PlayerSet;
+typedef std::multimap<PlayerID, KilledByInfo> KilledByMap;
 
 struct Coord
 {
@@ -416,9 +417,8 @@ struct StepData : boost::noncopyable
    as per the player state (may be empty if no explicit address is set), so
    that the reward-paying game tx can be constructed even if the player
    is no longer alive (e. g., killed by a disaster).  */
-class CollectedBounty
+struct CollectedBounty
 {
-public:
 
   CharacterID character;
   CollectedLootInfo loot;
@@ -429,6 +429,75 @@ public:
                           const std::string& addr)
     : character(p, cInd), loot(l), address(addr)
   {}
+
+};
+
+/* Encode data about why or by whom a player was killed.  Possibilities
+   are a player (also self-destruct), staying too long in spawn area and
+   due to poisoning after a disaster.  The information is used to
+   construct the game transactions.  */
+struct KilledByInfo
+{
+
+  /* Actual reason for death.  */
+  enum Reason
+  {
+    KILLED_DESTRUCT = 1, /* Killed by destruct / some player.  */
+    KILLED_SPAWN,        /* Staying too long in spawn area.  */
+    KILLED_POISON        /* Killed by poisoning.  */
+  } reason;
+
+  /* The killing character, if killed by destruct.  */
+  CharacterID killer;
+
+  inline KilledByInfo (Reason why)
+    : reason(why)
+  {
+    assert (why != KILLED_DESTRUCT);
+  }
+
+  inline KilledByInfo (const CharacterID& ch)
+    : reason(KILLED_DESTRUCT), killer(ch)
+  {}
+
+  /* See if this killing reason pays out miner tax or not.  */
+  inline bool
+  HasDeathTax () const
+  {
+    return reason != KILLED_SPAWN;
+  }
+
+  /* Comparison necessary for STL containers.  */
+
+  friend inline bool
+  operator== (const KilledByInfo& a, const KilledByInfo& b)
+  {
+    if (a.reason != b.reason)
+      return false;
+
+    switch (a.reason)
+      {
+      case KILLED_DESTRUCT:
+        return a.killer == b.killer;
+      default:
+        return true;
+      }
+  }
+
+  friend inline bool
+  operator< (const KilledByInfo& a, const KilledByInfo& b)
+  {
+    if (a.reason != b.reason)
+      return (a.reason < b.reason);
+
+    switch (a.reason)
+      {
+      case KILLED_DESTRUCT:
+        return a.killer < b.killer;
+      default:
+        return false;
+      }
+  }
 
 };
 
@@ -444,6 +513,15 @@ struct StepResult
     KilledByMap killedBy;
 
     int64 nTaxAmount;
+
+    /* Insert information about a killed player.  */
+    inline void
+    KillPlayer (const PlayerID& victim, const KilledByInfo& killer)
+    {
+      killedBy.insert (std::make_pair (victim, killer));
+      killedPlayers.insert (victim);
+    }
+
 };
 
 // All moves happen simultaneously, so this function must work identically
