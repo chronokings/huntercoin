@@ -245,6 +245,21 @@ GetNameCoinAmount (unsigned nHeight, bool frontEnd)
   return (nHeight < forkHeight ? COIN : 20 * COIN);
 }
 
+bool
+IsValidPlayerName (const std::string& player)
+{
+    if (player.size () > MAX_NAME_LENGTH)
+      return false;
+
+    // Check player name validity
+    // Can contain letters, digits, underscore, hyphen and whitespace
+    // Cannot contain double whitespaces or start/end with whitespace
+    using namespace boost::xpressive;
+    static sregex regex = sregex::compile("^([a-zA-Z0-9_-]+ )*[a-zA-Z0-9_-]+$");
+    smatch match;
+    return regex_search(player, match, regex);
+}
+
 int GetTxPosHeight(const CNameIndex& txPos)
 {
     return txPos.nHeight;
@@ -2664,8 +2679,6 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
                 return error("name_new tx with incorrect hash length");
             break;
         case OP_NAME_FIRSTUPDATE:
-            if (vvch[0].size() > MAX_NAME_LENGTH)
-                return error("name transaction with name too long");
             if (vvch[1].size() > 20)
                 return error("name_firstupdate tx with rand too big");
             if (vvch[2].size() > MAX_VALUE_LENGTH)
@@ -2673,15 +2686,19 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
             m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
             if (!m)
                 return error("name_firstupdate : incorrect game move");
+            /* Move parsing already checks for valid player name, which
+               in turn includes the length check.  */
+            assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
         case OP_NAME_UPDATE:
-            if (vvch[0].size() > MAX_NAME_LENGTH)
-                return error("name transaction with name too long");
             if (vvch[1].size() > MAX_VALUE_LENGTH)
                 return error("name_update tx with value too long");
             m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[1]));
             if (!m)
                 return error("name_update : incorrect game move");
+            /* Move parsing already checks for valid player name, which
+               in turn includes the length check.  */
+            assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
         default:
             return error("name transaction has unknown op");
