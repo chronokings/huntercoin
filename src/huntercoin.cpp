@@ -200,15 +200,19 @@ int64 getAmount(Value value)
     return nAmount;
 }
 
-vector<unsigned char> vchFromValue(const Value& value) {
-    string strName = value.get_str();
-    unsigned char *strbeg = (unsigned char*)strName.c_str();
-    return vector<unsigned char>(strbeg, strbeg + strName.size());
+vchType
+vchFromValue (const Value& value)
+{
+  const std::string str = value.get_str ();
+  return vchFromString (str);
 }
 
-std::vector<unsigned char> vchFromString(const std::string &str) {
-    unsigned char *strbeg = (unsigned char*)str.c_str();
-    return vector<unsigned char>(strbeg, strbeg + str.size());
+vchType
+vchFromString (const std::string& str)
+{
+  const unsigned char* strbeg;
+  strbeg = reinterpret_cast<const unsigned char*> (str.c_str ());
+  return vchType(strbeg, strbeg + str.size ());
 }
 
 string stringFromVch(const vector<unsigned char> &vch) {
@@ -1317,18 +1321,22 @@ Value name_new(const Array& params, bool fHelp)
                 "name_new <name>"
                 + HelpRequiringPassphrase());
 
-    vector<unsigned char> vchName = vchFromValue(params[0]);
+    const std::string& name = params[0].get_str ();
+    if (!IsValidPlayerName (name))
+      throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid player name");
+
+    const vchType vchName = vchFromString (name);
 
     CWalletTx wtx;
     wtx.nVersion = NAMECOIN_TX_VERSION;
 
     uint64 rand = GetRand((uint64)-1);
-    vector<unsigned char> vchRand = CBigNum(rand).getvch();
-    vector<unsigned char> vchToHash(vchRand);
+    const vchType vchRand = CBigNum(rand).getvch();
+    vchType vchToHash(vchRand);
     vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
-    uint160 hash = Hash160(vchToHash);
+    const uint160 hash = Hash160(vchToHash);
 
-    vector<unsigned char> vchPubKey = pwalletMain->GetKeyFromKeyPool();
+    const vchType vchPubKey = pwalletMain->GetKeyFromKeyPool();
     CScript scriptPubKeyOrig;
     scriptPubKeyOrig.SetBitcoinAddress(vchPubKey);
     CScript scriptPubKey;
