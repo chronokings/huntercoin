@@ -38,6 +38,8 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
                         const StepResult& stepResult,
                         std::vector<CTransaction>& outvgametx)
 {
+  printf ("Constructing game tx @%d...\n", gameState.nHeight);
+
   // Create resulting game transactions
   // Transaction hashes must be unique
   outvgametx.clear ();
@@ -56,6 +58,9 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
       if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
         return error ("Game engine killed a non-existing player %s",
                       victim.c_str ());
+
+      if (fDebug)
+        printf ("  killed: %s\n", victim.c_str ());
 
       CTxIn txin(tx.GetHash (), IndexOfNameOutput (tx));
 
@@ -104,7 +109,10 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
       txNew.vin.push_back (txin);
     }
   if (!txNew.IsNull ())
-    outvgametx.push_back (txNew);
+    {
+      outvgametx.push_back (txNew);
+      printf ("Game tx for killed players: %s\n", txNew.GetHashForLog ());
+    }
 
   /* Pay bounties to the players who collected them.  The transaction
      inputs are just "dummy" containing informational messages.  */
@@ -153,7 +161,10 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
       txNew.vin.push_back (txin);
     }
   if (!txNew.IsNull ())
-    outvgametx.push_back (txNew);
+    {
+      outvgametx.push_back (txNew);
+      printf ("Game tx for bounties: %s\n", txNew.GetHashForLog ());
+    }
 
   return true;
 }

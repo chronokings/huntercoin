@@ -350,7 +350,7 @@ public:
     const char*
     ToLogString () const
     {
-        return ToString ().substr (0, 10).c_str ();
+        return ToString ().c_str ();
     }
 
     unsigned char* begin()

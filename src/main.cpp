@@ -1047,7 +1047,11 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
             fFound = txdb.ReadTxIndex(prevout.hash, txindex);
         }
         if (!fFound && (fBlock || fMiner))
-            return fMiner ? false : error("FetchInputs() : %s prev tx %s index entry not found", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
+            return fMiner ? false
+                          : error ("FetchInputs() : %s prev tx %s"
+                                   " index entry not found",
+                                   GetHashForLog (),
+                                   prevout.hash.ToLogString ());
 
         // Read txPrev
         CTransaction& txPrev = inputsRet[prevout.hash].second;
