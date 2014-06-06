@@ -58,12 +58,14 @@ struct CharacterID
 
 class GameState;
 class RandomGenerator;
+class PlayerState;
 class KilledByInfo;
 class StepResult;
 
 // Define STL types used for killed player identification later on.
 typedef std::set<PlayerID> PlayerSet;
 typedef std::multimap<PlayerID, KilledByInfo> KilledByMap;
+typedef std::map<PlayerID, PlayerState> PlayerStateMap;
 
 struct Coord
 {
@@ -316,7 +318,7 @@ struct GameState
     GameState();
 
     // Player states
-    std::map<PlayerID, PlayerState> players;
+    PlayerStateMap players;
 
     // Last chat messages of dead players (only in the current block)
     // Minimum info is stored: color, message, message_block.
@@ -432,6 +434,10 @@ struct CollectedBounty
                           const std::string& addr)
     : character(p, cInd), loot(l), address(addr)
   {}
+
+  /* Look up the player in the given game state and if it is still
+     there, update the address from the game state.  */
+  void UpdateAddress (const GameState& state);
 
 };
 

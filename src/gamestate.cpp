@@ -1039,6 +1039,17 @@ GameState::DecrementLife (StepResult& step)
     }
 }
 
+void
+CollectedBounty::UpdateAddress (const GameState& state)
+{
+  const PlayerID& p = character.player;
+  const PlayerStateMap::const_iterator i = state.players.find (p);
+  if (i == state.players.end ())
+    return;
+
+  address = i->second.address;
+}
+
 struct AttackableCharacter
 {
     const std::string *name;
@@ -1274,6 +1285,12 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     // Apply address & message updates
     BOOST_FOREACH(const Move &m, stepData.vMoves)
         m.ApplyCommon(outState);
+
+    /* In the (rare) case that a player collected a bounty, is still alive
+       and changed the reward address at the same time, make sure that the
+       bounty is paid to the new address to match the old network behaviour.  */
+    BOOST_FOREACH(CollectedBounty& bounty, stepResult.bounties)
+      bounty.UpdateAddress (outState);
 
     // Set colors for dead players, so their messages can be shown in the chat window
     BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.dead_players_chat)
