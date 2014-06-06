@@ -706,7 +706,7 @@ bool UpgradeGameDB()
         gameDb.Close();
     }
 
-    if (nGameDbVersion < 1000900)
+    if (nGameDbVersion < 1001100)
     {
         printf("Updating GameDB...\n");
 
