@@ -59,6 +59,7 @@ struct CharacterID
 class GameState;
 class RandomGenerator;
 class KilledByInfo;
+class StepResult;
 
 // Define STL types used for killed player identification later on.
 typedef std::set<PlayerID> PlayerSet;
@@ -394,8 +395,7 @@ struct GameState
     /* For a given list of killed players, kill all their characters
        and collect the tax amount.  The killed players are removed from
        the state's list of players.  */
-    void FinaliseKills (const PlayerSet& killedPlayers,
-                        const KilledByMap& killedBy, int64& nTaxAmount);
+    void FinaliseKills (StepResult& step);
 
     /* Check if a disaster should happen at the current state given
        the random numbers.  */
@@ -403,6 +403,9 @@ struct GameState
 
     /* Apply poison disaster to the state.  */
     void ApplyPoison (RandomGenerator& rng);
+    /* Decrement poison life expectation and kill players whose has
+       dropped to zero.  */
+    void DecrementLife (StepResult& step);
 
 };
 

@@ -26,6 +26,11 @@ enum
     // (alternatively we could add vout index to the scriptSig, to allow more complex transactions
     // with arbitrary input assignments, or store it in scriptPubKey of the tx-out instead)
     GAMEOP_COLLECTED_BOUNTY = 2,
+
+    // Syntax (scriptSig):
+    //     victim GAMEOP_KILLED_POISON
+    // Player was killed due to poisoning
+    GAMEOP_KILLED_POISON = 3,
 };
 
 bool
@@ -86,6 +91,10 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
 
         case KilledByInfo::KILLED_SPAWN:
           txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+          break;
+
+        case KilledByInfo::KILLED_POISON:
+          txin.scriptSig << vchName << GAMEOP_KILLED_POISON;
           break;
 
         default:
@@ -164,6 +173,7 @@ IsPlayerDeathInput (const CTxIn& in, vchType& name)
   switch (opcode - OP_1 + 1)
     {
     case GAMEOP_KILLED_BY:
+    case GAMEOP_KILLED_POISON:
       return true;
 
     default:
@@ -236,6 +246,14 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             if (fFirst)
                 strRet += _("killed for staying too long in the spawn area");
             break;
+
+        case GAMEOP_KILLED_POISON:
+            if (fBrief)
+                return strRet + " " + _("is killed");
+            strRet += " ";
+            strRet += _("died from poison");
+            break;
+
         case GAMEOP_COLLECTED_BOUNTY:
             scriptSig.GetOp(pc, opcode, vch);
             if (opcode >= OP_1)
@@ -243,6 +261,7 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             strRet += " ";
             strRet += _("collected bounty");
             break;
+
         default:
             strRet += " ";
             strRet += _("(unknown tx type)");

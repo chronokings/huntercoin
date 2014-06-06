@@ -937,9 +937,11 @@ PushCoordOutOfSpawnArea(const Coord &c)
 }
 
 void
-GameState::FinaliseKills (const PlayerSet& killedPlayers,
-                          const KilledByMap& killedBy, int64& nTaxAmount)
+GameState::FinaliseKills (StepResult& step)
 {
+  const PlayerSet& killedPlayers = step.GetKilledPlayers ();
+  const KilledByMap& killedBy = step.GetKilledBy ();
+
   /* Kill depending characters.  */
   BOOST_FOREACH(const PlayerID& victim, killedPlayers)
     {
@@ -957,17 +959,16 @@ GameState::FinaliseKills (const PlayerSet& killedPlayers,
           const int i = pc.first;
           const CharacterState& ch = pc.second;
 
-          /* The general was already killed by the triggering action!  */
-          assert (i > 0);
-
           int64 nAmount = ch.loot.nAmount;
+          if (i == 0)
+            nAmount += victimState.coinAmount;
           if (nAmount > 0)
             {
               if (apply_tax)
                 {
                   // Tax from killing: 4%
                   const int64 nTax = nAmount / 25;
-                  nTaxAmount += nTax;
+                  step.nTaxAmount += nTax;
                   nAmount -= nTax;
                 }
 
@@ -1017,6 +1018,25 @@ GameState::ApplyPoison (RandomGenerator& rng)
 
   /* Reset disaster counter.  */
   nDisasterHeight = nHeight;
+}
+
+void
+GameState::DecrementLife (StepResult& step)
+{
+  BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState)& p, players)
+    {
+      if (p.second.remainingLife == -1)
+        continue;
+
+      assert (p.second.remainingLife > 0);
+      --p.second.remainingLife;
+
+      if (p.second.remainingLife == 0)
+        {
+          const KilledByInfo killer(KilledByInfo::KILLED_POISON);
+          step.KillPlayer (p.first, killer);
+        }
+    }
 }
 
 struct AttackableCharacter
@@ -1183,9 +1203,12 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             p.second.characters.erase(i);
     }
 
+    /* Decrement poison life expectation and kill players when it
+       has dropped to zero.  */
+    outState.DecrementLife (stepResult);
+
     /* Finalise the kills.  */
-    outState.FinaliseKills (stepResult.GetKilledPlayers (),
-                            stepResult.GetKilledBy (), stepResult.nTaxAmount);
+    outState.FinaliseKills (stepResult);
 
     /* Apply updates to target coordinate.  This ignores already
        killed players.  */
