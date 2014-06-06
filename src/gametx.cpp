@@ -41,8 +41,10 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
   txNew.SetGameTx ();
 
   // Destroy name-coins of killed players
-  txNew.vin.reserve(stepResult.killedPlayers.size());
-  BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
+  const PlayerSet& killedPlayers = stepResult.GetKilledPlayers ();
+  const KilledByMap& killedBy = stepResult.GetKilledBy ();
+  txNew.vin.reserve (killedPlayers.size ());
+  BOOST_FOREACH(const PlayerID &victim, killedPlayers)
     {
       const vchType vchName = vchFromString (victim);
       CTransaction tx;
@@ -56,7 +58,7 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
          other players.  If the reason was not KILLED_DESTRUCT, handle
          it also.  */
       typedef KilledByMap::const_iterator Iter;
-      std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range (victim);
+      const std::pair<Iter, Iter> iters = killedBy.equal_range (victim);
       if (iters.first == iters.second)
         return error ("No reason for killed player %s", victim.c_str ());
       const KilledByInfo::Reason reason = iters.first->second.reason;

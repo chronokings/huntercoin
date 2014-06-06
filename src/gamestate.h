@@ -501,18 +501,23 @@ struct KilledByInfo
 
 };
 
-struct StepResult
+class StepResult
 {
-    StepResult() : nTaxAmount(0) { }
 
-    std::vector<CollectedBounty> bounties;
+private:
 
     // The following arrays only contain killed players
     // (i.e. the main character)
     PlayerSet killedPlayers;
     KilledByMap killedBy;
 
+public:
+
+    std::vector<CollectedBounty> bounties;
+
     int64 nTaxAmount;
+
+    StepResult() : nTaxAmount(0) { }
 
     /* Insert information about a killed player.  */
     inline void
@@ -520,6 +525,20 @@ struct StepResult
     {
       killedBy.insert (std::make_pair (victim, killer));
       killedPlayers.insert (victim);
+    }
+
+    /* Read-only access to the killed player maps.  */
+
+    inline const PlayerSet&
+    GetKilledPlayers () const
+    {
+      return killedPlayers;
+    }
+
+    inline const KilledByMap&
+    GetKilledBy () const
+    {
+      return killedBy;
     }
 
 };

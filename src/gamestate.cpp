@@ -1184,8 +1184,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     }
 
     /* Finalise the kills.  */
-    outState.FinaliseKills (stepResult.killedPlayers, stepResult.killedBy,
-                            stepResult.nTaxAmount);
+    outState.FinaliseKills (stepResult.GetKilledPlayers (),
+                            stepResult.GetKilledBy (), stepResult.nTaxAmount);
 
     /* Apply updates to target coordinate.  This ignores already
        killed players.  */
