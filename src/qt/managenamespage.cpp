@@ -51,6 +51,7 @@ public:
         Coins = 1,
         Status = 2,
         Time = 3,
+        Life = 4,
         NUM_COLUMNS
     };
 
@@ -89,7 +90,7 @@ public:
 
         if (role == Qt::DisplayRole || role == Qt::EditRole)
         {
-            int i = alive[index.row()];
+            const int i = alive[index.row()];
             QueuedPlayerMoves::const_iterator mi;
             std::map<int, Game::CharacterState>::const_iterator mi2;
             switch (index.column())
@@ -108,11 +109,13 @@ public:
                     }
                     return ret;
                 }
+
                 case Coins:
                     mi2 = state.characters.find(i);
                     if (mi2 != state.characters.end())
                         return QString::fromStdString(FormatMoney(mi2->second.loot.nAmount));    // TODO: for sorting return as float value
                     return QVariant();
+
                 case Status:
                     if (pending)
                         return tr("Pending");
@@ -132,7 +135,9 @@ public:
                         else
                             return tr("Moving");
                     }
+
                 case Time:
+                  {
                     unsigned val = 0;
                     mi = queuedMoves.find(i);
                     mi2 = state.characters.find(i);
@@ -144,6 +149,20 @@ public:
                     if (val > 0)
                         return QString("%1").arg(val);
                     return "";
+                  }
+
+                case Life:
+                  {
+                    /* Show remaining life only for general.  */
+                    if (i != 0)
+                      return "";
+
+                    if (state.remainingLife == -1)
+                      return "";
+
+                    assert (state.remainingLife > 0);
+                    return QString("%1").arg (state.remainingLife);
+                  }
             }
         }
         else if (role == Qt::TextAlignmentRole)
@@ -168,6 +187,8 @@ public:
                         return tr("Status");
                     case Time:
                         return tr("Time");
+                    case Life:
+                        return tr("Life");
                 }
             }
             else if (role == Qt::TextAlignmentRole)
@@ -184,6 +205,8 @@ public:
                         return tr("Character status");
                     case Time:
                         return tr("Time until destination is reached (in blocks)");
+                    case Life:
+                        return tr("Remaining life in blocks");
                 }
             }
         }
@@ -344,7 +367,8 @@ const QString NON_REWARD_ADDRESS_PREFIX = "-";
 
 const static int COLUMN_WIDTH_COINS = 70;
 const static int COLUMN_WIDTH_STATE = 50;
-const static int COLUMN_WIDTH_TIME = 50;
+const static int COLUMN_WIDTH_TIME = 40;
+const static int COLUMN_WIDTH_LIFE = 40;
 
 ManageNamesPage::ManageNamesPage(QWidget *parent) :
     QWidget(parent),
@@ -729,10 +753,12 @@ void ManageNamesPage::RefreshCharacterList()
     ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Coins, COLUMN_WIDTH_COINS);
     ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Status, COLUMN_WIDTH_STATE);
     ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Time, COLUMN_WIDTH_TIME);
+    ui->tableCharacters->horizontalHeader()->resizeSection(CharacterTableModel::Life, COLUMN_WIDTH_LIFE);
     ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Name, QHeaderView::Stretch);
     ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Coins, QHeaderView::Fixed);
     ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Status, QHeaderView::Fixed);
     ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Time, QHeaderView::Fixed);
+    ui->tableCharacters->horizontalHeader()->setResizeMode(CharacterTableModel::Life, QHeaderView::Fixed);
     QItemSelection sel;
     foreach (QString character, selectedCharacters)
     {
