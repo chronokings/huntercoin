@@ -829,6 +829,19 @@ GameState::GetNumInitialCharacters () const
   return (nHeight < FORK_HEIGHT_POISON ? 3 : 1);
 }
 
+int64
+GameState::GetCoinsOnMap () const
+{
+  int64 onMap = 0;
+  BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo)& l, loot)
+    onMap += l.second.nAmount;
+  BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState)& p, players)
+    BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc, p.second.characters)
+      onMap += pc.second.loot.nAmount;
+
+  return onMap;
+}
+
 void GameState::CollectHearts(RandomGenerator &rnd)
 {
     std::map<Coord, std::vector<PlayerState*> > playersOnHeartTile;

@@ -409,6 +409,11 @@ struct GameState
        dropped to zero.  */
     void DecrementLife (StepResult& step);
 
+    /* Return total amount of coins on the map (in loot and hold by players,
+       excluding coins locked by generals since they appear in the UTXO set
+       already).  */
+    int64 GetCoinsOnMap () const;
+
 };
 
 struct StepData : boost::noncopyable

@@ -1945,6 +1945,82 @@ bool CNameDB::ScanNames(
     return true;
 }
 
+/* Analyse the UTXO set.  This possibly takes a very long time.  */
+static Value
+analyseutxo (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size() > 0)
+    throw std::runtime_error (
+          "analyseutxo\n"
+          "Look through the UTXO and construct certain data about it.");
+
+  CTxDB txdb("r");
+  CCriticalBlock lock(cs_main);
+
+  unsigned txCnt = 0;
+  unsigned txoCnt = 0;
+  unsigned totalTx = 0;
+  unsigned totalTxo = 0;
+  int64_t amount = 0;
+  const CBlockIndex* pInd = pindexBest;
+  const unsigned startingHeight = pInd->nHeight;
+  for (; pInd; pInd = pInd->pprev)
+    {
+      printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
+      std::vector<const CTransaction*> vTxs;
+
+      CBlock block;
+      block.ReadFromDisk (pInd);
+
+      for (unsigned i = 0; i < block.vtx.size (); ++i)
+        vTxs.push_back (&block.vtx[i]);
+      for (unsigned i = 0; i < block.vgametx.size (); ++i)
+        vTxs.push_back (&block.vgametx[i]);
+
+      totalTx += vTxs.size ();
+      for (unsigned i = 0; i < vTxs.size (); ++i)
+        {
+          CTxIndex txindex;
+          if (!txdb.ReadTxIndex (vTxs[i]->GetHash (), txindex))
+            throw std::runtime_error ("ReadTxIndex failed.");
+
+          bool hasUnspent = false;
+          totalTxo += vTxs[i]->vout.size ();
+          for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
+            if (!txindex.IsSpent (j))
+              {
+                hasUnspent = true;
+                ++txoCnt;
+                amount += vTxs[i]->vout[j].nValue;
+              }
+          if (hasUnspent)
+            ++txCnt;
+        }
+
+      /* Since this is an async RPC call, give the main thread a chance
+         to interrupt this thread in case the server is going to shut down.  */
+      boost::this_thread::interruption_point ();
+    }
+
+  /* Also calculate total number of coins on the map, so that we get the total
+     money supply and can check it.  */
+  const Game::GameState& state = GetCurrentGameState ();
+  assert (state.nHeight == startingHeight);
+  const int64 onMap = state.GetCoinsOnMap ();
+
+  Object res;
+  res.push_back (Pair ("height", static_cast<int> (startingHeight)));
+  res.push_back (Pair ("ntx", static_cast<int> (txCnt)));
+  res.push_back (Pair ("ntxout", static_cast<int> (txoCnt)));
+  res.push_back (Pair ("total_tx", static_cast<int> (totalTx)));
+  res.push_back (Pair ("total_txout", static_cast<int> (totalTxo)));
+  res.push_back (Pair ("total", ValueFromAmount (amount)));
+  res.push_back (Pair ("on_map", ValueFromAmount (onMap)));
+  res.push_back (Pair ("moneysupply", ValueFromAmount (amount + onMap)));
+
+  return res;
+}
+
 bool CNameDB::ReconstructNameIndex()
 {
     CTxDB txdb("r");
@@ -2043,6 +2119,7 @@ bool CNameDB::ReconstructNameIndex()
 
 CHooks* InitHook()
 {
+    mapCallTable.insert(make_pair("analyseutxo", &analyseutxo));
     mapCallTable.insert(make_pair("name_new", &name_new));
     mapCallTable.insert(make_pair("name_update", &name_update));
     mapCallTable.insert(make_pair("name_firstupdate", &name_firstupdate));
