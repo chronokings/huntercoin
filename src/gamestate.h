@@ -448,7 +448,9 @@ struct CollectedBounty
 struct KilledByInfo
 {
 
-  /* Actual reason for death.  */
+  /* Actual reason for death.  Since this is also used for ordering of
+     the killed-by infos, the order here is crucial and determines
+     how the killed-by info will be represented in the constructed game tx.  */
   enum Reason
   {
     KILLED_DESTRUCT = 1, /* Killed by destruct / some player.  */

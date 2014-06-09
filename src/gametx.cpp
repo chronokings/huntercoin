@@ -66,19 +66,27 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
 
       /* List all killers, if player was simultaneously killed by several
          other players.  If the reason was not KILLED_DESTRUCT, handle
-         it also.  */
+         it also.  If multiple reasons apply, the game tx is constructed
+         for the first reason according to the ordering inside of KilledByMap.
+         (Which in turn is determined by the enum values for KILLED_*.)  */
+
       typedef KilledByMap::const_iterator Iter;
       const std::pair<Iter, Iter> iters = killedBy.equal_range (victim);
       if (iters.first == iters.second)
         return error ("No reason for killed player %s", victim.c_str ());
       const KilledByInfo::Reason reason = iters.first->second.reason;
 
+      /* Unless we have destruct, there should be exactly one entry with
+         the "first" reason.  There may be multiple entries for different
+         reasons, for instance, killed by poison and staying in spawn
+         area at the same time.  */
       {
         Iter it = iters.first;
         ++it;
-        if (reason != KilledByInfo::KILLED_DESTRUCT && it != iters.second)
-          return error ("Multiple non-destruct killed-by entries for %s",
-                        victim.c_str ());
+        if (reason != KilledByInfo::KILLED_DESTRUCT && it != iters.second
+            && reason == it->second.reason)
+          return error ("Multiple same-reason, non-destruct killed-by"
+                        " entries for %s", victim.c_str ());
       }
 
       switch (reason)
@@ -88,8 +96,10 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
           for (Iter it = iters.first; it != iters.second; ++it)
             {
               if (it->second.reason != KilledByInfo::KILLED_DESTRUCT)
-                return error ("Different killed-by reasons for %s",
-                              victim.c_str ());
+                {
+                  assert (it != iters.first);
+                  break;
+                }
               txin.scriptSig << vchFromString (it->second.killer.ToString ());
             }
           break;
