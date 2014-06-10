@@ -2008,17 +2008,35 @@ analyseutxo (const Array& params, bool fHelp)
   assert (state.nHeight == startingHeight);
   const int64 onMap = state.GetCoinsOnMap ();
   const int64 lostCoins = state.lostCoins;
+  const int64 rewards = pindexBest->GetTotalRewards ();
+
+  /* Construct the result.  */
 
   Object res;
   res.push_back (Pair ("height", static_cast<int> (startingHeight)));
-  res.push_back (Pair ("ntx", static_cast<int> (txCnt)));
-  res.push_back (Pair ("ntxout", static_cast<int> (txoCnt)));
-  res.push_back (Pair ("total_tx", static_cast<int> (totalTx)));
-  res.push_back (Pair ("total_txout", static_cast<int> (totalTxo)));
-  res.push_back (Pair ("total", ValueFromAmount (amount)));
-  res.push_back (Pair ("on_map", ValueFromAmount (onMap)));
-  res.push_back (Pair ("moneysupply", ValueFromAmount (amount + onMap)));
-  res.push_back (Pair ("lost_coins", ValueFromAmount (lostCoins)));
+
+  Object subobj;
+  subobj.push_back (Pair ("tx", static_cast<int> (txCnt)));
+  subobj.push_back (Pair ("txo", static_cast<int> (txoCnt)));
+  res.push_back (Pair ("unspent", subobj));
+
+  subobj.clear ();
+  subobj.push_back (Pair ("tx", static_cast<int> (totalTx)));
+  subobj.push_back (Pair ("txo", static_cast<int> (totalTxo)));
+  res.push_back (Pair ("total", subobj));
+
+  subobj.clear ();
+  subobj.push_back (Pair ("utxo", ValueFromAmount (amount)));
+  subobj.push_back (Pair ("map", ValueFromAmount (onMap)));
+  subobj.push_back (Pair ("total", ValueFromAmount (amount + onMap)));
+  res.push_back (Pair ("moneysupply", subobj));
+
+  subobj.clear ();
+  subobj.push_back (Pair ("rewards", ValueFromAmount (rewards)));
+  subobj.push_back (Pair ("lost", ValueFromAmount (lostCoins)));
+  subobj.push_back (Pair ("total", ValueFromAmount (rewards - lostCoins)));
+  res.push_back (Pair ("expected", subobj));
+  res.push_back (Pair ("check", amount + onMap == rewards - lostCoins));
 
   return res;
 }

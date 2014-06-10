@@ -4057,6 +4057,26 @@ void MineGenesisBlock(CBlock *pblock, bool fUpdateBlockTime /* = true*/)
     }
 }
 
+int64
+CBlockIndex::GetTotalRewards () const
+{
+  /* Initialise with premine.  */
+  int64 total;
+  if (fTestNet)
+    total = 100 * COIN;
+  else
+    total = 85000 * COIN;
+
+  /* The genesis block had no ordinary mining reward, compensate for this.  */
+  total -= GetBlockValue (0, 0);
+
+  /* Sum up rewards (mining + harvest) over previous times.  */
+  for (int h = nHeight; h >= 0; --h)
+    total += GetBlockValue (h, 0) * 10;
+
+  return total;
+}
+
 std::string CBlockIndex::ToString() const
 {
     return strprintf("CBlockIndex(nprev=%08x, pnext=%08x, nFile=%d, nBlockPos=%-6d nHeight=%d, merkle=%s, hashBlock=%s)",

@@ -1315,7 +1315,9 @@ public:
         return pindex->GetMedianTimePast();
     }
 
-
+    /* Calculate total block rewards up to this one, including the genesis
+       block premine and coins put on the map.  */
+    int64 GetTotalRewards () const;
 
     std::string ToString() const;
 
