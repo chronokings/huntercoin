@@ -38,7 +38,8 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
                         const StepResult& stepResult,
                         std::vector<CTransaction>& outvgametx)
 {
-  printf ("Constructing game tx @%d...\n", gameState.nHeight);
+  if (fDebug)
+    printf ("Constructing game tx @%d...\n", gameState.nHeight);
 
   // Create resulting game transactions
   // Transaction hashes must be unique
@@ -121,7 +122,8 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
   if (!txNew.IsNull ())
     {
       outvgametx.push_back (txNew);
-      printf ("Game tx for killed players: %s\n", txNew.GetHashForLog ());
+      if (fDebug)
+        printf ("Game tx for killed players: %s\n", txNew.GetHashForLog ());
     }
 
   /* Pay bounties to the players who collected them.  The transaction
@@ -173,7 +175,8 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
   if (!txNew.IsNull ())
     {
       outvgametx.push_back (txNew);
-      printf ("Game tx for bounties: %s\n", txNew.GetHashForLog ());
+      if (fDebug)
+        printf ("Game tx for bounties: %s\n", txNew.GetHashForLog ());
     }
 
   return true;
