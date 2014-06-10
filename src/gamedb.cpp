@@ -604,7 +604,7 @@ AdvanceGameState (DatabaseSet& dbset, CBlockIndex* pindex,
     if (outState.hashBlock != *pindex->phashBlock)
         return error("AdvanceGameState: incorrect hash stored");
 
-    CGameDB gameDb("cr+", dbset.tx ());
+    CGameDB gameDb("r+", dbset.tx ());
     gameDb.Write(pindex->nHeight, outState);
     // Prune old states from DB, keeping every Nth for quick lookup (intermediate states can be obtained by integrating blocks)
     if (pindex->nHeight - 1 <= 0 || (pindex->nHeight - 1) % KEEP_EVERY_NTH_STATE != 0)
@@ -720,6 +720,7 @@ bool UpgradeGameDB()
       {
         printf ("Re-creating GameDB from scratch...\n");
 
+        DBFlush (false);
         boost::filesystem::path fileGame;
         fileGame = boost::filesystem::path (GetDataDir ()) / "game.dat";
         boost::filesystem::remove (fileGame);
