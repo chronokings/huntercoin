@@ -2007,6 +2007,7 @@ analyseutxo (const Array& params, bool fHelp)
   const Game::GameState& state = GetCurrentGameState ();
   assert (state.nHeight == startingHeight);
   const int64 onMap = state.GetCoinsOnMap ();
+  const int64 lostCoins = state.lostCoins;
 
   Object res;
   res.push_back (Pair ("height", static_cast<int> (startingHeight)));
@@ -2017,6 +2018,7 @@ analyseutxo (const Array& params, bool fHelp)
   res.push_back (Pair ("total", ValueFromAmount (amount)));
   res.push_back (Pair ("on_map", ValueFromAmount (onMap)));
   res.push_back (Pair ("moneysupply", ValueFromAmount (amount + onMap)));
+  res.push_back (Pair ("lost_coins", ValueFromAmount (lostCoins)));
 
   return res;
 }

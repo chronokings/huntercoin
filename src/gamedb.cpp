@@ -5,6 +5,8 @@
 #include "headers.h"
 #include "huntercoin.h"
 
+#include <boost/filesystem.hpp>
+
 #include <list>
 #include <map>
 
@@ -485,7 +487,7 @@ GetGameState (DatabaseSet& dbset, CBlockIndex *pindex, GameState &outState)
       return true;
 
     // Get the latest saved state
-    CGameDB gameDb("cr", dbset.tx ());
+    CGameDB gameDb("r", dbset.tx ());
 
     if (gameDb.Read(pindex->nHeight, outState))
     {
@@ -554,6 +556,17 @@ GetGameState (DatabaseSet& dbset, CBlockIndex *pindex, GameState &outState)
             break;
         plast = plast->pnext;
         lastState = outState;
+
+        /* Write the state to DB.  This is done during integration already
+           so that it is ensured that every other state is stored even
+           if the game db is reconstructed from scratch.  (Otherwise,
+           it would only contain the last state in that case.)  */
+        if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
+          {
+            CGameDB gameDb("r+", dbset.tx ());
+            gameDb.Write(outState.nHeight, outState);
+            printf ("Saved game state @%d to database.\n", outState.nHeight);
+          }
     }
 
     /* Store into game state cache.  */
@@ -561,12 +574,6 @@ GetGameState (DatabaseSet& dbset, CBlockIndex *pindex, GameState &outState)
 
     printf("%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
     printf("GetGameState: done integrating\n");
-
-    if (outState.nHeight % KEEP_EVERY_NTH_STATE == 0)
-    {
-        CGameDB gameDb("r+", dbset.tx ());
-        gameDb.Write(outState.nHeight, outState);
-    }
 
     return true;
 }
@@ -706,6 +713,27 @@ bool UpgradeGameDB()
         gameDb.Close();
     }
 
+    /* If the version is too old, recreate it from scratch.  The change in
+       question is the addition of the "coins lost due to crown" field,
+       which requires to re-integrate all game states anyway.  */
+    if (nGameDbVersion < 1001100)
+      {
+        printf ("Re-creating GameDB from scratch...\n");
+
+        boost::filesystem::path fileGame;
+        fileGame = boost::filesystem::path (GetDataDir ()) / "game.dat";
+        boost::filesystem::remove (fileGame);
+
+        CGameDB gameDb("cr+");
+        if (!gameDb.WriteVersion (VERSION))
+          return error ("WriteVersion failed for new game DB.");
+        gameDb.Close ();
+
+        GetCurrentGameState ();
+        return true;
+      }
+
+    /* Upgrade the game state format in-place if this is possible.  */
     if (nGameDbVersion < 1001100)
     {
         printf("Updating GameDB...\n");

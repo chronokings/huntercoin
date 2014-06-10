@@ -622,34 +622,20 @@ GameState::GameState()
 {
     crownPos.x = CROWN_START_X;
     crownPos.y = CROWN_START_Y;
+    lostCoins = 0;
     nHeight = -1;
     nDisasterHeight = -1;
     hashBlock = 0;
 }
 
-void GameState::UpdateVersion(int oldVersion)
+void
+GameState::UpdateVersion(int oldVersion)
 {
-    if (oldVersion < 1000500)
-    {
-        std::set<PlayerID> toErase;
+  /* Last version change is beyond the last version where the game db
+     is fully reconstructed.  */
+  assert (oldVersion >= 1001100);
 
-        // Erase dead players (note: during upgrade their chat messages are lost, need to delete&rescan game.dat to recover them)
-        BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
-            if (p.second.characters.empty())
-                toErase.insert(p.first);
-        BOOST_FOREACH(const PlayerID &p, toErase)
-            players.erase(p);
-    }
-
-    if (oldVersion < 1000900)
-      {
-        /* Set player's coinAmount to the old value of COIN.  */
-        BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState)& p, players)
-          {
-            assert (p.second.coinAmount == -1);
-            p.second.coinAmount = COIN;
-          }
-      }
+  /* No upgrades to game state are necessary since this change.  */
 }
 
 json_spirit::Value GameState::ToJsonValue() const
@@ -705,9 +691,10 @@ json_spirit::Value GameState::ToJsonValue() const
     }
     obj.push_back(Pair("crown", subobj));
 
-    obj.push_back(Pair("height", nHeight));
-    obj.push_back(Pair("disasterHeight", nDisasterHeight));
-    obj.push_back(Pair("hashBlock", hashBlock.ToString().c_str()));
+    obj.push_back (Pair("lostCoins", ValueFromAmount (lostCoins)));
+    obj.push_back (Pair("height", nHeight));
+    obj.push_back (Pair("disasterHeight", nDisasterHeight));
+    obj.push_back (Pair("hashBlock", hashBlock.ToString().c_str()));
 
     return obj;
 }
@@ -814,13 +801,17 @@ void GameState::UpdateCrownState(bool &respawn_crown)
     }
 }
 
-void GameState::CrownBonus(int64 nAmount)
+void
+GameState::CrownBonus (int64 nAmount)
 {
-    if (!crownHolder.player.empty())
+  if (!crownHolder.player.empty ())
     {
-        CharacterState &ch = players[crownHolder.player].characters[crownHolder.index];
-        ch.loot.Collect(LootInfo(nAmount, nHeight), nHeight);
+      PlayerState& p = players[crownHolder.player];
+      CharacterState& ch = p.characters[crownHolder.index];
+      ch.loot.Collect (LootInfo(nAmount, nHeight), nHeight);
     }
+  else
+    lostCoins += nAmount;
 }
 
 unsigned

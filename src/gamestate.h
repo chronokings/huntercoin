@@ -214,20 +214,16 @@ struct CharacterState
 
     IMPLEMENT_SERIALIZE
     (
+        /* Last version change is beyond the last version where the game db
+           is fully reconstructed.  */
+        assert (nVersion >= 1000900);
+
         READWRITE(coord);
         READWRITE(dir);
         READWRITE(from);
         READWRITE(waypoints);
         READWRITE(loot);
         READWRITE(stay_in_spawn_area);
-
-        /* Old versions had a never-used string "attack" stored.  */
-        if (nVersion < 1000900)
-          {
-            assert (fRead);
-            std::string attack;
-            READWRITE(attack);
-          }
     )
 
     void Spawn(int color, RandomGenerator &rnd);
@@ -276,28 +272,21 @@ struct PlayerState
 
     IMPLEMENT_SERIALIZE
     (
+        /* Last version change is beyond the last version where the game db
+           is fully reconstructed.  */
+        assert (nVersion >= 1001100);
+
         READWRITE(color);
         READWRITE(characters);
         READWRITE(next_character_index);
-
-        /* Read in the remaining life time, unless this is an old format
-           game state.  In this case, no disaster / poisoning was implemented,
-           thus the value should be set to -1.  */
-        if (nVersion >= 1001100)
-          READWRITE(remainingLife);
-        else
-          assert (remainingLife == -1);
+        READWRITE(remainingLife);
 
         READWRITE(message);
         READWRITE(message_block);
         READWRITE(address);
         READWRITE(addressLock);
 
-        /* Old version did not have coinAmount field.  Don't set it here to
-           the old value of COIN, but just leave it as "uninitialised".  It
-           will be set during upgrading of the database.  */
-        if (nVersion >= 1000900)
-          READWRITE(coinAmount);
+        READWRITE(coinAmount);
     )
 
     PlayerState ()
@@ -330,6 +319,9 @@ struct GameState
     Coord crownPos;
     CharacterID crownHolder;
 
+    /* Amount of coins lost due to the crown being on the ground.  */
+    int64 lostCoins;
+
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
     // -1 = initial game state (before genesis block)
@@ -353,24 +345,22 @@ struct GameState
       /* Should be only ever written to disk.  */
       assert (nType & SER_DISK);
 
+      /* Last version change is beyond the last version where the game db
+         is fully reconstructed.  */
+      assert (nVersion >= 1001100);
+
       READWRITE(players);
-      if (nVersion >= 1000500)
-        READWRITE(dead_players_chat);
-      else if (fRead)
-        (const_cast<std::map<PlayerID, PlayerState>&>(dead_players_chat)).clear();
+      READWRITE(dead_players_chat);
       READWRITE(loot);
       READWRITE(hearts);
       READWRITE(crownPos);
       READWRITE(crownHolder.player);
       if (!crownHolder.player.empty())
         READWRITE(crownHolder.index);
+      READWRITE(lostCoins);
+
       READWRITE(nHeight);
-
-      if (nVersion >= 1001100)
-        READWRITE(nDisasterHeight);
-      else
-        assert (nDisasterHeight == -1);
-
+      READWRITE(nDisasterHeight);
       READWRITE(hashBlock);
     )
 
