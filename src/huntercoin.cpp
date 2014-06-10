@@ -247,7 +247,7 @@ GetNameCoinAmount (unsigned nHeight, bool frontEnd)
   if (frontEnd)
     forkHeight -= 10;
 
-  return (nHeight < forkHeight ? COIN : 20 * COIN);
+  return (nHeight < forkHeight ? COIN : 10 * COIN);
 }
 
 bool

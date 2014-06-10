@@ -19,12 +19,12 @@ json_spirit::Value ValueFromAmount(int64 amount);
    probability is 1/x at each block between min and max time.  */
 /* FIXME: Set actual values.  */
 static const unsigned PDISASTER_MIN_TIME = 1440;
-static const unsigned PDISASTER_MAX_TIME = 28 * 1440;
+static const unsigned PDISASTER_MAX_TIME = 20 * 1440;
 static const unsigned PDISASTER_PROBABILITY = 10000;
 
 /* Parameters about how long a poisoned player may still live.  */
 static const unsigned POISON_MIN_LIFE = 1;
-static const unsigned POISON_MAX_LIFE = 100;
+static const unsigned POISON_MAX_LIFE = 50;
 
 namespace Game
 {
