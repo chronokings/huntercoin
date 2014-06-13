@@ -22,8 +22,8 @@ page_screen_output (false);
 
 % Minimum and maximum time between disasters.
 global minTime maxTime;
-minTime = 20e3;
-maxTime = 100e3;
+minTime = 1440;
+maxTime = 10 * 1440;
 
 % Set up a time array.
 times = 0 : maxTime;
@@ -32,16 +32,9 @@ times = 0 : maxTime;
 function p = getProb (t)
   global minTime maxTime;
 
-  if (false)
-    t -= minTime;
-    p = NA (size (t));
-    p(t < 0) = 0;
-    p(t >= 0) = 1 - exp (1 ./ (t(t >= 0) - (maxTime - minTime)));
-  else
-    p = ones (size (t)) / 30000;
-    p(t < minTime) = 0;
-    p(t >= maxTime) = 1;
-  endif
+  p = ones (size (t)) / 5000;
+  p(t < minTime) = 0;
+  p(t >= maxTime) = 1;
 endfunction
 probabilities = getProb (times);
 
