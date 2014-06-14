@@ -18,8 +18,8 @@ json_spirit::Value ValueFromAmount(int64 amount);
 /* Parameters that determine when a poison-disaster will happen.  The
    probability is 1/x at each block between min and max time.  */
 static const unsigned PDISASTER_MIN_TIME = 1440;
-static const unsigned PDISASTER_MAX_TIME = 10 * 1440;
-static const unsigned PDISASTER_PROBABILITY = 5000;
+static const unsigned PDISASTER_MAX_TIME = 12 * 1440;
+static const unsigned PDISASTER_PROBABILITY = 10000;
 
 /* Parameters about how long a poisoned player may still live.  */
 static const unsigned POISON_MIN_LIFE = 1;

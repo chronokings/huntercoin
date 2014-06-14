@@ -20,7 +20,7 @@ static const int MIN_FIRSTUPDATE_DEPTH = 2;
 /* Hardfork block height at which the fee for generals is increased from
    1 HUC -> 20 HUC, the number of initial players is reduced to just the
    general, and poison-disaster introduced.  */
-static const unsigned FORK_HEIGHT_POISON = 275000;
+static const unsigned FORK_HEIGHT_POISON = 255000;
 
 class CNameIndex;
 class CDiskTxPos;
