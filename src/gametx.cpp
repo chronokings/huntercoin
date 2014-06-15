@@ -16,7 +16,7 @@ enum
     // Syntax (scriptSig):
     //     victim GAMEOP_KILLED_BY killer1 killer2 ... killerN
     // Player can be killed simultaneously by multiple other players.
-    // If N = 0, player was killed by the game (for staying for too long in the spawn area)
+    // If N = 0, player was killed for staying too long in spawn area.
     GAMEOP_KILLED_BY = 1,
 
     // Syntax (scriptSig):
@@ -26,6 +26,11 @@ enum
     // (alternatively we could add vout index to the scriptSig, to allow more complex transactions
     // with arbitrary input assignments, or store it in scriptPubKey of the tx-out instead)
     GAMEOP_COLLECTED_BOUNTY = 2,
+
+    // Syntax (scriptSig):
+    //     victim GAMEOP_KILLED_POISON
+    // Player was killed due to poisoning
+    GAMEOP_KILLED_POISON = 3,
 };
 
 bool
@@ -33,92 +38,171 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
                         const StepResult& stepResult,
                         std::vector<CTransaction>& outvgametx)
 {
-    // Create resulting game transactions
-    // Transaction hashes must be unique
-    outvgametx.clear();
+  if (fDebug)
+    printf ("Constructing game tx @%d...\n", gameState.nHeight);
 
-    CTransaction txNew;
-    txNew.SetGameTx();
+  // Create resulting game transactions
+  // Transaction hashes must be unique
+  outvgametx.clear ();
 
-    // Destroy name-coins of killed players
-    txNew.vin.reserve(stepResult.killedPlayers.size());
-    BOOST_FOREACH(const PlayerID &victim, stepResult.killedPlayers)
+  CTransaction txNew;
+  txNew.SetGameTx ();
+
+  // Destroy name-coins of killed players
+  const PlayerSet& killedPlayers = stepResult.GetKilledPlayers ();
+  const KilledByMap& killedBy = stepResult.GetKilledBy ();
+  txNew.vin.reserve (killedPlayers.size ());
+  BOOST_FOREACH(const PlayerID &victim, killedPlayers)
     {
-        std::vector<unsigned char> vchName = vchFromString(victim);
-        CTransaction tx;
-        if (!GetTxOfNameAtHeight(nameDb, vchName, gameState.nHeight, tx))
-            return error("Game engine killed a non-existing player %s", victim.c_str());
+      const vchType vchName = vchFromString (victim);
+      CTransaction tx;
+      if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
+        return error ("Game engine killed a non-existing player %s",
+                      victim.c_str ());
 
-        CTxIn txin(tx.GetHash(), IndexOfNameOutput(tx));
+      if (fDebug)
+        printf ("  killed: %s\n", victim.c_str ());
 
-        txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+      CTxIn txin(tx.GetHash (), IndexOfNameOutput (tx));
 
-        // List all killers, if player was simultaneously killed by several other players
-        typedef std::multimap<PlayerID, CharacterID>::const_iterator Iter;
-        std::pair<Iter, Iter> iters = stepResult.killedBy.equal_range(victim);
-        for (Iter it = iters.first; it != iters.second; ++it)
-            txin.scriptSig << vchFromString(it->second.ToString());
-        txNew.vin.push_back(txin);
+      /* List all killers, if player was simultaneously killed by several
+         other players.  If the reason was not KILLED_DESTRUCT, handle
+         it also.  If multiple reasons apply, the game tx is constructed
+         for the first reason according to the ordering inside of KilledByMap.
+         (Which in turn is determined by the enum values for KILLED_*.)  */
+
+      typedef KilledByMap::const_iterator Iter;
+      const std::pair<Iter, Iter> iters = killedBy.equal_range (victim);
+      if (iters.first == iters.second)
+        return error ("No reason for killed player %s", victim.c_str ());
+      const KilledByInfo::Reason reason = iters.first->second.reason;
+
+      /* Unless we have destruct, there should be exactly one entry with
+         the "first" reason.  There may be multiple entries for different
+         reasons, for instance, killed by poison and staying in spawn
+         area at the same time.  */
+      {
+        Iter it = iters.first;
+        ++it;
+        if (reason != KilledByInfo::KILLED_DESTRUCT && it != iters.second
+            && reason == it->second.reason)
+          return error ("Multiple same-reason, non-destruct killed-by"
+                        " entries for %s", victim.c_str ());
+      }
+
+      switch (reason)
+        {
+        case KilledByInfo::KILLED_DESTRUCT:
+          txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+          for (Iter it = iters.first; it != iters.second; ++it)
+            {
+              if (it->second.reason != KilledByInfo::KILLED_DESTRUCT)
+                {
+                  assert (it != iters.first);
+                  break;
+                }
+              txin.scriptSig << vchFromString (it->second.killer.ToString ());
+            }
+          break;
+
+        case KilledByInfo::KILLED_SPAWN:
+          txin.scriptSig << vchName << GAMEOP_KILLED_BY;
+          break;
+
+        case KilledByInfo::KILLED_POISON:
+          txin.scriptSig << vchName << GAMEOP_KILLED_POISON;
+          break;
+
+        default:
+          assert (false);
+        }
+
+      txNew.vin.push_back (txin);
     }
-    if (!txNew.IsNull())
-        outvgametx.push_back(txNew);
-
-    // Pay bounties to the players who collected them
-    txNew.SetNull();
-    txNew.SetGameTx();
-    txNew.vin.reserve(stepResult.bounties.size());      // Dummy inputs that contain informational messages only (one per each output)
-    txNew.vout.reserve(stepResult.bounties.size());
-
-    BOOST_FOREACH(const PAIRTYPE(CharacterID, CollectedLootInfo) &bounty, stepResult.bounties)
+  if (!txNew.IsNull ())
     {
-        std::vector<unsigned char> vchName = vchFromString(bounty.first.player);
-        CTransaction tx;
-        if (!GetTxOfNameAtHeight(nameDb, vchName, gameState.nHeight, tx))
-            return error("Game engine created bounty for non-existing player");
-
-        CTxOut txout;
-        txout.nValue = bounty.second.nAmount;
-
-        // Note: we only use the resulting game state to pay rewards. If we need to pay them to just-killed players,
-        // this function should be modified to accept two game states, or the game state must be augmented with deadPlayers array.
-
-        std::map<PlayerID, PlayerState>::const_iterator mi = gameState.players.find(bounty.first.player);
-        if (mi == gameState.players.end())
-            return error("Game engine created bounty for non-existing (dead?) player");
-
-        if (!mi->second.address.empty())
-        {
-            // Player-provided addresses are validated before accepting them, so failing
-            // here is ok
-            if (!txout.scriptPubKey.SetBitcoinAddress(mi->second.address))
-                return error("Failed to set player-provided address for bounty");
-        }
-        else
-        {
-            // TODO: Maybe pay to the script of the name-tx without extracting the address first
-            // (see source of GetNameAddress - it obtains the script by calling RemoveNameScriptPrefix)
-            uint160 addr;
-            if (!GetNameAddress(tx, addr))
-                return error("Cannot get name address for bounty");
-            txout.scriptPubKey.SetBitcoinAddress(addr);
-        }
-
-        txNew.vout.push_back(txout);
-
-        CTxIn txin;
-        txin.scriptSig << vchName << GAMEOP_COLLECTED_BOUNTY
-                << bounty.first.index
-                << bounty.second.firstBlock
-                << bounty.second.lastBlock
-                << bounty.second.collectedFirstBlock
-                << bounty.second.collectedLastBlock
-            ;
-        txNew.vin.push_back(txin);
+      outvgametx.push_back (txNew);
+      if (fDebug)
+        printf ("Game tx for killed players: %s\n", txNew.GetHashForLog ());
     }
-    if (!txNew.IsNull())
-        outvgametx.push_back(txNew);
 
-    return true;
+  /* Pay bounties to the players who collected them.  The transaction
+     inputs are just "dummy" containing informational messages.  */
+  txNew.SetNull ();
+  txNew.SetGameTx ();
+  txNew.vin.reserve (stepResult.bounties.size ());
+  txNew.vout.reserve (stepResult.bounties.size ());
+
+  BOOST_FOREACH(const CollectedBounty& bounty, stepResult.bounties)
+    {
+      const vchType vchName = vchFromString (bounty.character.player);
+      CTransaction tx;
+      if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
+        return error ("Game engine created bounty for non-existing player");
+
+      CTxOut txout;
+      txout.nValue = bounty.loot.nAmount;
+
+      if (!bounty.address.empty ())
+        {
+          /* Player-provided addresses are validated before accepting them,
+             so failing here is ok.  */
+          if (!txout.scriptPubKey.SetBitcoinAddress (bounty.address))
+            return error ("Failed to set player-provided address for bounty");
+        }
+      else
+        {
+          // TODO: Maybe pay to the script of the name-tx without extracting the address first
+          // (see source of GetNameAddress - it obtains the script by calling RemoveNameScriptPrefix)
+          uint160 addr;
+          if (!GetNameAddress (tx, addr))
+            return error("Cannot get name address for bounty");
+          txout.scriptPubKey.SetBitcoinAddress (addr);
+        }
+
+      txNew.vout.push_back (txout);
+
+      CTxIn txin;
+      txin.scriptSig
+        << vchName << GAMEOP_COLLECTED_BOUNTY
+        << bounty.character.index
+        << bounty.loot.firstBlock
+        << bounty.loot.lastBlock
+        << bounty.loot.collectedFirstBlock
+        << bounty.loot.collectedLastBlock;
+      txNew.vin.push_back (txin);
+    }
+  if (!txNew.IsNull ())
+    {
+      outvgametx.push_back (txNew);
+      if (fDebug)
+        printf ("Game tx for bounties: %s\n", txNew.GetHashForLog ());
+    }
+
+  return true;
+}
+
+bool
+IsPlayerDeathInput (const CTxIn& in, vchType& name)
+{
+  opcodetype opcode;
+  CScript::const_iterator pc = in.scriptSig.begin ();
+
+  if (!in.scriptSig.GetOp (pc, opcode, name))
+    return error ("could not extract name in game tx input");
+
+  if (!in.scriptSig.GetOp (pc, opcode))
+    return error ("could not extract game tx opcode");
+
+  switch (opcode - OP_1 + 1)
+    {
+    case GAMEOP_KILLED_BY:
+    case GAMEOP_KILLED_POISON:
+      return true;
+
+    default:
+      return false;
+    }
 }
 
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
@@ -186,6 +270,14 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             if (fFirst)
                 strRet += _("killed for staying too long in the spawn area");
             break;
+
+        case GAMEOP_KILLED_POISON:
+            if (fBrief)
+                return strRet + " " + _("is killed");
+            strRet += " ";
+            strRet += _("died from poison");
+            break;
+
         case GAMEOP_COLLECTED_BOUNTY:
             scriptSig.GetOp(pc, opcode, vch);
             if (opcode >= OP_1)
@@ -193,6 +285,7 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             strRet += " ";
             strRet += _("collected bounty");
             break;
+
         default:
             strRet += " ";
             strRet += _("(unknown tx type)");

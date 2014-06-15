@@ -13,6 +13,7 @@
 #include "gamestate.h"
 #include "gamedb.h"
 #include "gamemovecreator.h"
+#include "gametx.h"
 
 #include "bitcoinrpc.h"
 
@@ -246,7 +247,7 @@ GetNameCoinAmount (unsigned nHeight, bool frontEnd)
   if (frontEnd)
     forkHeight -= 10;
 
-  return (nHeight < forkHeight ? COIN : 20 * COIN);
+  return (nHeight < forkHeight ? COIN : 10 * COIN);
 }
 
 bool
@@ -866,7 +867,7 @@ Value name_show(const Array& params, bool fHelp)
             oName.push_back(Pair("address", strAddress));
             oLastName = oName;
         }
-        else if (tx.nVersion == GAME_TX_VERSION)
+        else if (tx.IsGameTx ())
         {
             oName.push_back(Pair("name", name));
             oName.push_back(Pair("value", VALUE_DEAD));
@@ -924,7 +925,7 @@ Value name_history(const Array& params, bool fHelp)
                 oName.push_back(Pair("address", strAddress));
                 oRes.push_back(oName);
             }
-            else if (tx.nVersion == GAME_TX_VERSION)
+            else if (tx.IsGameTx ())
             {
                 oName.push_back(Pair("name", name));
                 oName.push_back(Pair("value", VALUE_DEAD));
@@ -1944,6 +1945,102 @@ bool CNameDB::ScanNames(
     return true;
 }
 
+/* Analyse the UTXO set.  This possibly takes a very long time.  */
+static Value
+analyseutxo (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size() > 0)
+    throw std::runtime_error (
+          "analyseutxo\n"
+          "Look through the UTXO and construct certain data about it.");
+
+  CTxDB txdb("r");
+  CCriticalBlock lock(cs_main);
+
+  unsigned txCnt = 0;
+  unsigned txoCnt = 0;
+  unsigned totalTx = 0;
+  unsigned totalTxo = 0;
+  int64_t amount = 0;
+  const CBlockIndex* pInd = pindexBest;
+  const unsigned startingHeight = pInd->nHeight;
+  for (; pInd; pInd = pInd->pprev)
+    {
+      printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
+      std::vector<const CTransaction*> vTxs;
+
+      CBlock block;
+      block.ReadFromDisk (pInd);
+
+      for (unsigned i = 0; i < block.vtx.size (); ++i)
+        vTxs.push_back (&block.vtx[i]);
+      for (unsigned i = 0; i < block.vgametx.size (); ++i)
+        vTxs.push_back (&block.vgametx[i]);
+
+      totalTx += vTxs.size ();
+      for (unsigned i = 0; i < vTxs.size (); ++i)
+        {
+          CTxIndex txindex;
+          if (!txdb.ReadTxIndex (vTxs[i]->GetHash (), txindex))
+            throw std::runtime_error ("ReadTxIndex failed.");
+
+          bool hasUnspent = false;
+          totalTxo += vTxs[i]->vout.size ();
+          for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
+            if (!txindex.IsSpent (j))
+              {
+                hasUnspent = true;
+                ++txoCnt;
+                amount += vTxs[i]->vout[j].nValue;
+              }
+          if (hasUnspent)
+            ++txCnt;
+        }
+
+      /* Since this is an async RPC call, give the main thread a chance
+         to interrupt this thread in case the server is going to shut down.  */
+      boost::this_thread::interruption_point ();
+    }
+
+  /* Also calculate total number of coins on the map, so that we get the total
+     money supply and can check it.  */
+  const Game::GameState& state = GetCurrentGameState ();
+  assert (state.nHeight == startingHeight);
+  const int64 onMap = state.GetCoinsOnMap ();
+  const int64 lostCoins = state.lostCoins;
+  const int64 rewards = pindexBest->GetTotalRewards ();
+
+  /* Construct the result.  */
+
+  Object res;
+  res.push_back (Pair ("height", static_cast<int> (startingHeight)));
+
+  Object subobj;
+  subobj.push_back (Pair ("tx", static_cast<int> (txCnt)));
+  subobj.push_back (Pair ("txo", static_cast<int> (txoCnt)));
+  res.push_back (Pair ("unspent", subobj));
+
+  subobj.clear ();
+  subobj.push_back (Pair ("tx", static_cast<int> (totalTx)));
+  subobj.push_back (Pair ("txo", static_cast<int> (totalTxo)));
+  res.push_back (Pair ("total", subobj));
+
+  subobj.clear ();
+  subobj.push_back (Pair ("utxo", ValueFromAmount (amount)));
+  subobj.push_back (Pair ("map", ValueFromAmount (onMap)));
+  subobj.push_back (Pair ("total", ValueFromAmount (amount + onMap)));
+  res.push_back (Pair ("moneysupply", subobj));
+
+  subobj.clear ();
+  subobj.push_back (Pair ("rewards", ValueFromAmount (rewards)));
+  subobj.push_back (Pair ("lost", ValueFromAmount (lostCoins)));
+  subobj.push_back (Pair ("total", ValueFromAmount (rewards - lostCoins)));
+  res.push_back (Pair ("expected", subobj));
+  res.push_back (Pair ("check", amount + onMap == rewards - lostCoins));
+
+  return res;
+}
+
 bool CNameDB::ReconstructNameIndex()
 {
     CTxDB txdb("r");
@@ -2042,6 +2139,7 @@ bool CNameDB::ReconstructNameIndex()
 
 CHooks* InitHook()
 {
+    mapCallTable.insert(make_pair("analyseutxo", &analyseutxo));
     mapCallTable.insert(make_pair("name_new", &name_new));
     mapCallTable.insert(make_pair("name_update", &name_update));
     mapCallTable.insert(make_pair("name_firstupdate", &name_firstupdate));
@@ -2375,10 +2473,9 @@ IsPlayerDead (const CWalletTx &nameTx, const CTxIndex &txindex)
   return false;
 }
 
-bool
+static bool
 ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
-                     const CTransaction& tx, vector<CTransaction>& vTxPrev,
-                     vector<CTxIndex>& vTxindex, CBlockIndex* pindexBlock,
+                     const CTransaction& tx, CBlockIndex* pindexBlock,
                      CDiskTxPos& txPos)
 {
     if (!tx.IsGameTx())
@@ -2386,35 +2483,28 @@ ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
-        if (tx.vin[i].prevout.IsNull())
-            continue;
-        int nout = tx.vin[i].prevout.n;
-        if (nout >= vTxPrev[i].vout.size())
-            continue;
-        CTxOut prevout = vTxPrev[i].vout[nout];
+        if (tx.vin[i].prevout.IsNull ())
+          continue;
 
-        int prevOp;
-        vector<vchType> vvchPrevArgs;
-
-        if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
-            continue;
+        vchType name;
+        if (!IsPlayerDeathInput (tx.vin[i], name))
+          return error ("ConnectInputsGameTx: prev is no player death");
 
         vector<CNameIndex> vtxPos;
-        if (dbset.name ().ExistsName(vvchPrevArgs[0])
-            && !dbset.name ().ReadName (vvchPrevArgs[0], vtxPos))
-          return error ("ConnectInputsGameTx() : failed to read from name DB");
-        CNameIndex txPos2;
-        txPos2.nHeight = pindexBlock->nHeight;
-        txPos2.vValue = vchFromString(VALUE_DEAD);
-        txPos2.txPos = txPos;
-        vtxPos.push_back(txPos2); // fin add
-        if (!dbset.name ().WriteName(vvchPrevArgs[0], vtxPos))
-            return error("ConnectInputsGameTx() : failed to write to name DB");
+        if (dbset.name ().ExistsName (name)
+            && !dbset.name ().ReadName (name, vtxPos))
+          return error ("ConnectInputsGameTx: failed to read from name DB");
+        CNameIndex txPos2(txPos, pindexBlock->nHeight,
+                          vchFromString (VALUE_DEAD));
+        vtxPos.push_back (txPos2);
+        if (!dbset.name ().WriteName (name, vtxPos))
+          return error ("ConnectInputsGameTx: failed to write to name DB");
     }
+
     return true;
 }
 
-bool
+static bool
 DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
                         CBlockIndex* pindexBlock)
 {
@@ -2423,37 +2513,28 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
 
     for (int i = 0; i < tx.vin.size(); i++)
     {
-        if (tx.vin[i].prevout.IsNull())
-            continue;
-        CTransaction txPrev;
-        CTxIndex txindex;
-        if (!dbset.tx ().ReadTxIndex (tx.vin[i].prevout.hash, txindex)
-            || txindex.pos == CDiskTxPos(1,1,1))
-            continue;
-        else if (!txPrev.ReadFromDisk(txindex.pos))
-            continue;
-        int nout = tx.vin[i].prevout.n;
-        if (nout >= txPrev.vout.size())
-            continue;
-        CTxOut prevout = txPrev.vout[nout];
+        /* Skip bounty payouts.  */
+        if (tx.vin[i].prevout.IsNull ())
+          continue;
 
-        int prevOp;
-        vector<vchType> vvchPrevArgs;
-
-        if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
-            continue;
+        vchType name;
+        if (!IsPlayerDeathInput (tx.vin[i], name))
+          return error ("DisconnectInputsGameTx: prev is no player death");
 
         vector<CNameIndex> vtxPos;
-        if (dbset.name ().ExistsName (vvchPrevArgs[0])
-            && !dbset.name ().ReadName (vvchPrevArgs[0], vtxPos))
+        if (dbset.name ().ExistsName (name)
+            && !dbset.name ().ReadName (name, vtxPos))
           return error("DisconnectInputsGameTx() : failed to read from name DB");
+
         if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight || vtxPos.back().vValue != vchFromString(VALUE_DEAD))
             printf("DisconnectInputsGameTx() : Warning: game transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
         while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
             vtxPos.pop_back();
-        if (!dbset.name ().WriteName (vvchPrevArgs[0], vtxPos))
+
+        if (!dbset.name ().WriteName (name, vtxPos))
             return error("DisconnectInputsGameTx() : failed to write to name DB");
     }
+
     return true;
 }
 
@@ -2470,9 +2551,15 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
       {
         if (fBlock)
           return ConnectInputsGameTx (dbset, mapTestPool, tx,
-                                      vTxPrev, vTxindex, pindexBlock, txPos);
+                                      pindexBlock, txPos);
         return true;
       }
+
+    /* For game transactions, the vectors of previous transactions
+       are not filled.  Check that they are filled properly if we have
+       a non-game transaction.  */
+    assert (vTxPrev.size () == tx.vin.size ()
+            && vTxindex.size () == tx.vin.size ());
 
     int nInput;
     bool found = false;
@@ -2633,7 +2720,7 @@ CHuntercoinHooks::DisconnectInputs (DatabaseSet& dbset, const CTransaction& tx,
                                     CBlockIndex* pindexBlock)
 {
     if (tx.IsGameTx ())
-        return DisconnectInputsGameTx(dbset, tx, pindexBlock);
+        return DisconnectInputsGameTx (dbset, tx, pindexBlock);
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;

@@ -498,6 +498,12 @@ public:
         return SerializeHash(*this);
     }
 
+    inline const char*
+    GetHashForLog () const
+    {
+        return GetHash ().ToLogString ();
+    }
+
     bool IsFinal(int nBlockHeight=0, int64 nBlockTime=0) const
     {
         // Time based nLockTime implemented in 0.1.6
@@ -1309,7 +1315,9 @@ public:
         return pindex->GetMedianTimePast();
     }
 
-
+    /* Calculate total block rewards up to this one, including the genesis
+       block premine and coins put on the map.  */
+    int64 GetTotalRewards () const;
 
     std::string ToString() const;
 
