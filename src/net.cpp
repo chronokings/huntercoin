@@ -413,7 +413,7 @@ void ThreadGetMyExternalIP(void* parg)
     {
         for (int i = 0; i < 2 * 60; i++)
         {
-            Sleep(1000);
+            MilliSleep(1000);
             if (fGotExternalIP || fShutdown)
                 return;
         }
@@ -860,7 +860,7 @@ void ThreadSocketHandler2(void* parg)
             }
             FD_ZERO(&fdsetSend);
             FD_ZERO(&fdsetError);
-            Sleep(timeout.tv_usec/1000);
+            MilliSleep(timeout.tv_usec/1000);
         }
 
 
@@ -1030,7 +1030,7 @@ void ThreadSocketHandler2(void* parg)
                 pnode->Release();
         }
 
-        Sleep(10);
+        MilliSleep(10);
     }
 }
 
@@ -1117,7 +1117,7 @@ void ThreadMapPort2(void* parg)
                 FreeUPNPUrls(&urls);
                 return;
             }
-            Sleep(2000);
+            MilliSleep(2000);
         }
     } else {
         printf("No valid UPnP IGDs found\n");
@@ -1127,7 +1127,7 @@ void ThreadMapPort2(void* parg)
         loop {
             if (fShutdown || !fUseUPnP)
                 return;
-            Sleep(2000);
+            MilliSleep(2000);
         }
     }
 }
@@ -1226,7 +1226,7 @@ void ThreadOpenConnections2(void* parg)
                     OpenNetworkConnection(addr);
                 for (int i = 0; i < 10 && i < nLoop; i++)
                 {
-                    Sleep(500);
+                    MilliSleep(500);
                     if (fShutdown)
                         return;
                 }
@@ -1243,7 +1243,7 @@ void ThreadOpenConnections2(void* parg)
             if (addr.IsValid())
             {
                 OpenNetworkConnection(addr);
-                Sleep(500);
+                MilliSleep(500);
                 if (fShutdown)
                     return;
             }
@@ -1255,7 +1255,7 @@ void ThreadOpenConnections2(void* parg)
     loop
     {
         vnThreadsRunning[1]--;
-        Sleep(500);
+        MilliSleep(500);
         vnThreadsRunning[1]++;
         if (fShutdown)
             return;
@@ -1273,7 +1273,7 @@ void ThreadOpenConnections2(void* parg)
             if (nOutbound < nMaxOutboundConnections)
                 break;
 	        vnThreadsRunning[1]--;	    
-            Sleep(2000);
+            MilliSleep(2000);
             vnThreadsRunning[1]++;	    
             if (fShutdown)
                 return;
@@ -1495,7 +1495,7 @@ void ThreadMessageHandler2(void* parg)
         // Reduce vnThreadsRunning so StopNode has permission to exit while
         // we're sleeping, but we must always check fShutdown after doing this.
         vnThreadsRunning[2]--;
-        Sleep(100);
+        MilliSleep(100);
         if (fRequestShutdown)
             StartShutdown();
         vnThreadsRunning[2]++;
@@ -1700,7 +1700,7 @@ bool StopNode()
     {
         if (GetTime() - nStart > 20)
             break;
-        Sleep(20);
+        MilliSleep(20);
     }
     if (vnThreadsRunning[0] > 0) printf("ThreadSocketHandler still running\n");
     if (vnThreadsRunning[1] > 0) printf("ThreadOpenConnections still running\n");
@@ -1709,8 +1709,8 @@ bool StopNode()
     if (vnThreadsRunning[4] > 0) printf("ThreadRPCServer still running\n");
     if (fHaveUPnP && vnThreadsRunning[5] > 0) printf("ThreadMapPort still running\n");
     while (vnThreadsRunning[2] > 0 || vnThreadsRunning[4] > 0)
-        Sleep(20);
-    Sleep(50);
+        MilliSleep(20);
+    MilliSleep(50);
 
     return true;
 }

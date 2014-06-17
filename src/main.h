@@ -58,6 +58,7 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
+static const int NAMECOIN_TX_VERSION = 0x7100;
 static const int GAME_TX_VERSION = 0x87100;
 
 
@@ -497,6 +498,12 @@ public:
         return SerializeHash(*this);
     }
 
+    inline const char*
+    GetHashForLog () const
+    {
+        return GetHash ().ToLogString ();
+    }
+
     bool IsFinal(int nBlockHeight=0, int64 nBlockTime=0) const
     {
         // Time based nLockTime implemented in 0.1.6
@@ -741,15 +748,31 @@ public:
 
 
 //
-// A txdb record that contains the disk location of a transaction and the
-// locations of transactions that spend its outputs.  vSpent is really only
-// used as a flag, but having the location is very helpful for debugging.
+// A txdb record that contains the disk location of a transaction and an array
+// of flags whether its outputs have already been spent.
 //
 class CTxIndex
 {
 public:
     CDiskTxPos pos;
-    std::vector<CDiskTxPos> vSpent;
+
+    /* Possible types of "spendings" for outputs.  It is necessary to record
+       when a name has been spent by a game tx, so that we know that the
+       player is dead.  */
+    static const unsigned char SPENT_UNSPENT = 0;
+    static const unsigned char SPENT_TX = 1;
+    static const unsigned char SPENT_NAMETX = 2;
+    static const unsigned char SPENT_GAMETX = 3;
+    static const unsigned char SPENT_UNKNOWN = 128;
+
+private:
+    std::vector<unsigned char> isSpent;
+
+    /* Given the spending tx of an output, decide what the correct SPENT_*
+       type is for the output.  */
+    static unsigned char GetSpentType (const CTransaction& tx);
+
+public:
 
     CTxIndex()
     {
@@ -759,21 +782,51 @@ public:
     CTxIndex(const CDiskTxPos& posIn, unsigned int nOutputs)
     {
         pos = posIn;
-        vSpent.resize(nOutputs);
+        isSpent.resize (nOutputs, SPENT_UNSPENT);
     }
 
     IMPLEMENT_SERIALIZE
     (
-        if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        assert (nType == SER_DISK);
+        if (nVersion < 1001000)
+          {
+            assert (fRead);
+            int nVersionDummy;
+            READWRITE(nVersionDummy);
+            assert (nVersionDummy < 1001000);
+          }
         READWRITE(pos);
-        READWRITE(vSpent);
+
+        if (nVersion < 1001000)
+          {
+            assert (fRead); 
+            std::vector<CDiskTxPos> vSpent;
+            READWRITE (vSpent);
+
+            std::vector<unsigned char>& newIsSpent = const_cast<std::vector<unsigned char>&> (isSpent);
+            newIsSpent.resize (vSpent.size ());
+            for (unsigned i = 0; i < vSpent.size (); ++i)
+              {
+                if (vSpent[i].IsNull ())
+                  newIsSpent[i] = SPENT_UNSPENT;
+                else
+                  {
+                    /* Set value to SPENT_UNKNOWN for now.  This should only
+                       ever be used during database upgrading, and there
+                       the correct spending type is set later while
+                       iterating through all possible spending tx.  */
+                    newIsSpent[i] = SPENT_UNKNOWN;
+                  }
+              }
+          }
+        else
+          READWRITE(isSpent);
     )
 
     void SetNull()
     {
         pos.SetNull();
-        vSpent.clear();
+        isSpent.clear ();
     }
 
     bool IsNull()
@@ -781,10 +834,54 @@ public:
         return pos.IsNull();
     }
 
+    inline unsigned
+    GetOutputCount () const
+    {
+      return isSpent.size ();
+    }
+
+    inline void
+    ResizeOutputs (unsigned n)
+    {
+      isSpent.resize (n, SPENT_UNSPENT);
+    }
+
+    inline bool
+    IsSpent (unsigned n) const
+    {
+      assert (n < isSpent.size ());
+      return (isSpent[n] != SPENT_UNSPENT);
+    }
+
+    inline unsigned char
+    GetSpent (unsigned n) const
+    {
+      assert (n < isSpent.size ());
+      return isSpent[n];
+    }
+
+    inline void
+    SetSpent (unsigned n, const CTransaction& txSpending)
+    {
+      assert (n < isSpent.size ());
+      /* Allow also SPENT_UNKNOWN to be "reset" so that the correct type
+         can be set during the upgrade procedure.  */
+      assert (isSpent[n] == SPENT_UNSPENT || isSpent[n] == SPENT_UNKNOWN);
+      isSpent[n] = GetSpentType (txSpending);
+    }
+
+    inline void
+    SetUnspent (unsigned n)
+    {
+      assert (n < isSpent.size ());
+      assert (isSpent[n] != SPENT_UNSPENT);
+      isSpent[n] = SPENT_UNSPENT;
+    }
+
     friend bool operator==(const CTxIndex& a, const CTxIndex& b)
     {
         return (a.pos    == b.pos &&
-                a.vSpent == b.vSpent);
+                a.isSpent == b.isSpent);
     }
 
     friend bool operator!=(const CTxIndex& a, const CTxIndex& b)
@@ -1218,7 +1315,9 @@ public:
         return pindex->GetMedianTimePast();
     }
 
-
+    /* Calculate total block rewards up to this one, including the genesis
+       block premine and coins put on the map.  */
+    int64 GetTotalRewards () const;
 
     std::string ToString() const;
 

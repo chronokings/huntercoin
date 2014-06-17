@@ -356,6 +356,41 @@ Value TxToValue(const CTransaction &tx)
     return txobj;
 }
 
+static double
+GetDifficultyFromBits (unsigned int nBits)
+{
+    // Floating point number that is a multiple of the minimum difficulty,
+    // minimum difficulty = 1.0.
+
+    int nShift = (nBits >> 24) & 0xff;
+
+    double dDiff =
+        (double)0x0000ffff / (double)(nBits & 0x00ffffff);
+
+    while (nShift < 29)
+    {
+        dDiff *= 256.0;
+        nShift++;
+    }
+    while (nShift > 29)
+    {
+        dDiff /= 256.0;
+        nShift--;
+    }
+
+    return dDiff;
+}
+
+static double
+GetDifficulty (int algo)
+{
+  const CBlockIndex* blockindex = GetLastBlockIndexForAlgo (pindexBest, algo);
+  if (blockindex == NULL)
+    return GetDifficultyFromBits (bnInitialHashTarget[algo].GetCompact ());
+
+  return GetDifficultyFromBits (blockindex->nBits);
+}
+
 Value BlockToValue(CBlock &block, const CBlockIndex* blockindex)
 {
     Object obj;
@@ -368,6 +403,7 @@ Value BlockToValue(CBlock &block, const CBlockIndex* blockindex)
     obj.push_back(Pair("merkleroot", block.hashMerkleRoot.ToString().c_str()));
     obj.push_back(Pair("time", (uint64_t)block.nTime));
     obj.push_back(Pair("bits", (uint64_t)block.nBits));
+    obj.push_back(Pair("difficulty", GetDifficultyFromBits (block.nBits)));
     obj.push_back(Pair("nonce", (uint64_t)block.nNonce));
     obj.push_back(Pair("n_tx", (int)block.vtx.size()));
     obj.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK)));
@@ -588,37 +624,6 @@ Value getconnectioncount(const Array& params, bool fHelp)
             "Returns the number of connections to other nodes.");
 
     return (int)vNodes.size();
-}
-
-
-double GetDifficulty(int algo)
-{
-    // Floating point number that is a multiple of the minimum difficulty,
-    // minimum difficulty = 1.0.
-    const CBlockIndex* blockindex = GetLastBlockIndexForAlgo(pindexBest, algo);
-    unsigned int nBits;
-    if (blockindex == NULL)
-        nBits = bnInitialHashTarget[algo].GetCompact();
-    else
-        nBits = blockindex->nBits;
-
-    int nShift = (nBits >> 24) & 0xff;
-
-    double dDiff =
-        (double)0x0000ffff / (double)(nBits & 0x00ffffff);
-
-    while (nShift < 29)
-    {
-        dDiff *= 256.0;
-        nShift++;
-    }
-    while (nShift > 29)
-    {
-        dDiff /= 256.0;
-        nShift--;
-    }
-
-    return dDiff;
 }
 
 Value getdifficulty(const Array& params, bool fHelp)
@@ -1743,72 +1748,6 @@ Value listtransactions(const Array& params, bool fHelp)
     return ret;
 }
 
-/* Analyse the UTXO set.  This possibly takes a very long time.  */
-Value analyseutxo (const Array& params, bool fHelp)
-{
-  if (fHelp || params.size() > 0)
-    throw std::runtime_error (
-          "analyseutxo\n"
-          "Look through the UTXO and construct certain data about it.");
-
-  CTxDB txdb("r");
-
-  unsigned txCnt = 0;
-  unsigned txoCnt = 0;
-  unsigned totalTx = 0;
-  unsigned totalTxo = 0;
-  int64_t amount = 0;
-  const CBlockIndex* pInd = pindexBest;
-  const unsigned startingHeight = pInd->nHeight;
-  for (; pInd; pInd = pInd->pprev)
-    {
-      printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
-      std::vector<const CTransaction*> vTxs;
-
-      CBlock block;
-      block.ReadFromDisk (pInd);
-
-      for (unsigned i = 0; i < block.vtx.size (); ++i)
-        vTxs.push_back (&block.vtx[i]);
-      for (unsigned i = 0; i < block.vgametx.size (); ++i)
-        vTxs.push_back (&block.vgametx[i]);
-
-      totalTx += vTxs.size ();
-      for (unsigned i = 0; i < vTxs.size (); ++i)
-        {
-          CTxIndex txindex;
-          if (!txdb.ReadTxIndex (vTxs[i]->GetHash (), txindex))
-            throw std::runtime_error ("ReadTxIndex failed.");
-
-          bool hasUnspent = false;
-          totalTxo += vTxs[i]->vout.size ();
-          for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
-            if (txindex.vSpent[j].IsNull ())
-              {
-                hasUnspent = true;
-                ++txoCnt;
-                amount += vTxs[i]->vout[j].nValue;
-              }
-          if (hasUnspent)
-            ++txCnt;
-        }
-
-      /* Since this is an async RPC call, give the main thread a chance
-         to interrupt this thread in case the server is going to shut down.  */
-      boost::this_thread::interruption_point ();
-    }
-
-  Object res;
-  res.push_back (Pair ("height", static_cast<int> (startingHeight)));
-  res.push_back (Pair ("ntx", static_cast<int> (txCnt)));
-  res.push_back (Pair ("ntxout", static_cast<int> (txoCnt)));
-  res.push_back (Pair ("total_tx", static_cast<int> (totalTx)));
-  res.push_back (Pair ("total_txout", static_cast<int> (totalTxo)));
-  res.push_back (Pair ("total", ValueFromAmount (amount)));
-
-  return res;
-}
-
 Value listaccounts(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
@@ -1936,7 +1875,7 @@ void ThreadCleanWalletPassphrase(void* parg)
                 break;
 
             cs_nWalletUnlockTime.Leave();
-            Sleep(nToSleep);
+            MilliSleep(nToSleep);
             cs_nWalletUnlockTime.Enter();
 
         } while(1);
@@ -3544,7 +3483,6 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("gettransaction",        &gettransaction),
     make_pair("listtransactions",      &listtransactions),
     make_pair("listsinceblock",        &listsinceblock),
-    make_pair("analyseutxo",           &analyseutxo),
     make_pair("getwork",               &getwork),
     make_pair("getworkaux",            &getworkaux),
     make_pair("getauxblock",           &getauxblock),
@@ -4153,7 +4091,7 @@ void ThreadRPCServer2(void* parg)
         {
             // Deter brute-forcing short passwords
             if (mapArgs["-rpcpassword"].size() < 15)
-                Sleep(50);
+                MilliSleep(50);
 
             out->getStream() << HTTPReply(401, "") << std::flush;
             printf("ThreadRPCServer incorrect password attempt\n");
