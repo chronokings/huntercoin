@@ -5,6 +5,7 @@
 #include "headers.h"
 #include "db.h"
 #include "net.h"
+#include "auxpow.h" // Fixes a linker issue with GCC > 4.7.
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
