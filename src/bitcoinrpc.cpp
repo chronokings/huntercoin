@@ -1870,7 +1870,7 @@ void ThreadCleanWalletPassphrase(void* parg)
                 break;
 
             cs_nWalletUnlockTime.Leave();
-            Sleep(nToSleep);
+            MilliSleep(nToSleep);
             cs_nWalletUnlockTime.Enter();
 
         } while(1);
@@ -4086,7 +4086,7 @@ void ThreadRPCServer2(void* parg)
         {
             // Deter brute-forcing short passwords
             if (mapArgs["-rpcpassword"].size() < 15)
-                Sleep(50);
+                MilliSleep(50);
 
             out->getStream() << HTTPReply(401, "") << std::flush;
             printf("ThreadRPCServer incorrect password attempt\n");
