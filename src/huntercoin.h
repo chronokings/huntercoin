@@ -4,7 +4,6 @@
 #include <boost/thread/thread.hpp>
 #include "json/json_spirit.h"
 
-static const int NAMECOIN_TX_VERSION = 0x7100;
 // We can make name_new cheaper, if we want, separately from name_(first)update
 // This can be used e.g. to send short messages in the hash field. The coin will be
 // destroyed in this case. We can try setting it to 0 though.
@@ -17,6 +16,11 @@ static const int OP_NAME_FIRSTUPDATE = 0x02;
 static const int OP_NAME_UPDATE = 0x03;
 static const int OP_NAME_NOP = 0x04;
 static const int MIN_FIRSTUPDATE_DEPTH = 2;
+
+/* Hardfork block height at which the fee for generals is increased from
+   1 HUC -> 10 HUC, the number of initial players is reduced to just the
+   general, and poison-disaster introduced.  */
+static const unsigned FORK_HEIGHT_POISON = 255000;
 
 class CNameIndex;
 class CDiskTxPos;
@@ -54,6 +58,7 @@ int64 GetNameCoinAmount (unsigned nHeight, bool frontEnd = false);
 bool IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name);
 void UnspendInputs(CWalletTx& wtx);
 bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
+bool IsValidPlayerName (const std::string& player);
 
 /* For the front-end and the game_waitforchange RPC call, we allow threads
    to "register" to be notified when a new block is attached.  This is
