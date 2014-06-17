@@ -27,7 +27,7 @@ CWallet* pwalletMain;
 void ExitTimeout(void* parg)
 {
 #ifdef __WXMSW__
-    Sleep(5000);
+    MilliSleep(5000);
     ExitProcess(0);
 #endif
 }
@@ -65,7 +65,7 @@ void Shutdown(void* parg)
         UnregisterWallet(pwalletMain);
         delete pwalletMain;
         CreateThread(ExitTimeout, NULL);
-        Sleep(50);
+        MilliSleep(50);
         printf("huntercoin exiting\n\n");
         fExit = true;
 #ifndef GUI
@@ -76,8 +76,8 @@ void Shutdown(void* parg)
     else
     {
         while (!fExit)
-            Sleep(500);
-        Sleep(100);
+            MilliSleep(500);
+        MilliSleep(100);
         ExitThread(0);
     }
 }
@@ -338,7 +338,7 @@ bool AppInit2(int argc, char* argv[])
 
             // Resume this instance if the other exits
             delete psingleinstancechecker;
-            Sleep(1000);
+            MilliSleep(1000);
             psingleinstancechecker = new wxSingleInstanceChecker(strMutexName);
             if (!psingleinstancechecker->IsAnotherRunning())
                 break;
@@ -587,7 +587,7 @@ bool AppInit2(int argc, char* argv[])
 
 #ifndef GUI
     while (1)
-        Sleep(5000);
+        MilliSleep(5000);
 #endif
 
     return true;
