@@ -7,3 +7,10 @@ build
 huntercoin-qt
 qrc_*.cpp
 src/huntercoind
+*.Debug
+*.Release
+*.mingw
+*.bak
+*.dll
+*.exe
+*.mingw
