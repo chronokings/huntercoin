@@ -646,7 +646,7 @@ void GameMapView::mousePressEvent(QMouseEvent *event)
         int x = p.x() / TILE_SIZE;
         int y = p.y() / TILE_SIZE;
         if (IsInsideMap(x, y))
-            emit tileClicked(x, y);
+            emit tileClicked(x, y, event->modifiers().testFlag( Qt::ControlModifier ));
     }
     else if (event->button() == Qt::RightButton)
     {
