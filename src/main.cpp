@@ -1007,12 +1007,28 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
             // Write back
             if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
                 return error("DisconnectInputs() : UpdateTxIndex failed");
+
+            /* Put the previous txo back to the UTXO set.  This requires loading
+               the transaction from disk first.  We could avoid that by keeping
+               "not too old" UTXO entries somewhere, but for now this
+               should do well enough.  DisconnectInputs shouldn't happen
+               too much during normal operation anyway.  */
+            CTransaction txPrev;
+            if (!txPrev.ReadFromDisk (txindex.pos))
+              return error ("DisconnectInputs: %s ReadFromDisk"
+                            " prev tx %s failed",
+                            GetHash ().ToString ().c_str (),
+                            prevout.hash.ToString ().c_str ());
+            if (!dbset.utxo ().InsertUtxo (txPrev, prevout.n))
+              return error ("DisconnectInputs: Failed to InsertUtxo");
         }
     }
 
     // Remove transaction from index
+    if (!dbset.utxo ().RemoveUtxo (*this))
+      return error ("DisconnectInputs: Failed to RemoveUtxo");
     if (!dbset.tx ().EraseTxIndex (*this))
-        return error("DisconnectInputs() : EraseTxPos failed");
+      return error ("DisconnectInputs: EraseTxPos failed");
 
     return true;
 }

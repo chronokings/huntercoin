@@ -906,9 +906,13 @@ CUtxoDB::InsertUtxo (const CTransaction& tx, unsigned n)
 bool
 CUtxoDB::InsertUtxo (const CTransaction& tx)
 {
+  /* TODO: Calculate tx.GetHash() once instead of for each
+     output in InsertUtxo(CTransaction, unsigned)?  */
+
   for (unsigned n = 0; n < tx.vout.size (); ++n)
     if (!InsertUtxo (tx, n))
       return false;
+
   return true;
 }
 
@@ -919,6 +923,20 @@ CUtxoDB::RemoveUtxo (const COutPoint& pos)
     return error ("Trying to remove non-existant UTXO entry.");
 
   return Erase (GetKey (pos));
+}
+
+bool
+CUtxoDB::RemoveUtxo (const CTransaction& tx)
+{
+  const uint256 hash = tx.GetHash ();
+  for (unsigned n = 0; n < tx.vout.size (); ++n)
+    {
+      COutPoint pos(hash, n);
+      if (!RemoveUtxo (pos))
+        return false;
+    }
+
+  return true;
 }
 
 bool

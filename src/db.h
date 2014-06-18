@@ -459,6 +459,8 @@ public:
 
     /* Remove (i. e., mark spent) a given output.  */
     bool RemoveUtxo (const COutPoint& pos);
+    /* Remove an entire transaction.  This is used to disconnect blocks.  */
+    bool RemoveUtxo (const CTransaction& tx);
 
     /* Rescan the blockchain to build the UTXO set from scratch.  */
     bool Rescan ();
