@@ -698,22 +698,22 @@ void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
             continue;
 
         Game::Coord start = mi2->second.coord;
-		if(ctrlPressed && !queuedMoves[chid.player][chid.index].waypoints.empty())
-			Game::Coord start = queuedMoves[chid.player][chid.index].waypoints.back();
+        if(ctrlPressed && !queuedMoves[chid.player][chid.index].waypoints.empty())
+            Game::Coord start = queuedMoves[chid.player][chid.index].waypoints.back();
 
         std::vector<Game::Coord> wp = FindPath(start, target);
-		if (!wp.empty())
-		{
-			if(ctrlPressed && !queuedMoves[chid.player][chid.index].waypoints.empty())
-			{
-				Game::WaypointVector cwp = queuedMoves[chid.player][chid.index].waypoints;
-				BOOST_FOREACH(Game::Coord &p, wp)
-					if(p != cwp.back())
-						cwp.push_back(p);
-				queuedMoves[chid.player][chid.index].waypoints = cwp;
-			}
-			else queuedMoves[chid.player][chid.index].waypoints = wp;
-		}
+        if (!wp.empty())
+        {
+            if(ctrlPressed && !queuedMoves[chid.player][chid.index].waypoints.empty())
+            {
+                Game::WaypointVector cwp = queuedMoves[chid.player][chid.index].waypoints;
+                BOOST_FOREACH(Game::Coord &p, wp)
+                    if(p != cwp.back())
+                        cwp.push_back(p);
+                queuedMoves[chid.player][chid.index].waypoints = cwp;
+            }
+            else queuedMoves[chid.player][chid.index].waypoints = wp;
+        }
 	}
     UpdateQueuedMoves();
 }
