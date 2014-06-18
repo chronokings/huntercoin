@@ -390,7 +390,7 @@ ManageNamesPage::ManageNamesPage(QWidget *parent) :
     gameMapView->setAttribute(Qt::WA_NoMousePropagation, true);
     gameMapView->setStatusTip(tr("Left click - make move. Right button - scroll map. Mouse wheel - zoom map. Middle click - reset zoom. Ctrl + +,-,0 - zoom in/out/reset"));
 
-    connect(gameMapView, SIGNAL(tileClicked(int, int)), this, SLOT(onTileClicked(int, int)));
+    connect(gameMapView, SIGNAL(tileClicked(int, int, bool)), this, SLOT(onTileClicked(int, int, bool)));
 
     QShortcut *zoomInKey = new QShortcut(QKeySequence::ZoomIn, this);
     QShortcut *zoomInKey2 = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_Equal), this);
@@ -677,7 +677,7 @@ void ManageNamesPage::UpdateQueuedMoves()
     gameMapView->SelectPlayer(selectedPlayer, gameState, queuedMoves);
 }
 
-void ManageNamesPage::onTileClicked(int x, int y)
+void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
 {
     if (selectedCharacters.isEmpty())
         return;
@@ -698,10 +698,25 @@ void ManageNamesPage::onTileClicked(int x, int y)
             continue;
 
         Game::Coord start = mi2->second.coord;
+        if(ctrlPressed && !queuedMoves[chid.player][chid.index].waypoints.empty())
+			Game::Coord start = queuedMoves[chid.player][chid.index].waypoints.back();
+
 
         std::vector<Game::Coord> wp = FindPath(start, target);
         if (!wp.empty())
-            queuedMoves[chid.player][chid.index].waypoints = wp;
+		{
+			if(ctrlPressed && !queuedMoves[chid.player][chid.index].waypoints.empty())
+			{
+				Game::WaypointVector cwp = queuedMoves[chid.player][chid.index].waypoints;
+				BOOST_FOREACH(Game::Coord &p, wp)
+					if(p != cwp.back())
+						cwp.push_back(p);
+						
+				queuedMoves[chid.player][chid.index].waypoints = cwp;
+			}
+			else
+				queuedMoves[chid.player][chid.index].waypoints = wp;
+		}
     }
 
     UpdateQueuedMoves();
