@@ -391,50 +391,55 @@ GetDifficulty (int algo)
   return GetDifficultyFromBits (blockindex->nBits);
 }
 
-Value BlockToValue(CBlock &block, const CBlockIndex* blockindex)
+Value BlockToValue(const CBlock &block, const CBlockIndex* blockindex)
 {
     Object obj;
+    CMerkleTx txGen(block.vtx[0]);
+    txGen.SetMerkleBranch(&block);
     obj.push_back(Pair("hash", block.GetHash().ToString().c_str()));
-    obj.push_back(Pair("version", block.nVersion));
-    int algo = block.GetAlgo();
-    obj.push_back(Pair("algo", algo));
-    obj.push_back(Pair("pow_hash", block.GetPoWHash(algo).ToString().c_str()));
-    obj.push_back(Pair("previousblockhash", block.hashPrevBlock.ToString().c_str()));
-    obj.push_back(Pair("merkleroot", block.hashMerkleRoot.ToString().c_str()));
-    obj.push_back(Pair("time", (uint64_t)block.nTime));
-    obj.push_back(Pair("bits", (uint64_t)block.nBits));
-    obj.push_back(Pair("difficulty", GetDifficultyFromBits (block.nBits)));
-    obj.push_back(Pair("nonce", (uint64_t)block.nNonce));
-    obj.push_back(Pair("n_tx", (int)block.vtx.size()));
+    obj.push_back(Pair("confirmations", (int)txGen.GetDepthInMainChain()));
     obj.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK)));
     obj.push_back(Pair("height", blockindex->nHeight));
-    if (blockindex->pnext && blockindex->pnext->phashBlock)
-        obj.push_back(Pair("nextblockhash", blockindex->pnext->phashBlock->GetHex()));
-    obj.push_back(Pair("chainwork", blockindex->bnChainWork.GetHex()));
-    obj.push_back(Pair("n_gametx", (int)block.vgametx.size()));
+    obj.push_back(Pair("version", block.nVersion));
+    obj.push_back(Pair("merkleroot", block.hashMerkleRoot.ToString().c_str()));
     obj.push_back(Pair("game_merkleroot", block.hashGameMerkleRoot.ToString().c_str()));
 
     Array tx;
     for (int i = 0; i < block.vtx.size(); i++)
         tx.push_back(block.vtx[i].GetHash().ToString().c_str());
-
     obj.push_back(Pair("tx", tx));
-    
+    obj.push_back(Pair("n_tx", (int)block.vtx.size()));
+
     tx = Array();
     for (int i = 0; i < block.vgametx.size(); i++)
         tx.push_back(block.vgametx[i].GetHash().ToString().c_str());
     obj.push_back(Pair("gametx", tx));
+    obj.push_back(Pair("n_gametx", (int)block.vgametx.size()));
+
+    const int algo = block.GetAlgo();
+    obj.push_back(Pair("algo", algo));
+    obj.push_back(Pair("pow_hash", block.GetPoWHash(algo).ToString().c_str()));
+
+    obj.push_back(Pair("time", (uint64_t)block.nTime));
+    obj.push_back(Pair("nonce", (uint64_t)block.nNonce));
+    obj.push_back(Pair("bits", (uint64_t)block.nBits));
+    obj.push_back(Pair("difficulty", GetDifficultyFromBits (block.nBits)));
+    obj.push_back(Pair("chainwork", blockindex->bnChainWork.GetHex()));
+
+    if (blockindex->pprev)
+        obj.push_back(Pair("previousblockhash", block.hashPrevBlock.ToString().c_str()));
+    const CBlockIndex *pnext = blockindex->pnext;
+    if (pnext)
+        obj.push_back(Pair("nextblockhash", pnext->GetBlockHash().GetHex()));
 
     Array mrkl;
     for (int i = 0; i < block.vMerkleTree.size(); i++)
         mrkl.push_back(block.vMerkleTree[i].ToString().c_str());
-
     obj.push_back(Pair("mrkl_tree", mrkl));
 
     mrkl = Array();
     for (int i = 0; i < block.vGameMerkleTree.size(); i++)
         mrkl.push_back(block.vGameMerkleTree[i].ToString().c_str());
-
     obj.push_back(Pair("game_mrkl_tree", mrkl));
 
     return obj;
