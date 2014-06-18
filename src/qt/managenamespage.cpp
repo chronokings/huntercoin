@@ -702,11 +702,12 @@ void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
         Game::Coord start = (appendWP) ? cwp.back() : mi2->second.coord;
         Game::WaypointVector wp = FindPath(start, target);
         
-        if(wp.empty()) 
+        if (wp.empty()) 
             continue;
             
         if (appendWP)
         {
+            assert (wp.front () == cwp.back ());
             cwp.reserve((cwp.size() + wp.size()) - 1);
             cwp.insert(cwp.end(), wp.begin() + 1, wp.end());
         }
