@@ -711,14 +711,7 @@ void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
 				BOOST_FOREACH(Game::Coord &p, wp)
 					if(p != cwp.back())	
 						cwp.push_back(p);
-				/*	if !cwp.empty() the first coord of wp will be the last coord of cwp
-					this check prevents from duplicate Coord being added in series
-					you may come back to a particular Coord in your waypoints but not
-					immediately after being there. 
-					ie:	can happen	: {447, 48}{445, 50}{447, 448}
-				 		cant happen	: {447, 48}{447, 448}
-				 */
-						
+	
 				queuedMoves[chid.player][chid.index].waypoints = cwp;
 			}
 			else
