@@ -698,19 +698,20 @@ void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
             continue;
 
         Game::WaypointVector &cwp = queuedMoves[chid.player][chid.index].waypoints;
-        Game::Coord start = (ctrlPressed && !cwp.empty()) ? cwp.back() : mi2->second.coord;
+        bool appendWP = (ctrlPressed && !cwp.empty());
+        Game::Coord start = (appendWP) ? cwp.back() : mi2->second.coord;
         Game::WaypointVector wp = FindPath(start, target);
         
-        if (!wp.empty())
+        if(wp.empty()) 
+            continue;
+            
+        if (appendWP)
         {
-            if(ctrlPressed && !cwp.empty())
-            {
-                int offset = (cwp.back() == wp.front()) ? 1 : 0;
-                cwp.reserve((cwp.size() + wp.size()) - offset);
-                cwp.insert(cwp.end(), wp.begin() + offset, wp.end());
-            }
-            else cwp = wp;
+            cwp.reserve((cwp.size() + wp.size()) - 1);
+            cwp.insert(cwp.end(), wp.begin() + 1, wp.end());
         }
+        else 
+            cwp = wp;
     }
     UpdateQueuedMoves();
 }

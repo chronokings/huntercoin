@@ -14,3 +14,5 @@ src/huntercoind
 *.dll
 *.exe
 *.mingw
+release/4b_build_qt - Shortcut.lnk
+src/makefile.mingw
