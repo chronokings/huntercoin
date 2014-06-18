@@ -714,7 +714,7 @@ void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
             }
             else queuedMoves[chid.player][chid.index].waypoints = wp;
         }
-	}
+    }
     UpdateQueuedMoves();
 }
 
