@@ -23,7 +23,7 @@
 @set COINNAME=%COINNAME:-qt.pro=%
 
 @set QTPATH=C:\Qt\4.8.5\bin
-@set QTDOWNLOADPATH=http://download.qt-project.org/official_releases/qt/4.8/4.8.5/qt-win-opensource-4.8.5-mingw.exe
+@set QTDOWNLOADPATH=http://download.qt-project.org/archive/qt/4.8/4.8.5/qt-win-opensource-4.8.5-mingw.exe
 @rem Qt5 will need changes in gather_dlls.bat
 
 @set MSYS=%MINGWPATH:\=/%/msys/1.0/bin
