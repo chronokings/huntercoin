@@ -693,11 +693,6 @@ Value name_list(const Array& params, bool fHelp)
               }
 notAllSpent:
 
-            const uint256 hash = item.second.GetHash();
-            CTxIndex txindex;
-            if (!txdb.ReadTxIndex (hash, txindex))
-              continue;
-
             if (tx.nVersion != NAMECOIN_TX_VERSION)
               continue;
 
@@ -714,6 +709,9 @@ notAllSpent:
               continue;
 
             // height
+            CTxIndex txindex;
+            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
+              continue;
             const int nHeight = GetTxPosHeight(txindex.pos);
 
             Object oName;
