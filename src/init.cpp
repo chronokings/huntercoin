@@ -18,6 +18,7 @@ using namespace boost;
 void rescanfornames();
 
 CWallet* pwalletMain;
+char *walletPath = "";
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -410,9 +411,20 @@ bool AppInit2(int argc, char* argv[])
     printf("Loading wallet...\n");
     nStart = GetTimeMillis();
     bool fFirstRun;
-    pwalletMain = new CWallet("wallet.dat");
+    string argWalletPath = GetArg("-walletpath", "wallet.dat");
+    boost::filesystem::path pathWalletFile(argWalletPath);
+    if (!pathWalletFile.is_complete())pathWalletFile = boost::filesystem::path(GetDataDir()) / pathWalletFile;
+    walletPath = new char[pathWalletFile.string().size() + 1];
+    strcpy(walletPath, pathWalletFile.string().c_str());
+    
+    pwalletMain = new CWallet(walletPath);
     if (!pwalletMain->LoadWallet(fFirstRun))
-        strErrors += _("Error loading wallet.dat      \n");
+    {
+        if(argWalletPath=="wallet.dat")
+            strErrors += _("Error loading wallet.dat      \n");
+        else
+            strErrors += "Error loading " + argWalletPath + "      \n";
+    }
     printf(" wallet      %15"PRI64d"ms\n", GetTimeMillis() - nStart);
 
     RegisterWallet(pwalletMain);
@@ -437,7 +449,7 @@ bool AppInit2(int argc, char* argv[])
         pindexRescan = pindexGenesisBlock;
     else
     {
-        CWalletDB walletdb("wallet.dat");
+        CWalletDB walletdb(walletPath);
         CBlockLocator locator;
         if (walletdb.ReadBestBlock(locator))
             pindexRescan = locator.GetBlockIndex();
@@ -599,6 +611,7 @@ std::string HelpMessage()
     std::string strUsage = std::string(_("Options:\n")) +
         "  -conf=<file>     \t\t  " + _("Specify configuration file (default: huntercoin.conf)\n") +
         "  -pid=<file>      \t\t  " + _("Specify pid file (default: huntercoind.pid)\n") +
+        "  -walletpath=<file> \t  " + _("Specify the wallet filename (default: wallet.dat)") + "\n" +
         "  -gen             \t\t  " + _("Generate coins\n") +
         "  -gen=0           \t\t  " + _("Don't generate coins\n") +
         "  -min             \t\t  " + _("Start minimized\n") +
