@@ -45,7 +45,7 @@ public slots:
 
 signals:
 
-    void tileClicked(int x, int y);
+    void tileClicked(int x, int y, bool ctrlPressed);
 
 protected:
 

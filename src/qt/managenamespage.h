@@ -72,7 +72,7 @@ private slots:
     void on_destructButton_clicked();
     void on_goButton_clicked();
     void on_cancelButton_clicked();
-    void onTileClicked(int x, int y);
+    void onTileClicked(int x, int y, bool ctrlPressed);
 
     void onSelectName(const QString &name);
     void onCharacterSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
