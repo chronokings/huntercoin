@@ -963,9 +963,6 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
   int64_t amount = 0;
 
   const CBlockIndex* pInd = pindexGenesisBlock;
-  /* FIXME: Ignore genesis block since its output is not in the txindex
-     and also unspendable due to this anyway.  */
-  pInd = pInd->pnext;
   for (; pInd; pInd = pInd->pnext)
     {
       if (pInd->nHeight % 1000 == 0)
@@ -974,13 +971,19 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
       CBlock block;
       block.ReadFromDisk (pInd);
 
+      std::vector<const CTransaction*> vTxs;
+      for (unsigned i = 0; i < block.vtx.size (); ++i)
+        vTxs.push_back (&block.vtx[i]);
+      for (unsigned i = 0; i < block.vgametx.size (); ++i)
+        vTxs.push_back (&block.vgametx[i]);
+
       if (!fVerify)
         TxnBegin ();
 
-      allTxCnt += block.vtx.size ();
-      for (unsigned i = 0; i < block.vtx.size (); ++i)
+      allTxCnt += vTxs.size ();
+      for (unsigned i = 0; i < vTxs.size (); ++i)
         {
-          const CTransaction& tx = block.vtx[i];
+          const CTransaction& tx = *vTxs[i];
 
           CTxIndex txindex;
           if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
