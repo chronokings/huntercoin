@@ -324,13 +324,13 @@ CScript RemoveNameScriptPrefix(const CScript& scriptIn)
     return CScript(pc, scriptIn.end());
 }
 
-bool IsMyName(const CTransaction& tx, const CTxOut& txout)
+static bool
+IsMyName (const CTxOut& txout)
 {
-    const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
-    CScript scriptSig;
-    if (!Solver(*pwalletMain, scriptPubKey, 0, 0, scriptSig))
-        return false;
-    return true;
+  const CScript scriptPubKey = RemoveNameScriptPrefix (txout.scriptPubKey);
+  CScript scriptSig;
+
+  return Solver (*pwalletMain, scriptPubKey, 0, 0, scriptSig);
 }
 
 bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet)
@@ -665,97 +665,80 @@ Value name_list(const Array& params, bool fHelp)
                 "list my own names"
                 );
 
-    vector<unsigned char> vchName;
-    vector<unsigned char> vchLastName;
-    int nMax = 10000000;
-
-    if (params.size() == 1)
-    {
-        vchName = vchFromValue(params[0]);
-        nMax = 1;
-    }
-
-    vector<unsigned char> vchNameUniq;
-    if (params.size() == 1)
-    {
-        vchNameUniq = vchFromValue(params[0]);
-    }
+    vchType vchNameUniq;
+    if (params.size () == 1)
+      vchNameUniq = vchFromValue (params[0]);
 
     Array oRes;
-    map< vector<unsigned char>, int > vNamesI;
-    map< vector<unsigned char>, Object > vNamesO;
+    std::map<vchType, int> vNamesI;
+    std::map<vchType, Object> vNamesO;
 
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
-    {
-        CTxIndex txindex;
-        uint256 hash;
+      {
         CTxDB txdb("r");
-        CTransaction tx;
 
-        vector<unsigned char> vchName;
-        vector<unsigned char> vchValue;
-        int nHeight;
+        BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item,
+                      pwalletMain->mapWallet)
+          {
+            const CWalletTx& tx = item.second;
 
-        BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, pwalletMain->mapWallet)
-        {
             // ignore spent tx
-            if (item.second.vfSpent.size() > 0)
-            {
-                bool allSpent = true;
-                for (int i=0; i < item.second.vfSpent.size(); i++)
-                {
-                    if (!item.second.IsSpent(i))
-                        allSpent = false;
-                }
-                if (allSpent)
-                    continue;
-            }
+            if (!tx.vfSpent.empty ())
+              {
+                for (int i = 0; i < tx.vfSpent.size (); ++i)
+                  if (!tx.IsSpent (i))
+                    goto notAllSpent;
 
-            hash = item.second.GetHash();
-            if(!txdb.ReadDiskTx(hash, tx, txindex))
                 continue;
+              }
+notAllSpent:
 
             if (tx.nVersion != NAMECOIN_TX_VERSION)
-                continue;
+              continue;
 
             // name
-            if(!GetNameOfTx(tx, vchName))
-                continue;
-            if(vchNameUniq.size() > 0 && vchNameUniq != vchName)
-                continue;
+            vchType vchName;
+            if (!GetNameOfTx (tx, vchName))
+              continue;
+            if (!vchNameUniq.empty () && vchNameUniq != vchName)
+              continue;
 
             // value
-            if(!GetValueOfNameTx(tx, vchValue))
-                continue;
+            vchType vchValue;
+            if (!GetValueOfNameTx (tx, vchValue))
+              continue;
 
             // height
-            nHeight = GetTxPosHeight(txindex.pos);
+            CTxIndex txindex;
+            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
+              continue;
+            const int nHeight = GetTxPosHeight(txindex.pos);
 
             Object oName;
             std::string sName = stringFromVch(vchName);
             oName.push_back(Pair("name", sName));
             oName.push_back(Pair("value", stringFromVch(vchValue)));
-            const CWalletTx &nameTx = pwalletMain->mapWallet[tx.GetHash()];
-            if (!hooks->IsMine(nameTx))
+            if (!hooks->IsMine (tx))
                 oName.push_back(Pair("transferred", 1));
-            string strAddress = "";
+            std::string strAddress;
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
 
             // get last active name only
-            if(vNamesI.find(vchName) != vNamesI.end() && vNamesI[vchName] > nHeight)
-                continue;
+            if (vNamesI.find (vchName) != vNamesI.end ()
+                && vNamesI[vchName] > nHeight)
+              continue;
 
-            if (IsPlayerDead(nameTx, txindex))
-                oName.push_back(Pair("dead", 1));
+            if (IsPlayerDead (tx, txindex))
+              oName.push_back (Pair("dead", 1));
 
             vNamesI[vchName] = nHeight;
             vNamesO[vchName] = oName;
-        }
-    }
+          }
+      }
 
-    BOOST_FOREACH(const PAIRTYPE(vector<unsigned char>, Object)& item, vNamesO)
-        oRes.push_back(item.second);
+    BOOST_FOREACH(const PAIRTYPE(vchType, Object)& item, vNamesO)
+      oRes.push_back(item.second);
 
     return oRes;
 }
@@ -1504,7 +1487,7 @@ name_pending (const Array& params, bool fHelp)
 
               /* See if it is owned by the wallet user.  */
               const CTxOut& txout = tx.vout[nOut];
-              const bool isMine = IsMyName (tx, txout);
+              const bool isMine = IsMyName (txout);
 
               /* Construct the JSON output.  */
               Object obj;
@@ -2316,7 +2299,7 @@ bool CHuntercoinHooks::IsMine(const CTransaction& tx)
     }
 
     const CTxOut& txout = tx.vout[nOut];
-    if (IsMyName(tx, txout))
+    if (IsMyName (txout))
         return true;
     return false;
 }
@@ -2337,7 +2320,7 @@ bool CHuntercoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool 
     if (ignore_name_new && op == OP_NAME_NEW)
         return false;
 
-    if (IsMyName(tx, txout))
+    if (IsMyName (txout))
         return true;
     return false;
 }
