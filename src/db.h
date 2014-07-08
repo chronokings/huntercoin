@@ -14,7 +14,7 @@
 
 class CNameIndex;
 class CTxIndex;
-class CTxOut;
+class CUtxoEntry;
 class COutPoint;
 class CDiskBlockIndex;
 class CDiskTxPos;
@@ -449,13 +449,13 @@ public:
     /* Try to look up an entry in the UTXO set.  Return true if it is found
        (i. e., still unspent).  If this is the case, the CTxOut will be set
        accordingly.  */
-    bool ReadUtxo (const COutPoint& pos, CTxOut& txo);
+    bool ReadUtxo (const COutPoint& pos, CUtxoEntry& txo);
 
     /* Insert an entry into the UTXO set.  This assumes that it doesn't already
        exist, and gives an internal error if it does.  */
-    bool InsertUtxo (const COutPoint& pos, const CTxOut& txo);
-    bool InsertUtxo (const CTransaction& tx, unsigned n);
-    bool InsertUtxo (const CTransaction& tx);
+    bool InsertUtxo (const COutPoint& pos, const CUtxoEntry& txo);
+    bool InsertUtxo (const CTransaction& tx, unsigned n, int height);
+    bool InsertUtxo (const CTransaction& tx, int height);
 
     /* Remove (i. e., mark spent) a given output.  */
     bool RemoveUtxo (const COutPoint& pos);

@@ -866,13 +866,13 @@ CUtxoDB::GetKey (const COutPoint& pos)
 }
 
 bool
-CUtxoDB::ReadUtxo (const COutPoint& pos, CTxOut& txo)
+CUtxoDB::ReadUtxo (const COutPoint& pos, CUtxoEntry& txo)
 {
   return Read (GetKey (pos), txo);
 }
 
 bool
-CUtxoDB::InsertUtxo (const COutPoint& pos, const CTxOut& txo)
+CUtxoDB::InsertUtxo (const COutPoint& pos, const CUtxoEntry& txo)
 {
   if (Exists (GetKey (pos)))
     {
@@ -883,34 +883,44 @@ CUtxoDB::InsertUtxo (const COutPoint& pos, const CTxOut& txo)
          thus COutPoint for them.  Since addressing an UTXO entry for
          spending is done via COutPoint, this also means that only one
          of them can ever be spent.  Thus it is "ok" to have only one
-         UTXO entry, but make sure that it is indeed the precisely same
-         one.  (Should be, since otherwise the txid as hash wouldn't
-         match up if there was a change in the CTxOut.)  */
+         UTXO entry.  They must be the same (except for the chain height),
+         since otherwise the hash would be different.
 
-      CTxOut existing;
+         The existing entry will be replaced below by the new one, since
+         it should get the new (larger) height.  This makes sure that
+         it is consistent with the maturity checks done in ConnectInputs,
+         since they look backwards in the chain until they find
+         the tx.  */
+
+      if (!txo.isCoinbase)
+        return error ("Duplicate UTXO entry is not coinbase!");
+
+      CUtxoEntry existing;
       ReadUtxo (pos, existing);
-      if (existing != txo)
-        return error ("Mismatch between existing and new UTXO entry!");
+      if (existing.height >= txo.height)
+        return error ("Existing UTXO entry should have lower height than new!");
     }
 
   return Write (GetKey (pos), txo);
 }
 
 bool
-CUtxoDB::InsertUtxo (const CTransaction& tx, unsigned n)
+CUtxoDB::InsertUtxo (const CTransaction& tx, unsigned n, int height)
 {
   COutPoint pos(tx.GetHash (), n);
-  return InsertUtxo (pos, tx.vout[n]);
+  CUtxoEntry entry(tx, n, height);
+
+  return InsertUtxo (pos, entry);
 }
 
 bool
-CUtxoDB::InsertUtxo (const CTransaction& tx)
+CUtxoDB::InsertUtxo (const CTransaction& tx, int height)
 {
   /* TODO: Calculate tx.GetHash() once instead of for each
      output in InsertUtxo(CTransaction, unsigned)?  */
 
   for (unsigned n = 0; n < tx.vout.size (); ++n)
-    if (!InsertUtxo (tx, n))
+    if (!InsertUtxo (tx, n, height))
       return false;
 
   return true;
@@ -1008,14 +1018,19 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
                 if (fVerify)
                   {
                     const COutPoint p(tx.GetHash (), j);
-                    CTxOut txo;
+                    CUtxoEntry txo;
                     if (!ReadUtxo (p, txo))
                       {
                         printf ("Missing %s in UTXO database.\n",
                                 p.ToString ().c_str ());
                         return error ("UTXO database is incomplete.");
                       }
-                    if (txo != tx.vout[j])
+
+                    /* It is possible that a single tx is twice
+                       in the blockchain, so ignore height in the
+                       comparison below.  Set it to the old entry's height.  */
+                    const CUtxoEntry entry(tx, j, txo.height);
+                    if (txo != entry)
                       {
                         printf ("Mismatch for %s in UTXO database.\n",  
                                 p.ToString ().c_str ());
@@ -1025,7 +1040,7 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
                   }
                 else
                   {
-                    if (!InsertUtxo (tx, j))
+                    if (!InsertUtxo (tx, j, pInd->nHeight))
                       {
                         printf ("Failed: %s %d (%d in block @%d)\n",
                                 tx.GetHash ().ToString ().c_str (), j,

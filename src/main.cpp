@@ -207,6 +207,20 @@ void static EraseOrphanTx(uint256 hash)
 
 
 
+//////////////////////////////////////////////////////////////////////////////
+//
+// Transaction inputs and outputs
+//
+
+
+
+CUtxoEntry::CUtxoEntry (const CTransaction& tx, unsigned n, int h)
+  : txo(tx.vout[n]), height(h),
+    isCoinbase(tx.IsCoinBase ()),
+    isGameTx(tx.IsGameTx ())
+{}
+
+
 
 
 
@@ -684,20 +698,40 @@ CTxIndex::GetSpentType (const CTransaction& tx)
   return SPENT_TX;
 }
 
-int CTxIndex::GetDepthInMainChain() const
+const CBlockIndex*
+CTxIndex::GetContainingBlock () const
 {
     // Read block header
     CBlock block;
     if (!block.ReadFromDisk(pos.nBlockFile, pos.nBlockPos, false))
-        return 0;
+        return NULL;
+
     // Find the block in the index
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(block.GetHash());
     if (mi == mapBlockIndex.end())
-        return 0;
-    CBlockIndex* pindex = (*mi).second;
-    if (!pindex || !pindex->IsInMainChain())
-        return 0;
-    return 1 + nBestHeight - pindex->nHeight;
+        return NULL;
+
+    return mi->second;
+}
+
+int
+CTxIndex::GetHeight () const
+{
+  const CBlockIndex* pindex = GetContainingBlock ();
+  if (!pindex)
+    return -1;
+
+  return pindex->nHeight;
+}
+
+int
+CTxIndex::GetDepthInMainChain () const
+{
+  const CBlockIndex* pindex = GetContainingBlock ();
+  if (!pindex || !pindex->IsInMainChain ())
+    return 0;
+
+  return 1 + nBestHeight - pindex->nHeight;
 }
 
 
@@ -1019,7 +1053,8 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
                             " prev tx %s failed",
                             GetHash ().ToString ().c_str (),
                             prevout.hash.ToString ().c_str ());
-            if (!dbset.utxo ().InsertUtxo (txPrev, prevout.n))
+            if (!dbset.utxo ().InsertUtxo (txPrev, prevout.n,
+                                           txindex.GetHeight ()))
               return error ("DisconnectInputs: Failed to InsertUtxo");
         }
     }
@@ -1188,7 +1223,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                    as game tx can be processed in ConnectInputsGameTx
                    without previous transactions.  */
                 CTransaction txPrev;
-                CTxOut txoPrev;
+                CUtxoEntry txoPrev;
                 if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
                 {
                     // Get prev tx from single transactions in memory
@@ -1296,7 +1331,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
     if (fBlock)
     {
         // Add transaction to disk index
-        if (!dbset.utxo ().InsertUtxo (*this))
+        if (!dbset.utxo ().InsertUtxo (*this, pindexBlock->nHeight))
             return error ("ConnectInputs() : failed to InsertUtxo");
         if (!dbset.tx ().AddTxIndex (*this, posThisTx, pindexBlock->nHeight))
             return error("ConnectInputs() : AddTxPos failed");
