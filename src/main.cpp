@@ -1261,8 +1261,9 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                 if (heightDiff < 0)
                   return error ("ConnectInputs: height difference is negative");
 
-                // If prev is coinbase, check that it's matured
-                if (txo.isCoinbase)
+                /* If prev is coinbase or a game tx, check that it's matured.
+                   The premine coins are an exception.  */
+                if (txo.isCoinbase && txo.height > 0)
                   {
                     if (heightDiff < COINBASE_MATURITY)
                       return error ("ConnectInputs: tried to spend coinbase at"
