@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+class CTxOut;
 class CTransaction;
 
 enum
@@ -712,7 +713,8 @@ bool ExtractHash160(const CScript& scriptPubKey, uint160& hash160Ret);
 bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn, int nHashType);
 bool SignSignature(const CKeyStore& keystore, const CScript& fromPubKey, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
 bool SignSignature(const CKeyStore& keystore, const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
-bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, int nHashType=0);
+bool VerifySignature (const CTxOut& txoFrom, const CTransaction& txTo,
+                      unsigned int nIn, int nHashType=0);
 bool ExtractDestination(const CScript& scriptPubKey, std::string& addressRet);
 
 // Given two sets of signatures for scriptPubKey, possibly with OP_0 placeholders,

@@ -78,12 +78,12 @@ public:
     virtual void AddToWallet(CWalletTx& tx);
     virtual bool CheckTransaction(const CTransaction& tx);
     virtual bool ConnectInputs(DatabaseSet& dbset,
-            map<uint256, CTxIndex>& mapTestPool,
+            const std::map<uint256, CTxIndex>& mapTestPool,
             const CTransaction& tx,
-            vector<CTransaction>& vTxPrev,
-            vector<CTxIndex>& vTxindex,
-            CBlockIndex* pindexBlock,
-            CDiskTxPos& txPos,
+            const std::vector<CTxOut>& vTxoPrev,
+            const std::vector<CTxIndex>& vTxindex,
+            const CBlockIndex* pindexBlock,
+            const CDiskTxPos& txPos,
             bool fBlock,
             bool fMiner);
     virtual bool DisconnectInputs (DatabaseSet& dbset,
@@ -2385,9 +2385,14 @@ void CHuntercoinHooks::RemoveFromMemoryPool(const CTransaction& tx)
     }
 }
 
-int CheckTransactionAtRelativeDepth(CBlockIndex* pindexBlock, CTxIndex& txindex, int maxDepth)
+/* FIXME: Get rid of this, now that we have height in UTXO entries.  */
+static int
+CheckTransactionAtRelativeDepth (const CBlockIndex* pindexBlock,
+                                 const CTxIndex& txindex, int maxDepth)
 {
-    for (CBlockIndex* pindex = pindexBlock; pindex && pindexBlock->nHeight - pindex->nHeight < maxDepth; pindex = pindex->pprev)
+    for (const CBlockIndex* pindex = pindexBlock;
+         pindex && pindexBlock->nHeight - pindex->nHeight < maxDepth;
+         pindex = pindex->pprev)
         if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
             return pindexBlock->nHeight - pindex->nHeight;
     return -1;
@@ -2457,9 +2462,10 @@ IsPlayerDead (const CWalletTx &nameTx, const CTxIndex &txindex)
 }
 
 static bool
-ConnectInputsGameTx (DatabaseSet& dbset, map<uint256, CTxIndex>& mapTestPool,
-                     const CTransaction& tx, CBlockIndex* pindexBlock,
-                     CDiskTxPos& txPos)
+ConnectInputsGameTx (DatabaseSet& dbset,
+                     const std::map<uint256, CTxIndex>& mapTestPool,
+                     const CTransaction& tx, const CBlockIndex* pindexBlock,
+                     const CDiskTxPos& txPos)
 {
     if (!tx.IsGameTx())
         return error("ConnectInputsGameTx called for non-game tx");
@@ -2523,11 +2529,12 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
 
 bool
 CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
-                                 map<uint256, CTxIndex>& mapTestPool,
+                                 const std::map<uint256, CTxIndex>& mapTestPool,
                                  const CTransaction& tx,
-                                 vector<CTransaction>& vTxPrev,
-                                 vector<CTxIndex>& vTxindex,
-                                 CBlockIndex* pindexBlock, CDiskTxPos& txPos,
+                                 const std::vector<CTxOut>& vTxoPrev,
+                                 const std::vector<CTxIndex>& vTxindex,
+                                 const CBlockIndex* pindexBlock,
+                                 const CDiskTxPos& txPos,
                                  bool fBlock, bool fMiner)
 {
     if (tx.IsGameTx ())
@@ -2541,7 +2548,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     /* For game transactions, the vectors of previous transactions
        are not filled.  Check that they are filled properly if we have
        a non-game transaction.  */
-    assert (vTxPrev.size () == tx.vin.size ()
+    assert (vTxoPrev.size () == tx.vin.size ()
             && vTxindex.size () == tx.vin.size ());
 
     int nInput;
@@ -2553,7 +2560,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
     for (int i = 0 ; i < tx.vin.size(); i++)
     {
-        const CTxOut& out = vTxPrev[i].vout[tx.vin[i].prevout.n];
+        const CTxOut& out = vTxoPrev[i];
         vector<vchType> vvchPrevArgsRead;
         if (DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgsRead))
         {

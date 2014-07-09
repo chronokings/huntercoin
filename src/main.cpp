@@ -1160,8 +1160,8 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
     // Take over previous transactions' spent pointers
     if (!IsCoinBase())
     {
-        vector<CTransaction> vTxPrev;
-        vector<CTxIndex> vTxindex;
+        std::vector<CTxOut> vTxoPrev;
+        std::vector<CTxIndex> vTxindex;
 
         int64 nValueIn = 0;
         for (int i = 0; i < vin.size(); i++)
@@ -1219,70 +1219,76 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                     return error ("ConnectInputs() : prevout is null for"
                                   " non-game and non-coinbase transaction");
 
-                /* Read txPrev.  This is only used for non-game transactions,
-                   as game tx can be processed in ConnectInputsGameTx
-                   without previous transactions.  */
-                CTransaction txPrev;
-                CUtxoEntry txoPrev;
+                /* Read the previous input from either the memory
+                   pool or the UTXO set.  */
+                CUtxoEntry txo;
                 if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
                 {
                     // Get prev tx from single transactions in memory
                     CRITICAL_BLOCK(cs_mapTransactions)
                     {
+                        CTransaction txPrev;
                         if (!mapTransactions.count(prevout.hash))
                             return error("ConnectInputs() : %s mapTransactions prev not found %s", GetHashForLog (), prevout.hash.ToLogString ());
+
                         txPrev = mapTransactions[prevout.hash];
+                        if (prevout.n >= txPrev.vout.size ())
+                          return error ("ConnectInputs() : %s prevout.n %d out"
+                                        " of range %d prev tx %s\n%s",
+                                        GetHashForLog (),
+                                        prevout.n, txPrev.vout.size (),
+                                        prevout.hash.ToLogString (),
+                                        txPrev.ToString ().c_str ());
+
+                        txo = CUtxoEntry(txPrev, prevout.n,
+                                         pindexBlock->nHeight);
                     }
                 }
                 else
                 {
-                    // Get prev tx from disk
-                    if (!txPrev.ReadFromDisk(txindex.pos))
-                        return error("ConnectInputs() : %s ReadFromDisk prev tx %s failed", GetHashForLog (),  prevout.hash.ToLogString ());
-
                     /* Read the UTXO set.  */
-                    if (!dbset.utxo ().ReadUtxo (prevout, txoPrev))
+                    if (!dbset.utxo ().ReadUtxo (prevout, txo))
                       return error ("ConnectInputs () : %s failed to find prev"
                                     "out %s in UTXO set",
                                     GetHash ().ToLogString (),
                                     prevout.ToString ().c_str ());
                 }
 
-                if (prevout.n >= txPrev.vout.size())
-                    return error ("ConnectInputs() : %s prevout.n %d out of"
-                                  " range %d prev tx %s\n%s",
-                                  GetHashForLog (),
-                                  prevout.n, txPrev.vout.size (),
-                                  prevout.hash.ToLogString (),
-                                  txPrev.ToString ().c_str ());
+                /* Get height difference between the output and the
+                   current block.  This is used to check for maturity
+                   later, and it depends on whether or not the prevout
+                   is already in some confirmed block.  */
+                const int heightDiff = pindexBlock->nHeight - txo.height;
+                if (heightDiff < 0)
+                  return error ("ConnectInputs: height difference is negative");
 
                 // If prev is coinbase, check that it's matured
-                if (txPrev.IsCoinBase())
-                {
-                    for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < COINBASE_MATURITY; pindex = pindex->pprev)
-                        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
-                            return error("ConnectInputs() : tried to spend coinbase at depth %d", pindexBlock->nHeight - pindex->nHeight);
-                }
-                else if (txPrev.IsGameTx())
-                {
-                    for (CBlockIndex* pindex = pindexBlock; pindex->pprev && pindexBlock->nHeight - pindex->nHeight < GAME_REWARD_MATURITY; pindex = pindex->pprev)
-                        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
-                            return error("ConnectInputs() : tried to spend game reward at depth %d", pindexBlock->nHeight - pindex->nHeight);
-                }
+                if (txo.isCoinbase)
+                  {
+                    if (heightDiff < COINBASE_MATURITY)
+                      return error ("ConnectInputs: tried to spend coinbase at"
+                                    " depth %d", heightDiff);
+                  }
+                else if (txo.isGameTx)
+                  {
+                    if (heightDiff < GAME_REWARD_MATURITY)
+                      return error ("ConnectInputs: tried to spend game reward"
+                                    " at depth %d", heightDiff);
+                  }
 
                 // Verify signature
-                if (!VerifySignature(txPrev, *this, i))
+                if (!VerifySignature (txo.txo, *this, i))
                     return error("ConnectInputs() : %s VerifySignature failed", GetHash().ToString().substr(0,10).c_str());
 
                 // Check for negative or overflow input values
-                nValueIn += txPrev.vout[prevout.n].nValue;
-                if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
+                nValueIn += txo.txo.nValue;
+                if (!MoneyRange (txo.txo.nValue) || !MoneyRange (nValueIn))
                     return error("ConnectInputs() : txin values out of range");
 
                 /* Fill in vectors with previous transactions.  They are not
                    used for game transactions and can thus stay empty
                    for those.  */
-                vTxPrev.push_back (txPrev);
+                vTxoPrev.push_back (txo.txo);
                 vTxindex.push_back (txindex);
             }
 
@@ -1310,7 +1316,8 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
             }
         }
 
-        if (!hooks->ConnectInputs (dbset, mapTestPool, *this, vTxPrev, vTxindex,
+        if (!hooks->ConnectInputs (dbset, mapTestPool, *this,
+                                   vTxoPrev, vTxindex,
                                    pindexBlock, posThisTx, fBlock, fMiner))
             return false;
 
@@ -1358,30 +1365,30 @@ bool CTransaction::ClientConnectInputs()
         for (int i = 0; i < vin.size(); i++)
         {
             // Get prev tx from single transactions in memory
-            COutPoint prevout = vin[i].prevout;
+            const COutPoint& prevout = vin[i].prevout;
             if (!mapTransactions.count(prevout.hash))
                 return false;
-            CTransaction& txPrev = mapTransactions[prevout.hash];
+            const CTransaction& txPrev = mapTransactions[prevout.hash];
 
             if (prevout.n >= txPrev.vout.size())
                 return false;
+            const CTxOut& txoPrev = txPrev.vout[prevout.n];
 
             // Verify signature
-            if (!VerifySignature(txPrev, *this, i))
+            if (!VerifySignature (txoPrev, *this, i))
                 return error("ConnectInputs() : VerifySignature failed");
 
             ///// this is redundant with the mapNextTx stuff, not sure which I want to get rid of
             ///// this has to go away now that posNext is gone
             // // Check for conflicts
-            // if (!txPrev.vout[prevout.n].posNext.IsNull())
+            // if (!txoPrev.posNext.IsNull())
             //     return error("ConnectInputs() : prev tx already used");
             //
             // // Flag outpoints as used
-            // txPrev.vout[prevout.n].posNext = posThisTx;
+            // txoPrev.posNext = posThisTx;
 
-            nValueIn += txPrev.vout[prevout.n].nValue;
-
-            if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
+            nValueIn += txoPrev.nValue;
+            if (!MoneyRange (txoPrev.nValue) || !MoneyRange (nValueIn))
                 return error("ClientConnectInputs() : txin values out of range");
         }
 
