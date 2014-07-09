@@ -80,8 +80,7 @@ public:
     virtual bool ConnectInputs(DatabaseSet& dbset,
             const std::map<uint256, CTxIndex>& mapTestPool,
             const CTransaction& tx,
-            const std::vector<CTxOut>& vTxoPrev,
-            const std::vector<CTxIndex>& vTxindex,
+            const std::vector<CUtxoEntry>& vTxoPrev,
             const CBlockIndex* pindexBlock,
             const CDiskTxPos& txPos,
             bool fBlock,
@@ -2385,19 +2384,6 @@ void CHuntercoinHooks::RemoveFromMemoryPool(const CTransaction& tx)
     }
 }
 
-/* FIXME: Get rid of this, now that we have height in UTXO entries.  */
-static int
-CheckTransactionAtRelativeDepth (const CBlockIndex* pindexBlock,
-                                 const CTxIndex& txindex, int maxDepth)
-{
-    for (const CBlockIndex* pindex = pindexBlock;
-         pindex && pindexBlock->nHeight - pindex->nHeight < maxDepth;
-         pindex = pindex->pprev)
-        if (pindex->nBlockPos == txindex.pos.nBlockPos && pindex->nFile == txindex.pos.nBlockFile)
-            return pindexBlock->nHeight - pindex->nHeight;
-    return -1;
-}
-
 bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 {
     if (tx.nVersion != NAMECOIN_TX_VERSION)
@@ -2531,8 +2517,7 @@ bool
 CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                                  const std::map<uint256, CTxIndex>& mapTestPool,
                                  const CTransaction& tx,
-                                 const std::vector<CTxOut>& vTxoPrev,
-                                 const std::vector<CTxIndex>& vTxindex,
+                                 const std::vector<CUtxoEntry>& vTxoPrev,
                                  const CBlockIndex* pindexBlock,
                                  const CDiskTxPos& txPos,
                                  bool fBlock, bool fMiner)
@@ -2548,21 +2533,22 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     /* For game transactions, the vectors of previous transactions
        are not filled.  Check that they are filled properly if we have
        a non-game transaction.  */
-    assert (vTxoPrev.size () == tx.vin.size ()
-            && vTxindex.size () == tx.vin.size ());
+    assert (vTxoPrev.size () == tx.vin.size ());
 
     int nInput;
     bool found = false;
 
-    int prevOp;
+    int prevHeight, prevOp;
     int64 prevCoinAmount = -1;
-    vector<vchType> vvchPrevArgs;
+    std::vector<vchType> vvchPrevArgs;
 
     for (int i = 0 ; i < tx.vin.size(); i++)
     {
-        const CTxOut& out = vTxoPrev[i];
-        vector<vchType> vvchPrevArgsRead;
-        if (DecodeNameScript(out.scriptPubKey, prevOp, vvchPrevArgsRead))
+        const CTxOut& out = vTxoPrev[i].txo;
+
+        int op;
+        std::vector<vchType> vvchPrevArgsRead;
+        if (DecodeNameScript(out.scriptPubKey, op, vvchPrevArgsRead))
         {
             if (found)
                 return error("ConnectInputHook() : multiple previous name transactions");
@@ -2570,6 +2556,8 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             nInput = i;
             vvchPrevArgs = vvchPrevArgsRead;
             prevCoinAmount = out.nValue;
+            prevHeight = vTxoPrev[i].height;
+            prevOp = op;
         }
     }
 
@@ -2582,15 +2570,19 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
         return true;
     }
 
-    vector<vector<unsigned char> > vvchArgs;
-    int op;
-    int nOut;
-
+    std::vector<vchType> vvchArgs;
+    int op, nOut;
     if (!DecodeNameTx(tx, op, nOut, vvchArgs))
         return error("ConnectInputsHook() : could not decode a name tx");
 
-    int nPrevHeight;
-    int nDepth;
+    /* Get depth of previous tx.  This is only meaningful if the
+       prev tx is a name operation, otherwise prevHeight is still
+       set to -1.  */
+    const int nDepth = pindexBlock->nHeight - prevHeight;
+    if (found && nDepth < 0)
+      return error ("ConnectInputHook: depth negative"
+                    " (block %d, prev %d, depth %d)",
+                    pindexBlock->nHeight, prevHeight, nDepth);
     int64 nNetFee;
 
     switch (op)
@@ -2601,6 +2593,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (tx.vout[nOut].nValue < NAMENEW_COIN_AMOUNT)
                 return error("ConnectInputsHook() : name_new tx: insufficient amount");
             break;
+
         case OP_NAME_FIRSTUPDATE:
             nNetFee = GetNameNetFee(tx);
             if (nNetFee < GetNetworkFee(pindexBlock->nHeight))
@@ -2610,10 +2603,10 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
             {
                 // Check hash
-                const vector<unsigned char> &vchHash = vvchPrevArgs[0];
-                const vector<unsigned char> &vchName = vvchArgs[0];
-                const vector<unsigned char> &vchRand = vvchArgs[1];
-                vector<unsigned char> vchToHash(vchRand);
+                const vchType& vchHash = vvchPrevArgs[0];
+                const vchType& vchName = vvchArgs[0];
+                const vchType& vchRand = vvchArgs[1];
+                vchType vchToHash(vchRand);
                 vchToHash.insert(vchToHash.end(), vchName.begin(), vchName.end());
                 uint160 hash = Hash160(vchToHash);
                 if (uint160(vchHash) != hash)
@@ -2625,21 +2618,16 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                               " insufficient amount of the locked coin");
             if (!NameAvailable (dbset, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
-            nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], MIN_FIRSTUPDATE_DEPTH);
-            // Do not accept if in chain and not mature
-            if ((fBlock || fMiner) && nDepth >= 0 && nDepth < MIN_FIRSTUPDATE_DEPTH)
+
+            /* Do not accept if name_new is not mature.  */
+            if ((fBlock || fMiner) && nDepth < MIN_FIRSTUPDATE_DEPTH)
                 return false;
 
-            // Do not mine if previous name_new is not visible.  This is if
-            // name_new expired or not yet in a block
+            /* Check that no other pending txs on this name are already
+               in the block to be mined.  */
             if (fMiner)
             {
-                // TODO CPU intensive
-                nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
-                if (nDepth == -1)
-                    return error("ConnectInputsHook() : name_firstupdate cannot be mined if name_new is not already in chain and unexpired");
-                // Check that no other pending txs on this name are already in the block to be mined
-                set<uint256>& setPending = mapNamePending[vvchArgs[0]];
+                const set<uint256>& setPending = mapNamePending[vvchArgs[0]];
                 BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& s, mapTestPool)
                 {
                     if (setPending.count(s.first))
@@ -2652,6 +2640,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                 }
             }
             break;
+
         case OP_NAME_UPDATE:
             if (!found || (prevOp != OP_NAME_FIRSTUPDATE && prevOp != OP_NAME_UPDATE))
                 return error("name_update tx without previous update tx");
@@ -2661,13 +2650,17 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (vvchPrevArgs[0] != vvchArgs[0])
                 return error("ConnectInputsHook() : name_update name mismatch");
 
-            // TODO CPU intensive
-            nDepth = CheckTransactionAtRelativeDepth(pindexBlock, vTxindex[nInput], INT_MAX);
-            if ((fBlock || fMiner) && nDepth < 0)
-                return error("ConnectInputsHook() : name_update on an expired name, or there is a pending transaction on the name");
+            /* Prevent update of a name twice in a single block.  */
+            if ((fBlock || fMiner) && nDepth == 0)
+              return error ("ConnectInputsHook: multiple name_update operations"
+                            " on the same name");
+
+            /* Check amount of locked coin.  */
             if (tx.vout[nOut].nValue != prevCoinAmount)
-                return error("ConnectInputsHook() : name_update tx: incorrect amount of the locked coin");
+              return error ("ConnectInputsHook: name_update tx:"
+                            " incorrect amount of the locked coin");
             break;
+
         default:
             return error("ConnectInputsHook() : name transaction has unknown op");
     }
@@ -2695,7 +2688,8 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
             CRITICAL_BLOCK(cs_main)
             {
-                std::map<std::vector<unsigned char>, std::set<uint256> >::iterator mi = mapNamePending.find(vvchArgs[0]);
+                std::map<vchType, std::set<uint256> >::iterator mi;
+                mi = mapNamePending.find (vvchArgs[0]);
                 if (mi != mapNamePending.end())
                     mi->second.erase(tx.GetHash());
             }

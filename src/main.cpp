@@ -1160,8 +1160,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
     // Take over previous transactions' spent pointers
     if (!IsCoinBase())
     {
-        std::vector<CTxOut> vTxoPrev;
-        std::vector<CTxIndex> vTxindex;
+        std::vector<CUtxoEntry> vTxoPrev;
 
         int64 nValueIn = 0;
         for (int i = 0; i < vin.size(); i++)
@@ -1285,17 +1284,14 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                 if (!MoneyRange (txo.txo.nValue) || !MoneyRange (nValueIn))
                     return error("ConnectInputs() : txin values out of range");
 
-                /* Fill in vectors with previous transactions.  They are not
+                /* Fill in vectors with previous outputs.  They are not
                    used for game transactions and can thus stay empty
                    for those.  */
-                vTxoPrev.push_back (txo.txo);
-                vTxindex.push_back (txindex);
+                vTxoPrev.push_back (txo);
             }
 
             /* Mark previous outpoints as spent.  This is only necessary
-               when either fBlock or fMiner.  While the txindex is used
-               later also for vTxindex and the ConnectInputs hook,
-               vSpent is never actually used there.  */
+               when either fBlock or fMiner.  */
             if (!prevout.IsNull () && (fBlock || fMiner))
             {
                 assert (fFound);
@@ -1316,8 +1312,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
             }
         }
 
-        if (!hooks->ConnectInputs (dbset, mapTestPool, *this,
-                                   vTxoPrev, vTxindex,
+        if (!hooks->ConnectInputs (dbset, mapTestPool, *this, vTxoPrev,
                                    pindexBlock, posThisTx, fBlock, fMiner))
             return false;
 
