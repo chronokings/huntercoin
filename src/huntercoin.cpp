@@ -2865,20 +2865,27 @@ CHuntercoinHooks::ConnectBlock (CBlock& block, DatabaseSet& dbset,
         CRITICAL_BLOCK(cs_AppendBlockFile)
         {
             char pchMessageVGameTx[8] = { 'v', 'g', 'a', 'm', 'e', 't', 'x', ':' };
-            unsigned int nSize = GetSerializeSize(block.vgametx, SER_DISK) + sizeof(pchMessageVGameTx);
+            unsigned nSize = GetSerializeSize (block.vgametx, SER_DISK);
+            nSize += sizeof (pchMessageVGameTx);
 
-            if (!CheckDiskSpace(sizeof(pchMessageStart) + sizeof(nSize) + nSize))
-                return error("ConnectBlock hook : out of disk space when writing game transactions");
+            unsigned nTotalSize = sizeof (pchMessageStart);
+            nTotalSize += sizeof (nSize) + nSize;
 
-            CAutoFile fileout = AppendBlockFile(block.nGameTxFile);
+            CAutoFile fileout = AppendBlockFile (block.nGameTxFile, nTotalSize);
             if (!fileout)
                 return error("ConnectBlock hook : AppendBlockFile failed");
+            const unsigned startPos = ftell (fileout);
             fileout << FLATDATA(pchMessageStart) << nSize << FLATDATA(pchMessageVGameTx);
 
             block.nGameTxPos = ftell(fileout);
             if (block.nGameTxPos == -1)
                 return error("ConnectBlock hook : ftell failed");
             fileout << block.vgametx;
+
+            // Check that the total size estimate was correct.
+            if (ftell (fileout) - startPos != nTotalSize)
+              return error ("ConnectBlock hook: nTotalSize was wrong");
+
             FlushBlockFile(fileout);
         }
 
