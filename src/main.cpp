@@ -1961,7 +1961,7 @@ bool static ScanMessageStart(Stream& s)
     }
 }
 
-static bool
+bool
 CheckDiskSpace (uint64 nAdditionalBytes)
 {
     uint64 nFreeBytesAvailable = filesystem::space(GetDataDir()).available;
