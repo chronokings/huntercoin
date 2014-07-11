@@ -2871,7 +2871,8 @@ CHuntercoinHooks::ConnectBlock (CBlock& block, DatabaseSet& dbset,
             unsigned nTotalSize = sizeof (pchMessageStart);
             nTotalSize += sizeof (nSize) + nSize;
 
-            CAutoFile fileout = AppendBlockFile (block.nGameTxFile, nTotalSize);
+            CAutoFile fileout = AppendBlockFile (dbset, block.nGameTxFile,
+                                                 nTotalSize);
             if (!fileout)
                 return error("ConnectBlock hook : AppendBlockFile failed");
             const unsigned startPos = ftell (fileout);
