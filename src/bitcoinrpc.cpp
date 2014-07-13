@@ -49,6 +49,8 @@ using namespace boost;
 using namespace boost::asio;
 using namespace json_spirit;
 
+const char* rpcWarmupStatus = "uninitialised";
+
 void ThreadRPCServer2(void* parg);
 Value sendtoaddress(const Array& params, bool fHelp);
 
@@ -4114,6 +4116,10 @@ void ThreadRPCServer2(void* parg)
 
             // Parse id now so errors from here on will have the id
             id = find_value(request, "id");
+
+            // Bail early if not yet initialised.
+            if (rpcWarmupStatus)
+              throw JSONRPCError (RPC_IN_WARMUP, rpcWarmupStatus);
 
             // Parse method
             Value valMethod = find_value(request, "method");
