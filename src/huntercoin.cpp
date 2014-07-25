@@ -672,6 +672,7 @@ Value name_list(const Array& params, bool fHelp)
     std::map<vchType, int> vNamesI;
     std::map<vchType, Object> vNamesO;
 
+    CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
       {
         CTxDB txdb("r");
