@@ -681,18 +681,6 @@ Value name_list(const Array& params, bool fHelp)
                       pwalletMain->mapWallet)
           {
             const CWalletTx& tx = item.second;
-
-            // ignore spent tx
-            if (!tx.vfSpent.empty ())
-              {
-                for (int i = 0; i < tx.vfSpent.size (); ++i)
-                  if (!tx.IsSpent (i))
-                    goto notAllSpent;
-
-                continue;
-              }
-notAllSpent:
-
             if (tx.nVersion != NAMECOIN_TX_VERSION)
               continue;
 
@@ -702,6 +690,36 @@ notAllSpent:
               continue;
             if (!vchNameUniq.empty () && vchNameUniq != vchName)
               continue;
+
+            /* The expensive part of this routine is loading the
+               tx index from disk later on.  To improve the situation
+               especially for wallets with loads of name_update operations
+               (typical for Huntercoin), we bail out early if all
+               outputs of the transaction are already spent (since then,
+               a follow-up transaction will occur later anyway).
+
+               Note that the vfSpent array we check here (for a wallet
+               transaction) only tracks outpoints owned by the wallet user.
+               Thus it is also no problem if someone else spends the output
+               after transferring a name to them, even though in that case
+               *no* follow-up wtx will appear in the loop.
+
+               The only thing to watch out for is if we just did a name_update
+               and have a pending transaction in the wallet.  In that case,
+               the output will already be marked as spent in the wallet, but
+               we won't get a later entry (since it fails the txindex lookup
+               later on as an unconfirmed transaction).  Thus never apply
+               this shortcut to names which appear in mapNamePending.  */
+
+            if (!tx.vfSpent.empty () && mapNamePending.count (vchName) == 0)
+              {
+                for (int i = 0; i < tx.vfSpent.size (); ++i)
+                  if (!tx.IsSpent (i))
+                    goto notAllSpent;
+
+                continue;
+              }
+notAllSpent:
 
             // value
             vchType vchValue;
