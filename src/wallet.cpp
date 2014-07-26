@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2011 Satoshi Nakamoto & Bitcoin developers
+  // Copyright (c) 2009-2011 Satoshi Nakamoto & Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
@@ -669,6 +669,51 @@ void CWallet::ResendWalletTransactions()
 }
 
 
+
+bool
+CWalletTx::GetNameUpdate (int& nOut, vchType& nm, vchType& val) const
+{
+  if (nVersion != NAMECOIN_TX_VERSION)
+    return false;
+
+  if (!nameTxDecoded)
+    {
+      nameTxDecoded = true;
+
+      std::vector<vchType> vvch;
+      int op;
+      if (DecodeNameTx (*this, op, nNameOut, vvch))
+        switch (op)
+          {
+          case OP_NAME_FIRSTUPDATE:
+            vchName = vvch[0];
+            vchValue = vvch[2];
+            nameTxDecodeSuccess = true;
+            break;
+
+          case OP_NAME_UPDATE:
+            vchName = vvch[0];
+            vchValue = vvch[1];
+            nameTxDecodeSuccess = true;
+            break;
+
+          case OP_NAME_NEW:
+          default:
+            nameTxDecodeSuccess = false;
+            break;
+          }
+      else
+        nameTxDecodeSuccess = false;
+    }
+
+  if (!nameTxDecodeSuccess)
+    return false;
+
+  nOut = nNameOut;
+  nm = vchName;
+  val = vchValue;
+  return true;
+}
 
 
 

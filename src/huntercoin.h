@@ -33,7 +33,6 @@ std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromString(const std::string &str);
 int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
-int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight);
 CScript RemoveNameScriptPrefix(const CScript& scriptIn);
 bool NameAvailable (DatabaseSet& dbset, const vchType& vchName);
 bool GetTxOfName(CNameDB& dbName, const std::vector<unsigned char> &vchName, CTransaction& tx);
