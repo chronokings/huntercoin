@@ -12,12 +12,11 @@ public:
     virtual void AddToWallet(CWalletTx& tx) = 0;
     virtual bool CheckTransaction(const CTransaction& tx) = 0;
     virtual bool ConnectInputs(DatabaseSet& dbset,
-            std::map<uint256, CTxIndex>& mapTestPool,
+            const std::map<uint256, CTxIndex>& mapTestPool,
             const CTransaction& tx,
-            std::vector<CTransaction>& vTxPrev,
-            std::vector<CTxIndex>& vTxindex,
-            CBlockIndex* pindexBlock,
-            CDiskTxPos& txPos,
+            const std::vector<CUtxoEntry>& vTxoPrev,
+            const CBlockIndex* pindexBlock,
+            const CDiskTxPos& txPos,
             bool fBlock,
             bool fMiner) = 0;
     virtual bool DisconnectInputs (DatabaseSet& txdb,

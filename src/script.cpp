@@ -1281,7 +1281,9 @@ bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CTrans
 }
 
 
-bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, int nHashType)
+bool
+VerifySignature (const CTxOut& txoFrom, const CTransaction& txTo,
+                 unsigned int nIn, int nHashType)
 {
     /* If the receiving transaction is a game transaction, this shouldn't
        ever be called.  They are generated deterministically (on player death)
@@ -1291,14 +1293,9 @@ bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsig
 
     assert(nIn < txTo.vin.size());
     const CTxIn& txin = txTo.vin[nIn];
-    if (txin.prevout.n >= txFrom.vout.size())
-        return false;
-    const CTxOut& txout = txFrom.vout[txin.prevout.n];
 
-    if (txin.prevout.hash != txFrom.GetHash())
-        return false;
-
-    if (!VerifyScript(txin.scriptSig, txout.scriptPubKey, txTo, nIn, nHashType))
+    if (!VerifyScript (txin.scriptSig, txoFrom.scriptPubKey,
+                       txTo, nIn, nHashType))
         return false;
 
     return true;

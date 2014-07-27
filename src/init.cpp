@@ -407,12 +407,32 @@ bool AppInit2(int argc, char* argv[])
       CNameDB dbName("cr+");
     }
 
+    /* Do the same for the UTXO database.  */
+    bool needUtxoRescan = false;
+    {
+      filesystem::path utxofile = filesystem::path(GetDataDir()) / "utxo.dat";
+      if (!filesystem::exists(utxofile))
+        needUtxoRescan = true;
+
+      CUtxoDB db("cr+");
+    }
+
+    /* Load block index.  */
     rpcWarmupStatus = "loading block index";
     printf("Loading block index...\n");
     nStart = GetTimeMillis();
     if (!LoadBlockIndex())
         strErrors += _("Error loading blkindex.dat      \n");
     printf(" block index %15"PRI64d"ms\n", GetTimeMillis() - nStart);
+
+    /* Now that hte block index is loaded, perform the UTXO
+       set rescan if necessary.  */
+    if (needUtxoRescan)
+      {
+        CUtxoDB db("r+");
+        rpcWarmupStatus = "rescanning for utxo set";
+        db.Rescan ();
+      }
 
     rpcWarmupStatus = "upgrading game db";
     if (!UpgradeGameDB())

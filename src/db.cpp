@@ -156,7 +156,7 @@ CDB::Close ()
       if (strFile == walletPath)
         nMinutes = 0;
       else if ((strFile == "blkindex.dat" || strFile == "game.dat"
-                || strFile == "nameindexfull.dat")
+                || strFile == "nameindexfull.dat" || strFile == "utxo.dat")
                && IsInitialBlockDownload ())
         nMinutes = 5;
 
@@ -856,6 +856,289 @@ CTxDB::RewriteTxIndex (int oldVersion)
 
 
 
+/* ************************************************************************** */
+/* CUtxoDB.  */
+
+CUtxoDB::KeyType
+CUtxoDB::GetKey (const COutPoint& pos)
+{
+  return std::make_pair (std::string ("txo"), pos);
+}
+
+bool
+CUtxoDB::ReadUtxo (const COutPoint& pos, CUtxoEntry& txo)
+{
+  return Read (GetKey (pos), txo);
+}
+
+bool
+CUtxoDB::InsertUtxo (const COutPoint& pos, const CUtxoEntry& txo)
+{
+  if (Exists (GetKey (pos)))
+    {
+      printf ("Already existing in UTXO: %s\n", pos.ToString ().c_str ());
+
+      /* For some coinbase transactions in the chain, it is the case that
+         they are *exactly* the same.  This results in the same txid and
+         thus COutPoint for them.  Since addressing an UTXO entry for
+         spending is done via COutPoint, this also means that only one
+         of them can ever be spent.  Thus it is "ok" to have only one
+         UTXO entry.  They must be the same (except for the chain height),
+         since otherwise the hash would be different.
+
+         The existing entry will be replaced below by the new one, since
+         it should get the new (larger) height.  This makes sure that
+         it is consistent with the maturity checks done in ConnectInputs,
+         since they look backwards in the chain until they find
+         the tx.  */
+
+      if (!txo.isCoinbase)
+        return error ("Duplicate UTXO entry is not coinbase!");
+
+      CUtxoEntry existing;
+      ReadUtxo (pos, existing);
+      if (existing.height >= txo.height)
+        return error ("Existing UTXO entry should have lower height than new!");
+    }
+
+  return Write (GetKey (pos), txo);
+}
+
+bool
+CUtxoDB::InsertUtxo (const CTransaction& tx, unsigned n, int height)
+{
+  COutPoint pos(tx.GetHash (), n);
+  CUtxoEntry entry(tx, n, height);
+
+  return InsertUtxo (pos, entry);
+}
+
+bool
+CUtxoDB::InsertUtxo (const CTransaction& tx, int height)
+{
+  /* TODO: Calculate tx.GetHash() once instead of for each
+     output in InsertUtxo(CTransaction, unsigned)?  */
+
+  for (unsigned n = 0; n < tx.vout.size (); ++n)
+    if (!InsertUtxo (tx, n, height))
+      return false;
+
+  return true;
+}
+
+bool
+CUtxoDB::RemoveUtxo (const COutPoint& pos)
+{
+  if (!Exists (GetKey (pos)))
+    return error ("Trying to remove non-existant UTXO entry.");
+
+  return Erase (GetKey (pos));
+}
+
+bool
+CUtxoDB::RemoveUtxo (const CTransaction& tx)
+{
+  const uint256 hash = tx.GetHash ();
+  for (unsigned n = 0; n < tx.vout.size (); ++n)
+    {
+      COutPoint pos(hash, n);
+      if (!RemoveUtxo (pos))
+        return false;
+    }
+
+  return true;
+}
+
+bool
+CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
+{
+  assert ((fVerify && outPoints) || (!fVerify && !outPoints));
+  CTxDB txdb("r");
+
+  /* To save DB memory, each individual block is done as a single DB
+     transaction.  This shouldn't hurt much, since this routine is run
+     only once anyway and later on, the UTXO is kept up-to-date.  */
+
+  if (!fVerify)
+    {
+      TxnBegin ();
+      WriteVersion (VERSION);
+      TxnCommit ();
+    }
+
+  unsigned allTxCnt = 0;
+  unsigned allTxoCnt = 0;
+  unsigned txCnt = 0;
+  unsigned txoCnt = 0;
+  int64_t amount = 0;
+
+  const CBlockIndex* pInd = pindexGenesisBlock;
+  for (; pInd; pInd = pInd->pnext)
+    {
+      if (pInd->nHeight % 1000 == 0)
+        printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
+
+      CBlock block;
+      block.ReadFromDisk (pInd);
+
+      std::vector<const CTransaction*> vTxs;
+      for (unsigned i = 0; i < block.vtx.size (); ++i)
+        vTxs.push_back (&block.vtx[i]);
+      for (unsigned i = 0; i < block.vgametx.size (); ++i)
+        vTxs.push_back (&block.vgametx[i]);
+
+      if (!fVerify)
+        TxnBegin ();
+
+      allTxCnt += vTxs.size ();
+      for (unsigned i = 0; i < vTxs.size (); ++i)
+        {
+          const CTransaction& tx = *vTxs[i];
+
+          CTxIndex txindex;
+          if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
+            {
+              printf ("Could not read txindex for %s @%d.\n",
+                      tx.GetHash ().ToString ().c_str (), pInd->nHeight);
+
+              if (!fVerify)
+                TxnAbort ();
+              return error ("ReadTxIndex failed.");
+            }
+
+          bool hasUnspent = false;
+          allTxoCnt += tx.vout.size ();
+          for (unsigned j = 0; j < tx.vout.size (); ++j)
+            if (!txindex.IsSpent (j))
+              {
+                hasUnspent = true;
+                ++txoCnt;
+                amount += tx.vout[j].nValue;
+
+                if (fVerify)
+                  {
+                    const COutPoint p(tx.GetHash (), j);
+                    CUtxoEntry txo;
+                    if (!ReadUtxo (p, txo))
+                      {
+                        printf ("Missing %s in UTXO database.\n",
+                                p.ToString ().c_str ());
+                        return error ("UTXO database is incomplete.");
+                      }
+
+                    /* It is possible that a single tx is twice
+                       in the blockchain, so ignore height in the
+                       comparison below.  Set it to the old entry's height.  */
+                    const CUtxoEntry entry(tx, j, txo.height);
+                    if (txo != entry)
+                      {
+                        printf ("Mismatch for %s in UTXO database.\n",  
+                                p.ToString ().c_str ());
+                        return error ("UTXO database has wrong entry.");
+                      }
+                    outPoints->insert (p);
+                  }
+                else
+                  {
+                    if (!InsertUtxo (tx, j, pInd->nHeight))
+                      {
+                        printf ("Failed: %s %d (%d in block @%d)\n",
+                                tx.GetHash ().ToString ().c_str (), j,
+                                i, pInd->nHeight);
+                        return error ("InsertUtxo failed.");
+                      }
+                  }
+              }
+          if (hasUnspent)
+            ++txCnt;
+        }
+
+      if (!fVerify)
+        TxnCommit ();
+    }
+
+  printf ("Finished constructing UTXO.\n"
+          "  # txo:       %d\n"
+          "  # tx:        %d\n"
+          "  # all txo:   %d\n"
+          "  # all tx:    %d\n"
+          "  total coins: %.8f\n",
+          txoCnt, txCnt, allTxoCnt, allTxCnt,
+          static_cast<double> (amount) / COIN);
+
+  return true;
+}
+
+bool
+CUtxoDB::Rescan ()
+{
+  CCriticalBlock lock(cs_main);
+  printf ("Rescanning blockchain to construct UTXO set...\n");
+  return InternalRescan (false);
+}
+
+bool
+CUtxoDB::Verify ()
+{
+  CCriticalBlock lock(cs_main);
+  OutPointSet outPoints;
+
+  /* In a first pass, the blockchain is read and it is checked that
+     every UTXO found is part of the DB.  We keep track of all COutPoints
+     that appear.  Later, go through everything in the DB and check that
+     it is part of the record built up before, to verify that there are no
+     spurious entries in the DB.  */
+
+  printf ("Rescanning blockchain to verify UTXO set...\n");
+  if (!InternalRescan (true, &outPoints))
+    return false;
+
+  printf ("Verifying that the UTXO database doesn't"
+          " have superfluous entries...\n");
+  
+  /* Get database cursor.  */
+  Dbc* pcursor = GetCursor ();
+  if (!pcursor)
+    return error ("Failed to get DB cursor.");
+
+  /* Loop through all entries.  */
+  unsigned int fFlags = DB_SET_RANGE;
+  while (true)
+    {
+      CDataStream ssKey;
+      if (fFlags == DB_SET_RANGE)
+        {
+          COutPoint p(uint256 (0), 0);
+          ssKey << GetKey (p);
+        }
+      CDataStream ssValue;
+      const int ret = ReadAtCursor (pcursor, ssKey, ssValue, fFlags);
+      fFlags = DB_NEXT;
+      if (ret == DB_NOTFOUND)
+        break;
+      if (ret != 0)
+        return error ("ReadAtCursor failed.");
+
+      std::string strType;
+      ssKey >> strType;
+      if (strType != "txo")
+        break;
+
+      COutPoint pos;
+      ssKey >> pos;
+
+      if (outPoints.find (pos) == outPoints.end ())
+        {
+          printf ("Spuriously in the UTXO DB: %s\n", pos.ToString ().c_str ());
+          return error ("UTXO DB contains too many entries.");
+        }
+    }
+  pcursor->close ();
+
+  return true;
+}
+
+/* ************************************************************************** */
 
 //
 // CAddrDB

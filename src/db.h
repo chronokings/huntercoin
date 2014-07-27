@@ -14,6 +14,8 @@
 
 class CNameIndex;
 class CTxIndex;
+class CUtxoEntry;
+class COutPoint;
 class CDiskBlockIndex;
 class CDiskTxPos;
 class COutPoint;
@@ -418,6 +420,61 @@ public:
 
 
 
+class CUtxoDB : public CDB
+{
+public:
+    CUtxoDB(const char* pszMode="r+") : CDB("utxo.dat", pszMode) { }
+private:
+    CUtxoDB(const CUtxoDB&);
+    void operator=(const CUtxoDB&);
+
+    /** Type used as key into the DB.  */
+    typedef std::pair<std::string, COutPoint> KeyType;
+
+    /** Set of COutPoints as used in the DB verification.  */
+    typedef std::set<COutPoint> OutPointSet;
+
+    /* Construct the look-up key for a given COutPoint.  This just prepends
+       the key-string "txo" to it.  */
+    KeyType GetKey (const COutPoint& pos);
+
+    /* Internal routine that shares code for scanning all transactions
+       in the blockchain.  It can be used (depending on the passed flags)
+       to build the UTXO DB from it, or to verify it against the
+       blockchain.  The caller must hold the cs_main lock in any case.  */
+    bool InternalRescan (bool fVerify, OutPointSet* outPoints = NULL);
+
+public:
+
+    /* Try to look up an entry in the UTXO set.  Return true if it is found
+       (i. e., still unspent).  If this is the case, the CTxOut will be set
+       accordingly.  */
+    bool ReadUtxo (const COutPoint& pos, CUtxoEntry& txo);
+
+    /* Insert an entry into the UTXO set.  This assumes that it doesn't already
+       exist, and gives an internal error if it does.  */
+    bool InsertUtxo (const COutPoint& pos, const CUtxoEntry& txo);
+    bool InsertUtxo (const CTransaction& tx, unsigned n, int height);
+    bool InsertUtxo (const CTransaction& tx, int height);
+
+    /* Remove (i. e., mark spent) a given output.  */
+    bool RemoveUtxo (const COutPoint& pos);
+    /* Remove an entire transaction.  This is used to disconnect blocks.  */
+    bool RemoveUtxo (const CTransaction& tx);
+
+    /* Rescan the blockchain to build the UTXO set from scratch.  */
+    bool Rescan ();
+
+    /* Scan the blockchain and verify that the UTXO set in the database
+       is correct.  This is used to check that the updating in ConnectBlock
+       and DisconnectBlock works as it should.  */
+    bool Verify ();
+};
+
+
+
+
+
 /**
  * Multiple databases (blkindex, nameindex) are used to represent the "current
  * blockchain state".  They are updated during block connecting/disconnecting,
@@ -430,12 +487,13 @@ class DatabaseSet
 private:
 
   CTxDB txDb;
+  CUtxoDB utxoDb;
   CNameDB nameDb;
 
 public:
 
   inline DatabaseSet (const char* pszMode = "r+")
-    : txDb(pszMode), nameDb(pszMode)
+    : txDb(pszMode), utxoDb(pszMode), nameDb(pszMode)
   {}
 
   /* Expose the bundled databases.  */
@@ -444,6 +502,12 @@ public:
   tx ()
   {
     return txDb;
+  }
+
+  inline CUtxoDB&
+  utxo ()
+  {
+    return utxoDb;
   }
 
   inline CNameDB&
@@ -459,6 +523,8 @@ public:
   {
     if (!txDb.TxnBegin ())
       return false;
+    if (!utxoDb.TxnBegin (txDb.GetTxn ()))
+      return error ("Failed to start child transaction in UTXO-DB!");
     if (!nameDb.TxnBegin (txDb.GetTxn ()))
       return error ("Failed to start child transaction in NameDB!");
 
@@ -470,6 +536,8 @@ public:
   {
     if (!nameDb.TxnAbort ())
       return error ("Failed to abort child transaction in NameDB!");
+    if (!utxoDb.TxnAbort ())
+      return error ("Failed to abort child transaction in UTXO-DB!");
     return txDb.TxnAbort ();
   }
 
@@ -478,10 +546,13 @@ public:
   {
     if (!nameDb.TxnCommit ())
       return error ("Failed to commit child transaction in NameDB!");
+    if (!utxoDb.TxnCommit ())
+      return error ("Failed to commit child transaction in UTXO-DB!");
     return txDb.TxnCommit ();
   }
 
 };
+
 
 
 
