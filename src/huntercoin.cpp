@@ -279,16 +279,10 @@ int GetTxPosHeight(const CDiskTxPos& txPos)
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(block.GetHash());
     if (mi == mapBlockIndex.end())
         return 0;
-    CBlockIndex* pindex = (*mi).second;
+    const CBlockIndex* pindex = (*mi).second;
     if (!pindex || !pindex->IsInMainChain())
         return 0;
     return pindex->nHeight;
-}
-
-int GetTxPosHeight2(const CDiskTxPos& txPos, int nHeight)
-{
-    nHeight = GetTxPosHeight(txPos);
-    return nHeight;
 }
 
 bool
@@ -672,49 +666,105 @@ Value name_list(const Array& params, bool fHelp)
     std::map<vchType, int> vNamesI;
     std::map<vchType, Object> vNamesO;
 
+    /* For determining the tx height by the txindex, one has to load the
+       block header from disk.  To prevent this, we look up the name index
+       and use that instead.  Cache the name index lookups for better
+       performance.  */
+    std::map<vchType, std::vector<CNameIndex> > nameIndexCache;
+
+    /* Collect some info for performance optimisation.  We store the total
+       number of transactions processed (which were name tx) and the
+       number that needed to be loaded from disk (its txindex) since
+       they couldn't be short-cut.  */
+    unsigned totalTx = 0;
+    unsigned loadedTx = 0;
+
+    CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
       {
         CTxDB txdb("r");
+        CNameDB namedb("r");
 
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item,
                       pwalletMain->mapWallet)
           {
             const CWalletTx& tx = item.second;
 
-            // ignore spent tx
-            if (!tx.vfSpent.empty ())
-              {
-                for (int i = 0; i < tx.vfSpent.size (); ++i)
-                  if (!tx.IsSpent (i))
-                    goto notAllSpent;
-
-                continue;
-              }
-notAllSpent:
-
-            if (tx.nVersion != NAMECOIN_TX_VERSION)
+            vchType vchName, vchValue;
+            int nOut;
+            if (!tx.GetNameUpdate (nOut, vchName, vchValue))
               continue;
 
-            // name
-            vchType vchName;
-            if (!GetNameOfTx (tx, vchName))
-              continue;
+            ++totalTx;
+
             if (!vchNameUniq.empty () && vchNameUniq != vchName)
               continue;
 
-            // value
-            vchType vchValue;
-            if (!GetValueOfNameTx (tx, vchValue))
-              continue;
+            /* The expensive part of this routine is loading the
+               tx index from disk later on.  To improve the situation
+               especially for wallets with loads of name_update operations
+               (typical for Huntercoin), we bail out early if the name
+               output of the transaction is already spent (since then,
+               a follow-up transaction will occur later anyway).
 
-            // height
+               Note that the vfSpent array we check here (for a wallet
+               transaction) only tracks outpoints owned by the wallet user.
+               Thus it is also no problem if someone else spends the output
+               after transferring a name to them, even though in that case
+               *no* follow-up wtx will appear in the loop.
+
+               The only thing to watch out for is if we just did a name_update
+               and have a pending transaction in the wallet.  In that case,
+               the output will already be marked as spent in the wallet, but
+               we won't get a later entry (since it fails the txindex lookup
+               later on as an unconfirmed transaction).  Thus never apply
+               this shortcut to names which appear in mapNamePending.  */
+
+            if (nOut < tx.vfSpent.size ()
+                && mapNamePending.count (vchName) == 0
+                && tx.IsSpent (nOut))
+              continue;
+            
+            ++loadedTx;
+
+            /* Load tx index for disk position and spent-type array.  */
             CTxIndex txindex;
             if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
               continue;
-            const int nHeight = GetTxPosHeight(txindex.pos);
+
+            /* Find the name's name index object to get the height.  */
+            if (nameIndexCache.count (vchName) == 0)
+              {
+                std::vector<CNameIndex> data;
+                if (!namedb.ReadName (vchName, data))
+                  {
+                    error ("name_list: ReadName failed");
+                    continue;
+                  }
+                nameIndexCache[vchName] = data;
+              }
+            const std::vector<CNameIndex> vNmIndex = nameIndexCache[vchName];
+            int nHeight = -1;
+            for (std::vector<CNameIndex>::const_iterator i = vNmIndex.begin ();
+                 i != vNmIndex.end (); ++i)
+              if (i->txPos == txindex.pos)
+                {
+                  nHeight = i->nHeight;
+                  break;
+                }
+            if (nHeight == -1)
+              {
+                error ("name_list: txpos not found in name index");
+                continue;
+              }
+
+            // get last active name only
+            if (vNamesI.find (vchName) != vNamesI.end ()
+                && vNamesI[vchName] > nHeight)
+              continue;
 
             Object oName;
-            std::string sName = stringFromVch(vchName);
+            const std::string sName = stringFromVch(vchName);
             oName.push_back(Pair("name", sName));
             oName.push_back(Pair("value", stringFromVch(vchValue)));
             if (!hooks->IsMine (tx))
@@ -722,11 +772,6 @@ notAllSpent:
             std::string strAddress;
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
-
-            // get last active name only
-            if (vNamesI.find (vchName) != vNamesI.end ()
-                && vNamesI[vchName] > nHeight)
-              continue;
 
             if (IsPlayerDead (tx, txindex))
               oName.push_back (Pair("dead", 1));
@@ -738,6 +783,8 @@ notAllSpent:
 
     BOOST_FOREACH(const PAIRTYPE(vchType, Object)& item, vNamesO)
       oRes.push_back(item.second);
+
+    printf ("name_list: total %u name tx, loaded %u.\n", totalTx, loadedTx);
 
     return oRes;
 }
