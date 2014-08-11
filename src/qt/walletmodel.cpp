@@ -656,22 +656,29 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
             return tr("This coin is not in your wallet");
         }
 
+        CReserveKey newKey(wallet);
         CScript scriptPubKeyOrig;
         if (transferToAddress != "")
-        {
-            std::string strAddress = transferToAddress.toStdString();
+          {
+            const std::string strAddress = transferToAddress.toStdString();
             uint160 hash160;
-            bool isValid = AddressToHash160(strAddress, hash160);
+            const bool isValid = AddressToHash160(strAddress, hash160);
             if (!isValid)
                 return tr("Invalid Huntercoin address");
             scriptPubKeyOrig.SetBitcoinAddress(strAddress);
-        }
-        else
-        {
+          }
+        else if (fAddressReuse)
+          {
             uint160 hash160;
             GetNameAddress(tx, hash160);
             scriptPubKeyOrig.SetBitcoinAddress(hash160);
-        }
+          }
+        else
+          {
+            const vchType vchPubKey = newKey.GetReservedKey ();
+            assert (wallet->HaveKey (vchPubKey));
+            scriptPubKeyOrig.SetBitcoinAddress (vchPubKey);
+          }
         scriptPubKey += scriptPubKeyOrig;
 
         /* Find amount locked in this name.  */
@@ -684,6 +691,11 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
         std::string strError;
         strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
                                          0, wtxIn, wtx, false);
+
+        /* Make sure to keep the (possibly) reserved key in case
+           of a successful transaction!  */
+        if (strError == "")
+          newKey.KeepKey (); 
 
         return QString::fromStdString (strError);
     }

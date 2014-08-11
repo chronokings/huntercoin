@@ -326,7 +326,11 @@ IsMyName (const CTxOut& txout)
   return Solver (*pwalletMain, scriptPubKey, 0, 0, scriptSig);
 }
 
-bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet)
+bool
+CreateTransactionWithInputTx (const vector<pair<CScript, int64> >& vecSend,
+                              const CWalletTx& wtxIn, int nTxOut,
+                              CWalletTx& wtxNew, CReserveKey& reservekey,
+                              int64& nFeeRet)
 {
     int64 nValue = 0;
     BOOST_FOREACH(const PAIRTYPE(CScript, int64)& s, vecSend)
@@ -360,7 +364,7 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
                 BOOST_FOREACH(const PAIRTYPE(CScript, int64)& s, vecSend)
                     wtxNew.vout.push_back(CTxOut(s.second, s.first));
 
-                int64 nWtxinCredit = wtxIn.vout[nTxOut].nValue;
+                const int64 nWtxinCredit = wtxIn.vout[nTxOut].nValue;
 
                 // Choose coins to use
                 set<pair<const CWalletTx*, unsigned int> > setCoins;
@@ -393,22 +397,29 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
                 int64 nChange = nValueIn - nTotalValue;
                 if (nChange >= CENT)
                 {
-                    // Note: We use a new key here to keep it from being obvious which side is the change.
-                    //  The drawback is that by not reusing a previous key, the change may be lost if a
-                    //  backup is restored, if the backup doesn't have the new private key for the change.
-                    //  If we reused the old key, it would be possible to add code to look for and
-                    //  rediscover unknown transactions that were written with keys of ours to recover
-                    //  post-backup change.
-
-                    // Reserve a new key pair from key pool
-                    vector<unsigned char> vchPubKey = reservekey.GetReservedKey();
-                    assert(pwalletMain->HaveKey(vchPubKey));
+                    /* If fAddressReuse is set, use the same key
+                       as one of the change inputs.  This prevents
+                       accidentally losing change coins when a backup
+                       has to be restored and lots of moves have
+                       been made in the mean time.  */
 
                     CScript scriptChange;
-                    if (vecSend[0].first.GetBitcoinAddressHash160() != 0)
-                        scriptChange.SetBitcoinAddress(vchPubKey);
+                    if (fAddressReuse)
+                      {
+                        /* There should be change coins.  Note that we use
+                            setCoins instead of vecCoins, since vecCoins also
+                            contains the input transaction itself.  */
+                        assert (!setCoins.empty ());
+                        const CTransaction& chTx = *setCoins.begin ()->first;
+                        const CTxOut& chIn = chTx.vout[setCoins.begin ()->second];
+                        scriptChange = chIn.scriptPubKey;
+                      }
                     else
-                        scriptChange << vchPubKey << OP_CHECKSIG;
+                      {
+                        const vchType vchPubKey = reservekey.GetReservedKey ();
+                        assert(pwalletMain->HaveKey(vchPubKey));
+                        scriptChange.SetBitcoinAddress(vchPubKey);
+                      }
 
                     // Insert change txn at random position:
                     vector<CTxOut>::iterator position = wtxNew.vout.begin()+GetRandInt(wtxNew.vout.size());
@@ -460,7 +471,10 @@ bool CreateTransactionWithInputTx(const vector<pair<CScript, int64> >& vecSend, 
 
 // nTxOut is the output from wtxIn that we should grab
 // requires cs_main lock
-string SendMoneyWithInputTx(const CScript& scriptPubKey, int64 nValue, int64 nNetFee, const CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee)
+std::string
+SendMoneyWithInputTx (const CScript& scriptPubKey, int64 nValue,
+                      int64 nNetFee, const CWalletTx& wtxIn,
+                      CWalletTx& wtxNew, bool fAskFee)
 {
     if (wtxIn.IsGameTx())
         return _("Error: SendMoneyWithInputTx trying to spend a game-created transaction");
@@ -1312,22 +1326,29 @@ Value name_update(const Array& params, bool fHelp)
             throw runtime_error("this coin is not in your wallet");
         }
 
+        CReserveKey newKey(pwalletMain);
         CScript scriptPubKeyOrig;
         if (params.size() == 3)
-        {
-            string strAddress = params[2].get_str();
+          {
+            const std::string strAddress = params[2].get_str();
             uint160 hash160;
-            bool isValid = AddressToHash160(strAddress, hash160);
+            const bool isValid = AddressToHash160(strAddress, hash160);
             if (!isValid)
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid huntercoin address");
             scriptPubKeyOrig.SetBitcoinAddress(strAddress);
-        }
-        else
-        {
+          }
+        else if (fAddressReuse)
+          {
             uint160 hash160;
             GetNameAddress(tx, hash160);
             scriptPubKeyOrig.SetBitcoinAddress(hash160);
-        }
+          }
+        else
+          {
+            const vchType vchPubKey = newKey.GetReservedKey ();
+            assert (pwalletMain->HaveKey (vchPubKey));
+            scriptPubKeyOrig.SetBitcoinAddress (vchPubKey);
+          }
         scriptPubKey += scriptPubKeyOrig;
 
         /* Find amount locked in this name.  */
@@ -1338,6 +1359,12 @@ Value name_update(const Array& params, bool fHelp)
         string strError;
         strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
                                          0, wtxIn, wtx, false);
+
+        /* Make sure to keep the (possibly) reserved key in case
+           of a successful transaction!  */
+        if (strError == "")
+          newKey.KeepKey (); 
+
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
