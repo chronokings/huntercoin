@@ -26,6 +26,12 @@ public:
       ownTxn.push_back (false);
     }
 
+    inline bool
+    Exists (unsigned nHeight) 
+    {
+      return CDB::Exists (nHeight);
+    }
+
     bool Read(unsigned int nHeight, GameState &gameState)
     {
         return CDB::Read(nHeight, gameState);
@@ -704,6 +710,35 @@ void EraseBadMoveTransactions()
             wtx.print();
         }
     }
+}
+
+void
+PruneGameDB (unsigned nHeight)
+{
+  CGameDB gameDb("r+");
+
+  std::set<unsigned> toRemove;
+  unsigned cnt = 0;
+  unsigned last = 0;
+  for (unsigned i = 0; i < nHeight; ++i)
+    if (gameDb.Exists (i))
+      {
+        ++cnt;
+        toRemove.insert (i);
+        last = i;
+      }
+  if (cnt > 0)
+    {
+      toRemove.erase (last);
+      --cnt;
+    }
+
+  printf ("Pruning %d game states before %d from the GameDB...\n", cnt, last);
+
+  BOOST_FOREACH(unsigned i, toRemove)
+    gameDb.Erase (i);
+
+  gameDb.Rewrite ();
 }
 
 bool UpgradeGameDB()

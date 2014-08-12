@@ -36,6 +36,13 @@ const Game::GameState &GetCurrentGameState();
 // no longer valid for the current game state
 void EraseBadMoveTransactions();
 
+/* Prune the game db by removing all states older than the given
+   number of blocks.  Actually, we keep the newest state that is older
+   than the treshold, so that we can integrate forward
+   in time from there and (more or less) efficiently reconstruct
+   every state after the treshold.  */
+void PruneGameDB (unsigned nHeight);
+
 bool UpgradeGameDB();
 
 #endif // GAMEDB_H
