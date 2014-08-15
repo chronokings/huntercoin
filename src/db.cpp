@@ -856,6 +856,57 @@ CTxDB::RewriteTxIndex (int oldVersion)
 
 
 
+
+/* ************************************************************************** */
+/* CNameDB.  */
+
+bool
+CNameDB::ReadName (const vchType& name, CNameIndex& nidx)
+{
+  std::vector<CNameIndex> vec;
+  if (!ReadNameVec (name, vec) || vec.empty ())
+    return false;
+
+  nidx = vec.back ();
+  return true;
+}
+
+bool
+CNameDB::PushEntry (const vchType& name, const CNameIndex& value)
+{
+  std::vector<CNameIndex> vec;
+  if (ExistsName (name)
+      && !ReadNameVec (name, vec))
+    return error ("CNameDB::PushEntry: ReadNameVec failed");
+
+  vec.push_back (value);
+  return WriteName (name, vec);
+}
+
+bool
+CNameDB::PopEntry (const vchType& name, int nHeight)
+{
+  std::vector<CNameIndex> vec;
+  if (!ReadNameVec (name, vec))
+    printf ("CNameDB::PopEntry: warning, name not in DB\n");
+
+  /* If the name doesn't exist or is already empty, there's nothing to pop.  */
+  if (vec.empty ())
+    return true;
+
+  if (vec.back ().nHeight != nHeight)
+    printf ("CNameDB::PopEntry: warning, height mismatch (%d, expected %d)\n",
+            vec.back ().nHeight, nHeight);
+
+  while (!vec.empty () && vec.back ().nHeight >= nHeight)
+    vec.pop_back ();
+
+  return WriteName (name, vec);
+}
+
+
+
+
 /* ************************************************************************** */
 /* CUtxoDB.  */
 
