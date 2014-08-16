@@ -1754,6 +1754,23 @@ game_getpath (const Array& params, bool fHelp)
   return res;
 }
 
+Value
+prune_gamedb (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () != 1)
+    throw runtime_error ("prune_gamedb DEPTH\n"
+                         "Remove old data from the game database.  We keep\n"
+                         "at least the last DEPTH blocks.\n");
+
+  int depth = params[0].get_int ();
+  if (depth > nBestHeight)
+    depth = nBestHeight;
+  if (depth >= 0)
+    PruneGameDB (nBestHeight - depth);
+
+  return true;
+}
+
 void UnspendInputs(CWalletTx& wtx)
 {
     set<CWalletTx*> setCoins;
@@ -2213,6 +2230,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("game_waitforchange", &game_waitforchange));
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
     mapCallTable.insert(make_pair("game_getpath", &game_getpath));
+    mapCallTable.insert(make_pair("prune_gamedb", &prune_gamedb));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
     setCallAsync.insert("game_waitforchange");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];
