@@ -247,6 +247,7 @@ bool AppInit2(int argc, char* argv[])
 
     fNoListen = GetBoolArg("-nolisten");
     fLogTimestamps = GetBoolArg("-logtimestamps");
+    fAddressReuse = !GetBoolArg ("-noaddressreuse");
 
     for (int i = 1; i < argc; i++)
         if (!IsSwitchChar(argv[i][0]))
@@ -680,6 +681,7 @@ std::string HelpMessage()
         "  -rpcallowip=<ip> \t\t  " + _("Allow JSON-RPC connections from specified IP address\n") +
         "  -rpcconnect=<ip> \t  "   + _("Send commands to node running on <ip> (default: 127.0.0.1)\n") +
         "  -keypool=<n>     \t  "   + _("Set key pool size to <n> (default: 100)\n") +
+        "  -noaddressreuse  \t  "   + _("Avoid address reuse for game moves\n") +
         "  -rescan          \t  "   + _("Rescan the block chain for missing wallet transactions\n") +
         "  -algo=<algo>     \t  "   + _("Mining algorithm: sha256d or scrypt. Also affects getdifficulty.\n");
 

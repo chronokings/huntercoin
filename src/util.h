@@ -207,6 +207,7 @@ extern std::string strMiscWarning;
 extern bool fTestNet;
 extern bool fNoListen;
 extern bool fLogTimestamps;
+extern bool fAddressReuse;
 
 void RandAddSeed();
 void RandAddSeedPerfmon();
