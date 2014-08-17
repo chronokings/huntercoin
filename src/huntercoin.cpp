@@ -732,11 +732,6 @@ Value name_list(const Array& params, bool fHelp)
             
             ++loadedTx;
 
-            /* Load tx index for disk position and spent-type array.  */
-            CTxIndex txindex;
-            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
-              continue;
-
             /* Get the tx's confirmation height from the Merkle branch.  */
             const int nHeight = tx.GetHeightInMainChain ();
             assert (nHeight >= 0);
@@ -756,6 +751,10 @@ Value name_list(const Array& params, bool fHelp)
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
 
+            /* Load txindex to check for dead players.  */
+            CTxIndex txindex;
+            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
+              continue;
             if (IsPlayerDead (tx, txindex))
               oName.push_back (Pair("dead", 1));
 
