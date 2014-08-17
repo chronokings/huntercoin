@@ -41,6 +41,12 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
   if (fDebug)
     printf ("Constructing game tx @%d...\n", gameState.nHeight);
 
+  /* Game transactions are only constructed for connecting new blocks.  Check
+     this by ensuring that we have the current height.  */
+  if (gameState.nHeight != nBestHeight + 1)
+    return error ("CreateGameTransactions: wrong height (%d, expected %d)",
+                  gameState.nHeight, nBestHeight + 1);
+
   // Create resulting game transactions
   // Transaction hashes must be unique
   outvgametx.clear ();
@@ -56,7 +62,7 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
     {
       const vchType vchName = vchFromString (victim);
       CTransaction tx;
-      if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
+      if (!GetTxOfName (nameDb, vchName, tx))
         return error ("Game engine killed a non-existing player %s",
                       victim.c_str ());
 
@@ -137,7 +143,7 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
     {
       const vchType vchName = vchFromString (bounty.character.player);
       CTransaction tx;
-      if (!GetTxOfNameAtHeight (nameDb, vchName, gameState.nHeight, tx))
+      if (!GetTxOfName (nameDb, vchName, tx))
         return error ("Game engine created bounty for non-existing player");
 
       CTxOut txout;

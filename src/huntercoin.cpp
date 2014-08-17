@@ -560,34 +560,6 @@ GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx)
   return true;
 }
 
-// Returns only player move transactions, i.e. ignores game-created transaction (player death)
-bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx)
-{
-    vector<CNameIndex> vtxPos;
-    if (!dbName.ReadNameVec (vchName, vtxPos) || vtxPos.empty())
-        return false;
-    int i = vtxPos.size();
-
-    loop
-    {
-        // Find maximum height less or equal to nHeight
-        // TODO: binary search (preferably with bias towards the last element, e.g. split at 3/4)
-        do
-        {
-            if (i == 0)
-                return false;
-            i--;
-        } while (vtxPos[i].nHeight > nHeight);
-        if (!tx.ReadFromDisk(vtxPos[i].txPos))
-            return error("GetTxOfNameAtHeight() : could not read tx from disk");
-
-        if (!tx.IsGameTx())
-            return true;
-
-        // If game transaction found (player death) proceed to the previous transaction
-    }
-}
-
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress)
 {
     uint160 hash160;

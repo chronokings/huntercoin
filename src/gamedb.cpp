@@ -263,7 +263,7 @@ int64 GameStepMiner::ComputeTax()
 bool
 PerformStep (CNameDB& nameDb, const GameState& inState, const CBlock* block,
              int64& nTax, GameState& outState,
-             std::vector<CTransaction>& outvgametx)
+             std::vector<CTransaction>* outvgametx)
 {
     if (block->hashPrevBlock != inState.hashBlock)
         return error("PerformStep: game state for wrong block");
@@ -289,7 +289,10 @@ PerformStep (CNameDB& nameDb, const GameState& inState, const CBlock* block,
 
     nTax = stepResult.nTaxAmount;
 
-    return CreateGameTransactions (nameDb, outState, stepResult, outvgametx);
+    if (!outvgametx)
+      return true;
+
+    return CreateGameTransactions (nameDb, outState, stepResult, *outvgametx);
 }
 
 /* ************************************************************************** */
@@ -528,32 +531,12 @@ GetGameState (DatabaseSet& dbset, CBlockIndex *pindex, GameState &outState)
     // FIXME: Might want to store intermediate steps in stateCache, too.
     loop
     {
-        std::vector<CTransaction> vgametx;
-
         CBlock block;
         block.ReadFromDisk(plast);
 
         int64 nTax;
-        if (!PerformStep (dbset.name (), lastState, &block, nTax,
-                          outState, vgametx))
+        if (!PerformStep (dbset.name (), lastState, &block, nTax, outState))
             return false;
-        if (block.vgametx != vgametx)
-        {
-            printf("Error: GetGameState: computed vgametx is different from the stored one\n");
-            printf("  block %s (height = %d) vgametx:\n", block.GetHash().ToString().c_str(), plast->nHeight);
-            BOOST_FOREACH (const CTransaction &tx, block.vgametx)
-            {
-                printf("    ");
-                tx.print();
-            }
-            printf("  computed vgametx (height = %d):\n", outState.nHeight);
-            BOOST_FOREACH (const CTransaction &tx, vgametx)
-            {
-                printf("    ");
-                tx.print();
-            }
-            return false;
-        }
         if (outState.nHeight != plast->nHeight)
             return error("GetGameState: wrong height");
         if (outState.hashBlock != *plast->phashBlock)
@@ -602,7 +585,7 @@ AdvanceGameState (DatabaseSet& dbset, CBlockIndex* pindex,
     int64 nTax = 0;
 
     if (!PerformStep (dbset.name (), currentState, block, nTax,
-                      outState, block->vgametx))
+                      outState, &block->vgametx))
       return false;
 
     if (outState.nHeight != pindex->nHeight)
