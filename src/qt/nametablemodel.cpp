@@ -99,9 +99,6 @@ public:
                 else
                   nHeight = NameTableEntry::NAME_UNCONFIRMED;
 
-                if (tx.nVersion != NAMECOIN_TX_VERSION)
-                    continue;
-
                 // If tx is unconfirmed, but invalid (won't get into a block), ignore it
                 if (!fConfirmed)
                 {
