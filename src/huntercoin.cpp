@@ -678,12 +678,6 @@ Value name_list(const Array& params, bool fHelp)
     std::map<vchType, int> vNamesI;
     std::map<vchType, Object> vNamesO;
 
-    /* For determining the tx height by the txindex, one has to load the
-       block header from disk.  To prevent this, we look up the name index
-       and use that instead.  Cache the name index lookups for better
-       performance.  */
-    std::map<vchType, std::vector<CNameIndex> > nameIndexCache;
-
     /* Collect some info for performance optimisation.  We store the total
        number of transactions processed (which were name tx) and the
        number that needed to be loaded from disk (its txindex) since
@@ -695,7 +689,6 @@ Value name_list(const Array& params, bool fHelp)
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
       {
         CTxDB txdb("r");
-        CNameDB namedb("r");
 
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item,
                       pwalletMain->mapWallet)
@@ -744,31 +737,9 @@ Value name_list(const Array& params, bool fHelp)
             if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
               continue;
 
-            /* Find the name's name index object to get the height.  */
-            if (nameIndexCache.count (vchName) == 0)
-              {
-                std::vector<CNameIndex> data;
-                if (!namedb.ReadNameVec (vchName, data))
-                  {
-                    error ("name_list: ReadName failed");
-                    continue;
-                  }
-                nameIndexCache[vchName] = data;
-              }
-            const std::vector<CNameIndex> vNmIndex = nameIndexCache[vchName];
-            int nHeight = -1;
-            for (std::vector<CNameIndex>::const_iterator i = vNmIndex.begin ();
-                 i != vNmIndex.end (); ++i)
-              if (i->txPos == txindex.pos)
-                {
-                  nHeight = i->nHeight;
-                  break;
-                }
-            if (nHeight == -1)
-              {
-                error ("name_list: txpos not found in name index");
-                continue;
-              }
+            /* Get the tx's confirmation height from the Merkle branch.  */
+            const int nHeight = tx.GetHeightInMainChain ();
+            assert (nHeight >= 0);
 
             // get last active name only
             if (vNamesI.find (vchName) != vNamesI.end ()
