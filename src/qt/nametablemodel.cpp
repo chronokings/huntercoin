@@ -70,69 +70,67 @@ public:
     {
         cachedNameTable.clear();
 
-        std::map< std::vector<unsigned char>, NameTableEntry > vNamesO;
+        std::map<vchType, NameTableEntry> vNamesO;
         
         CRITICAL_BLOCK(cs_main)
         CRITICAL_BLOCK(wallet->cs_mapWallet)
         {
-            CTxIndex txindex;
             CTxDB txdb("r");
-            CTransaction tx;
-
-            std::vector<unsigned char> vchName;
-            std::vector<unsigned char> vchValue;
-            int nHeight;
 
             BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
             {
-                bool fConfirmed;
-                bool fTransferred = false;
+                const CWalletTx& tx = item.second;
 
-                if (!txdb.ReadDiskTx(item.first, tx, txindex))
-                {
-                    tx = item.second;
-                    fConfirmed = false;
-                }
+                vchType vchName, vchValue;
+                int nOut;
+                if (!tx.GetNameUpdate (nOut, vchName, vchValue))
+                  continue;
+
+                /* Compare the name_list implementation.  */
+                if (nOut < tx.vfSpent.size ()
+                    && mapNamePending.count (vchName) == 0
+                    && tx.IsSpent (nOut))
+                  continue;
+
+                int nHeight = tx.GetHeightInMainChain ();
+                const bool fConfirmed = (nHeight != -1);
+                if (fConfirmed)
+                  assert (nHeight >= 0);
                 else
-                    fConfirmed = true;
-
-                if (tx.nVersion != NAMECOIN_TX_VERSION)
-                    continue;
-
-                // name
-                if (!GetNameOfTx(tx, vchName))
-                    continue;
-
-                // value
-                if (!GetValueOfNameTx(tx, vchValue))
-                    continue;
+                  nHeight = NameTableEntry::NAME_UNCONFIRMED;
 
                 // If tx is unconfirmed, but invalid (won't get into a block), ignore it
                 if (!fConfirmed)
                 {
-                    std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
+                    const std::string sName = stringFromVch (vchName);
+                    const std::string sValue = stringFromVch (vchValue);
                     Game::Move m;
                     m.Parse(sName, sValue);
                     if (!m || !m.IsValid(GetCurrentGameState()))
                         continue;
                 }
 
-                const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
-                if (!hooks->IsMine(nameTx))
+                bool fTransferred = false;
+                if (!hooks->IsMine (tx))
                     fTransferred = true;
 
-                // Dead player can be considered transferred ("transferred to the game")
-                if (fConfirmed && IsPlayerDead(nameTx, txindex))
-                    fTransferred = true;
+                /* Check for dead players.  We have to load the txindex
+                   in order to check the spent-type.  */
+                if (fConfirmed && !fTransferred)
+                  {
+                    CTxIndex txindex;
+                    if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
+                      {
+                        printf ("ERROR: refreshNameTable: ReadTxIndex failed\n");
+                        continue;
+                      }
 
-                // height
-                if (fConfirmed)
-                    nHeight = GetTxPosHeight(txindex.pos);
-                else
-                    nHeight = NameTableEntry::NAME_UNCONFIRMED;
+                    if (IsPlayerDead (tx, txindex))
+                      fTransferred = true;
+                  }
 
                 // get last active name only
-                std::map< std::vector<unsigned char>, NameTableEntry >::iterator mi = vNamesO.find(vchName);
+                std::map<vchType, NameTableEntry>::iterator mi = vNamesO.find(vchName);
                 if (mi != vNamesO.end() && !NameTableEntry::CompareHeight(mi->second.nHeight, nHeight))
                     continue;
 

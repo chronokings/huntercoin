@@ -383,17 +383,41 @@ public:
  */
 class CNameDB : public CDB
 {
-public:
-    CNameDB(const char* pszMode="r+") : CDB("nameindexfull.dat", pszMode) { }
+private:
 
-    bool WriteName(const vchType& name, const std::vector<CNameIndex>& vtxPos)
+    inline bool
+    EraseName (const vchType& name)
     {
-        return Write(make_pair(std::string("namei"), name), vtxPos);
+      return Erase (std::make_pair (std::string("namei"), name));
     }
 
-    bool ReadName(const vchType& name, std::vector<CNameIndex>& vtxPos)
+    inline bool
+    WriteName (const vchType& name, const std::vector<CNameIndex>& vtxPos)
     {
-        return Read(make_pair(std::string("namei"), name), vtxPos);
+      if (vtxPos.empty ())
+        return EraseName (name);
+
+      return Write (std::make_pair (std::string("namei"), name), vtxPos);
+    }
+
+public:
+
+    explicit inline CNameDB (const char* pszMode="r+")
+      : CDB("nameindexfull.dat", pszMode)
+    {}
+
+    /* This is the main interface for reading the name index.  It returns
+       the active CNameIndex object.  */
+    bool ReadName (const vchType& name, CNameIndex& nidx);
+
+    /* Return all states of the name in the index.  This is used for
+       name_history but nothing else (except things like name_debug1 which
+       do not really matter).  It may be incomplete if some
+       entries have been pruned.  */
+    inline bool
+    ReadNameVec (const vchType& name, std::vector<CNameIndex>& vtxPos)
+    {
+      return Read (std::make_pair (std::string("namei"), name), vtxPos);
     }
 
     bool ExistsName(const vchType& name)
@@ -401,10 +425,16 @@ public:
         return Exists(make_pair(std::string("namei"), name));
     }
 
-    bool EraseName(const vchType& name)
-    {
-        return Erase(make_pair(std::string("namei"), name));
-    }
+    /* Add a new CNameIndex entry for the given name.  This either creates
+       a completely new entry, or pushes the value onto the vector stored
+       in the database.  */
+    bool PushEntry (const vchType& name, const CNameIndex& value);
+
+    /* Remove CNameIndex entries (when rolling back the chain) up until
+       (including) a given height.  It should usually be the case that
+       the given height matches exactly the currently last entry.
+       But we do not insist on that.  */
+    bool PopEntry (const vchType& name, int nHeight);
 
     bool ScanNames(
             const vchType& vchName,

@@ -288,19 +288,14 @@ int GetTxPosHeight(const CDiskTxPos& txPos)
 bool
 NameAvailable (DatabaseSet& dbset, const vector<unsigned char> &vchName)
 {
-    vector<CNameIndex> vtxPos;
+    CNameIndex nidx;
     if (!dbset.name ().ExistsName (vchName))
         return true;
-
-    if (!dbset.name ().ReadName (vchName, vtxPos))
+    if (!dbset.name ().ReadName (vchName, nidx))
         return error("NameAvailable() : failed to read from name DB");
-    if (vtxPos.empty())
-        return true;
-
-    CNameIndex& txPos = vtxPos.back();
 
     // If player is dead, a new player with the same name can be created
-    if (txPos.vValue == vchFromString(VALUE_DEAD))
+    if (nidx.vValue == vchFromString(VALUE_DEAD))
         return true;
 
     return false;
@@ -539,34 +534,37 @@ bool GetValueOfTxPos(const CDiskTxPos& txPos, vector<unsigned char>& vchValue, u
     return true;
 }
 
-bool GetValueOfName(CNameDB& dbName, const vector<unsigned char> &vchName, vector<unsigned char>& vchValue, int& nHeight)
+bool
+GetValueOfName (CNameDB& dbName, const vchType& vchName,
+                vchType& vchValue, int& nHeight)
 {
-    vector<CNameIndex> vtxPos;
-    if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
-        return false;
+  CNameIndex nidx;
+  if (!dbName.ReadName (vchName, nidx))
+    return false;
 
-    CNameIndex& txPos = vtxPos.back();
-    nHeight = txPos.nHeight;
-    vchValue = txPos.vValue;
-    return true;
+  nHeight = nidx.nHeight;
+  vchValue = nidx.vValue;
+  return true;
 }
 
-bool GetTxOfName(CNameDB& dbName, const vector<unsigned char> &vchName, CTransaction& tx)
+bool
+GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx)
 {
-    vector<CNameIndex> vtxPos;
-    if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
-        return false;
-    CNameIndex& txPos = vtxPos.back();
-    if (!tx.ReadFromDisk(txPos.txPos))
-        return error("GetTxOfName() : could not read tx from disk");
-    return true;
+  CNameIndex nidx;
+  if (!dbName.ReadName (vchName, nidx))
+    return false;
+
+  if (!tx.ReadFromDisk (nidx.txPos))
+    return error ("GetTxOfName() : could not read tx from disk");
+
+  return true;
 }
 
 // Returns only player move transactions, i.e. ignores game-created transaction (player death)
 bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx)
 {
     vector<CNameIndex> vtxPos;
-    if (!dbName.ReadName(vchName, vtxPos) || vtxPos.empty())
+    if (!dbName.ReadNameVec (vchName, vtxPos) || vtxPos.empty())
         return false;
     int i = vtxPos.size();
 
@@ -680,12 +678,6 @@ Value name_list(const Array& params, bool fHelp)
     std::map<vchType, int> vNamesI;
     std::map<vchType, Object> vNamesO;
 
-    /* For determining the tx height by the txindex, one has to load the
-       block header from disk.  To prevent this, we look up the name index
-       and use that instead.  Cache the name index lookups for better
-       performance.  */
-    std::map<vchType, std::vector<CNameIndex> > nameIndexCache;
-
     /* Collect some info for performance optimisation.  We store the total
        number of transactions processed (which were name tx) and the
        number that needed to be loaded from disk (its txindex) since
@@ -697,7 +689,6 @@ Value name_list(const Array& params, bool fHelp)
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
       {
         CTxDB txdb("r");
-        CNameDB namedb("r");
 
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item,
                       pwalletMain->mapWallet)
@@ -741,36 +732,11 @@ Value name_list(const Array& params, bool fHelp)
             
             ++loadedTx;
 
-            /* Load tx index for disk position and spent-type array.  */
-            CTxIndex txindex;
-            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
-              continue;
-
-            /* Find the name's name index object to get the height.  */
-            if (nameIndexCache.count (vchName) == 0)
-              {
-                std::vector<CNameIndex> data;
-                if (!namedb.ReadName (vchName, data))
-                  {
-                    error ("name_list: ReadName failed");
-                    continue;
-                  }
-                nameIndexCache[vchName] = data;
-              }
-            const std::vector<CNameIndex> vNmIndex = nameIndexCache[vchName];
-            int nHeight = -1;
-            for (std::vector<CNameIndex>::const_iterator i = vNmIndex.begin ();
-                 i != vNmIndex.end (); ++i)
-              if (i->txPos == txindex.pos)
-                {
-                  nHeight = i->nHeight;
-                  break;
-                }
+            /* Get the tx's confirmation height from the Merkle branch.  */
+            const int nHeight = tx.GetHeightInMainChain ();
             if (nHeight == -1)
-              {
-                error ("name_list: txpos not found in name index");
-                continue;
-              }
+              continue;
+            assert (nHeight >= 0);
 
             // get last active name only
             if (vNamesI.find (vchName) != vNamesI.end ()
@@ -787,6 +753,10 @@ Value name_list(const Array& params, bool fHelp)
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
 
+            /* Load txindex to check for dead players.  */
+            CTxIndex txindex;
+            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
+              continue;
             if (IsPlayerDead (tx, txindex))
               oName.push_back (Pair("dead", 1));
 
@@ -845,7 +815,7 @@ Value name_debug1(const Array& params, bool fHelp)
         //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
         CNameDB dbName("r");
-        if (!dbName.ReadName(vchName, vtxPos))
+        if (!dbName.ReadNameVec (vchName, vtxPos))
         {
             error("failed to read from name DB");
             return false;
@@ -881,15 +851,12 @@ Value name_show(const Array& params, bool fHelp)
     CRITICAL_BLOCK(cs_main)
     {
         //vector<CDiskTxPos> vtxPos;
-        vector<CNameIndex> vtxPos;
+        CNameIndex nidx;
         CNameDB dbName("r");
-        if (!dbName.ReadName(vchName, vtxPos))
+        if (!dbName.ReadName (vchName, nidx))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
 
-        if (vtxPos.size() < 1)
-            throw JSONRPCError(RPC_WALLET_ERROR, "no result returned");
-
-        CDiskTxPos txPos = vtxPos.back().txPos;
+        const CDiskTxPos txPos = nidx.txPos;
         CTransaction tx;
         if (!tx.ReadFromDisk(txPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
@@ -937,7 +904,7 @@ Value name_history(const Array& params, bool fHelp)
         //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
         CNameDB dbName("r");
-        if (!dbName.ReadName(vchName, vtxPos))
+        if (!dbName.ReadNameVec (vchName, vtxPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
 
         CNameIndex txPos2;
@@ -2083,17 +2050,12 @@ bool CNameDB::ReconstructNameIndex()
                     continue;
                 }
 
-                vector<CNameIndex> vtxPos;
-                if (ExistsName(vchName))
-                    if (!ReadName(vchName, vtxPos))
-                        return error("Rescanfornames() : failed to read from name DB");
-                CNameIndex txPos2;
-                txPos2.nHeight = pindex->nHeight;
-                txPos2.vValue = vchValue;
-                txPos2.txPos = txindex.pos;
-                vtxPos.push_back(txPos2);
-                if (!WriteName(vchName, vtxPos))
-                    return error("Rescanfornames() : failed to write to name DB");
+                CNameIndex nidx;
+                nidx.nHeight = pindex->nHeight;
+                nidx.vValue = vchValue;
+                nidx.txPos = txindex.pos;
+                if (!PushEntry (vchName, nidx))
+                  return error ("Rescanfornames: failed to push entry");
             }
             BOOST_FOREACH(CTransaction& tx, block.vgametx)
             {
@@ -2126,19 +2088,12 @@ bool CNameDB::ReconstructNameIndex()
                     if (!DecodeNameScript(prevout.scriptPubKey, prevOp, vvchPrevArgs) || prevOp == OP_NAME_NEW)
                         continue;
 
-                    vector<CNameIndex> vtxPos;
-                    if (ExistsName(vvchPrevArgs[0]))
-                    {
-                        if (!ReadName(vvchPrevArgs[0], vtxPos))
-                            return error("Rescanfornames() : failed to read from name DB");
-                    }
-                    CNameIndex txPos2;
-                    txPos2.nHeight = pindex->nHeight;
-                    txPos2.vValue = vchFromString(VALUE_DEAD);
-                    txPos2.txPos = txindex.pos;
-                    vtxPos.push_back(txPos2);
-                    if (!WriteName(vvchPrevArgs[0], vtxPos))
-                        return error("Rescanfornames() : failed to write to name DB");
+                    CNameIndex nidx;
+                    nidx.nHeight = pindex->nHeight;
+                    nidx.vValue = vchFromString(VALUE_DEAD);
+                    nidx.txPos = txindex.pos;
+                    if (!PushEntry (vvchPrevArgs[0], nidx))
+                      return error ("Rescanfornames: failed to push entry");
                 }
             }
             pindex = pindex->pnext;
@@ -2494,14 +2449,9 @@ ConnectInputsGameTx (DatabaseSet& dbset,
         if (!IsPlayerDeathInput (tx.vin[i], name))
           return error ("ConnectInputsGameTx: prev is no player death");
 
-        vector<CNameIndex> vtxPos;
-        if (dbset.name ().ExistsName (name)
-            && !dbset.name ().ReadName (name, vtxPos))
-          return error ("ConnectInputsGameTx: failed to read from name DB");
-        CNameIndex txPos2(txPos, pindexBlock->nHeight,
-                          vchFromString (VALUE_DEAD));
-        vtxPos.push_back (txPos2);
-        if (!dbset.name ().WriteName (name, vtxPos))
+        CNameIndex nidx(txPos, pindexBlock->nHeight,
+                        vchFromString (VALUE_DEAD));
+        if (!dbset.name ().PushEntry (name, nidx))
           return error ("ConnectInputsGameTx: failed to write to name DB");
     }
 
@@ -2516,7 +2466,7 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
         return error("DisconnectInputsGameTx called for non-game tx");
 
     for (int i = 0; i < tx.vin.size(); i++)
-    {
+      {
         /* Skip bounty payouts.  */
         if (tx.vin[i].prevout.IsNull ())
           continue;
@@ -2525,19 +2475,9 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
         if (!IsPlayerDeathInput (tx.vin[i], name))
           return error ("DisconnectInputsGameTx: prev is no player death");
 
-        vector<CNameIndex> vtxPos;
-        if (dbset.name ().ExistsName (name)
-            && !dbset.name ().ReadName (name, vtxPos))
-          return error("DisconnectInputsGameTx() : failed to read from name DB");
-
-        if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight || vtxPos.back().vValue != vchFromString(VALUE_DEAD))
-            printf("DisconnectInputsGameTx() : Warning: game transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
-        while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
-            vtxPos.pop_back();
-
-        if (!dbset.name ().WriteName (name, vtxPos))
-            return error("DisconnectInputsGameTx() : failed to write to name DB");
-    }
+        if (!dbset.name ().PopEntry (name, pindexBlock->nHeight))
+          return error ("DisconnectInputsGameTx: failed to pop entry");
+      }
 
     return true;
 }
@@ -2698,22 +2638,16 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     {
         if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
         {
-            vector<CNameIndex> vtxPos;
-            if (dbset.name ().ExistsName (vvchArgs[0])
-                && !dbset.name ().ReadName (vvchArgs[0], vtxPos))
-              return error("ConnectInputsHook() : failed to read from name DB");
-            vchType vchValue; // add
-            int nHeight;
-            uint256 hash;
-            GetValueOfTxPos(txPos, vchValue, hash, nHeight);
-            CNameIndex txPos2;
-            txPos2.nHeight = pindexBlock->nHeight;
-            txPos2.vValue = vchValue;
-            txPos2.txPos = txPos;
-            vtxPos.push_back(txPos2); // fin add
-            //vtxPos.push_back(txPos);
-            if (!dbset.name ().WriteName (vvchArgs[0], vtxPos))
-                return error("ConnectInputsHook() : failed to write to name DB");
+            vchType vchValue;
+            if (!GetValueOfNameTx (tx, vchValue))
+              return error ("ConnectInputsHook: failed to get value of tx");
+
+            CNameIndex nidx;
+            nidx.nHeight = pindexBlock->nHeight;
+            nidx.vValue = vchValue;
+            nidx.txPos = txPos;
+            if (!dbset.name ().PushEntry (vvchArgs[0], nidx))
+              return error ("ConnectInputsHook: failed to write to name DB");
 
             CRITICAL_BLOCK(cs_main)
             {
@@ -2742,25 +2676,15 @@ CHuntercoinHooks::DisconnectInputs (DatabaseSet& dbset, const CTransaction& tx,
     int op;
     int nOut;
 
-    bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
+    const bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
         return error("DisconnectInputsHook() : could not decode name tx");
+
     if (op == OP_NAME_FIRSTUPDATE || op == OP_NAME_UPDATE)
-    {
-        vector<CNameIndex> vtxPos;
-        if (!dbset.name ().ReadName (vvchArgs[0], vtxPos))
-            return error("DisconnectInputsHook() : failed to read from name DB");
-
-        // vtxPos might be empty if we pruned expired transactions.  However, it should normally still not
-        // be empty, since a reorg cannot go that far back.  Be safe anyway and do not try to pop if empty.
-        if (vtxPos.empty() || vtxPos.back().nHeight != pindexBlock->nHeight)
-            printf("DisconnectInputsHook() : Warning: name transaction height mismatch (height %d, expected %d)\n", vtxPos.back().nHeight, pindexBlock->nHeight);
-        while (!vtxPos.empty() && vtxPos.back().nHeight >= pindexBlock->nHeight)
-            vtxPos.pop_back();
-
-        if (!dbset.name ().WriteName (vvchArgs[0], vtxPos))
-            return error("DisconnectInputsHook() : failed to write to name DB");
-    }
+      {
+        if (!dbset.name ().PopEntry (vvchArgs[0], pindexBlock->nHeight))
+          return error ("DisconnectInputsHook: failed to pop entry");
+      }
 
     return true;
 }
