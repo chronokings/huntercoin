@@ -734,6 +734,8 @@ Value name_list(const Array& params, bool fHelp)
 
             /* Get the tx's confirmation height from the Merkle branch.  */
             const int nHeight = tx.GetHeightInMainChain ();
+            if (nHeight == -1)
+              continue;
             assert (nHeight >= 0);
 
             // get last active name only

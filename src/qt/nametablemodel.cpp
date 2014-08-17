@@ -70,7 +70,7 @@ public:
     {
         cachedNameTable.clear();
 
-        std::map< std::vector<unsigned char>, NameTableEntry > vNamesO;
+        std::map<vchType, NameTableEntry> vNamesO;
         
         CRITICAL_BLOCK(cs_main)
         CRITICAL_BLOCK(wallet->cs_mapWallet)
@@ -80,9 +80,6 @@ public:
             BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
             {
                 const CWalletTx& tx = item.second;
-
-                bool fConfirmed;
-                bool fTransferred = false;
 
                 vchType vchName, vchValue;
                 int nOut;
@@ -96,16 +93,11 @@ public:
                   continue;
 
                 int nHeight = tx.GetHeightInMainChain ();
-                if (nHeight == -1)
-                  {
-                    nHeight = NameTableEntry::NAME_UNCONFIRMED;
-                    fConfirmed = false;
-                  }
+                const bool fConfirmed = (nHeight != -1);
+                if (fConfirmed)
+                  assert (nHeight >= 0);
                 else
-                  {
-                    fConfirmed = true;
-                    assert (nHeight >= 0);
-                  }
+                  nHeight = NameTableEntry::NAME_UNCONFIRMED;
 
                 if (tx.nVersion != NAMECOIN_TX_VERSION)
                     continue;
@@ -121,6 +113,7 @@ public:
                         continue;
                 }
 
+                bool fTransferred = false;
                 if (!hooks->IsMine (tx))
                     fTransferred = true;
 
@@ -140,7 +133,7 @@ public:
                   }
 
                 // get last active name only
-                std::map< std::vector<unsigned char>, NameTableEntry >::iterator mi = vNamesO.find(vchName);
+                std::map<vchType, NameTableEntry>::iterator mi = vNamesO.find(vchName);
                 if (mi != vNamesO.end() && !NameTableEntry::CompareHeight(mi->second.nHeight, nHeight))
                     continue;
 
