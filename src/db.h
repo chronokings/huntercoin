@@ -441,8 +441,6 @@ public:
             int nMax,
             std::vector<std::pair<vchType, CNameIndex> >& nameScan);
 
-    bool test();
-
     bool ReconstructNameIndex();
 };
 

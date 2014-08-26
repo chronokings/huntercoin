@@ -1003,10 +1003,6 @@ Value name_filter(const Array& params, bool fHelp)
             break;
     }
 
-    if (NAME_DEBUG) {
-        dbName.test();
-    }
-
     if(fStat)
     {
         Object oStat;
@@ -1076,9 +1072,6 @@ Value name_scan(const Array& params, bool fHelp)
         oRes.push_back(oName);
     }
 
-    if (NAME_DEBUG) {
-        dbName.test();
-    }
     return oRes;
 }
 
@@ -1799,47 +1792,6 @@ Value name_clean(const Array& params, bool fHelp)
     EraseBadMoveTransactions ();
 
     return true;
-}
-
-bool CNameDB::test()
-{
-    Dbc* pcursor = GetCursor();
-    if (!pcursor)
-        return false;
-
-    loop
-    {
-        // Read next record
-        CDataStream ssKey;
-        CDataStream ssValue;
-        int ret = ReadAtCursor(pcursor, ssKey, ssValue);
-        if (ret == DB_NOTFOUND)
-            break;
-        else if (ret != 0)
-            return false;
-
-        // Unserialize
-        string strType;
-        ssKey >> strType;
-        if (strType == "namei")
-        {
-            vector<unsigned char> vchName;
-            ssKey >> vchName;
-            string strName = stringFromVch(vchName);
-            vector<CDiskTxPos> vtxPos;
-            ssValue >> vtxPos;
-            if (NAME_DEBUG)
-              printf("NAME %s : ", strName.c_str());
-            BOOST_FOREACH(CDiskTxPos& txPos, vtxPos) {
-                txPos.print();
-                if (NAME_DEBUG)
-                  printf(" @ %d, ", GetTxPosHeight(txPos));
-            }
-            if (NAME_DEBUG)
-              printf("\n");
-        }
-    }
-    pcursor->close();
 }
 
 bool CNameDB::ScanNames(
