@@ -550,12 +550,30 @@ GetValueOfName (CNameDB& dbName, const vchType& vchName,
 bool
 GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx)
 {
+  return GetTxOfNameAtHeight (dbName, vchName, -1, tx);
+}
+
+/* The same as GetTxOfName, but verify that the value is current at the
+   given height.  This only adds a sanity-check over GetTxOfName, which is
+   used in CreateGameTransactions.  */
+bool
+GetTxOfNameAtHeight (CNameDB& dbName, const vchType& vchName,
+                     int nHeight, CTransaction& tx)
+{
   CNameIndex nidx;
   if (!dbName.ReadName (vchName, nidx))
     return false;
 
+  /* Verify that the entry found (which is the "latest" known in the DB)
+     is not younger than the height we want.  This ensures that it actually
+     is the correct one at the given height, even if we pruned entries
+     from earlier on.  */
+  if (nHeight != -1 && nHeight < nidx.nHeight)
+    return error ("GetTxOfNameAtHeight: height mismatch, want %d got %d",
+                  nHeight, nidx.nHeight);
+
   if (!tx.ReadFromDisk (nidx.txPos))
-    return error ("GetTxOfName() : could not read tx from disk");
+    return error ("GetTxOfName: could not read tx from disk");
 
   return true;
 }

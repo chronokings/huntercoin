@@ -35,8 +35,9 @@ int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
 CScript RemoveNameScriptPrefix(const CScript& scriptIn);
 bool NameAvailable (DatabaseSet& dbset, const vchType& vchName);
-bool GetTxOfName(CNameDB& dbName, const std::vector<unsigned char> &vchName, CTransaction& tx);
-bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx);
+bool GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx);
+bool GetTxOfNameAtHeight (CNameDB& dbName, const vchType& vchName,
+                          int nHeight, CTransaction& tx);
 int IndexOfNameOutput(const CTransaction& tx);
 bool GetValueOfTxPos(const CNameIndex& txPos, std::vector<unsigned char>& vchValue, uint256& hash, int& nHeight);
 bool GetValueOfTxPos(const CDiskTxPos& txPos, std::vector<unsigned char>& vchValue, uint256& hash, int& nHeight);
