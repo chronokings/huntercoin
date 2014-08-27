@@ -22,6 +22,11 @@ static const int MIN_FIRSTUPDATE_DEPTH = 2;
    general, and poison-disaster introduced.  */
 static const unsigned FORK_HEIGHT_POISON = 255000;
 
+// The following value is assigned to the name when the player is dead.
+// It must not be a valid move JSON string, because it is checked in NameAvailable
+// as a shortcut to reading tx and checking IsGameTx.
+const static std::string VALUE_DEAD("{\"dead\":1}");
+
 class CNameIndex;
 class CDiskTxPos;
 class uint256;

@@ -61,11 +61,6 @@ extern bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
-// The following value is assigned to the name when the player is dead.
-// It must not be a valid move JSON string, because it is checked in NameAvailable
-// as a shortcut to reading tx and checking IsGameTx.
-const static std::string VALUE_DEAD("{\"dead\":1}");
-
 uint256 hashHuntercoinGenesisBlock[2] = {
         uint256("00000000db7eb7a9e1a06cf995363dcdc4c28e8ae04827a961942657db9a1631"),    // Main net
         uint256("000000492c361a01ce7558a3bfb198ea3ff2f86f8b0c2e00d26135c53f4acbf7")     // Test net
@@ -1718,7 +1713,28 @@ prune_gamedb (const Array& params, bool fHelp)
   if (depth >= 0)
     PruneGameDB (nBestHeight - depth);
 
-  return true;
+  return json_spirit::Value::null;
+}
+
+Value
+prune_nameindex (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () != 1)
+    throw runtime_error ("prune_nameindex DEPTH\n"
+                         "Remove old data from the name index.  We keep\n"
+                         "at least the last DEPTH blocks.\n");
+
+  int depth = params[0].get_int ();
+  if (depth > nBestHeight)
+    depth = nBestHeight;
+  if (depth >= 0)
+    CRITICAL_BLOCK(cs_main)
+      {
+        CNameDB nameDb("r+");
+        nameDb.Prune (nBestHeight - depth);
+      }
+
+  return json_spirit::Value::null;
 }
 
 void UnspendInputs(CWalletTx& wtx)
@@ -2065,6 +2081,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
     mapCallTable.insert(make_pair("game_getpath", &game_getpath));
     mapCallTable.insert(make_pair("prune_gamedb", &prune_gamedb));
+    mapCallTable.insert(make_pair("prune_nameindex", &prune_nameindex));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
     setCallAsync.insert("game_waitforchange");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];

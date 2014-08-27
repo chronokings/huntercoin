@@ -6,6 +6,7 @@
 #include "db.h"
 #include "net.h"
 #include "auxpow.h" // Fixes a linker issue with GCC > 4.7.
+#include "huntercoin.h"
 #include "init.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -886,6 +887,14 @@ CNameDB::PushEntry (const vchType& name, const CNameIndex& value)
 bool
 CNameDB::PopEntry (const vchType& name, int nHeight)
 {
+  /* Ensure that we don't pop across already pruned entries.  We need that
+     the remaining height (nHeight - 1) is not yet pruned (i. e., at least
+     than prunedHeight).  */
+  const int prunedHeight = ReadPrunedHeight ();
+  if (nHeight - 1 < prunedHeight)
+    return error ("CNameDB::PopEntry: height %d already pruned (up to %d)",
+                  nHeight, prunedHeight);
+
   std::vector<CNameIndex> vec;
   if (!ReadNameVec (name, vec))
     printf ("CNameDB::PopEntry: warning, name not in DB\n");
@@ -904,8 +913,128 @@ CNameDB::PopEntry (const vchType& name, int nHeight)
   return WriteName (name, vec);
 }
 
+int
+CNameDB::ReadPrunedHeight ()
+{
+  const std::string key("pruned");
 
+  if (!Exists (key))
+    return -1;
 
+  int nHeight;
+  if (!Read (key, nHeight))
+    {
+      printf ("ERROR: ReadPrunedHeight: reading the name DB failed\n");
+      return -1;
+    }
+
+  return nHeight;
+}
+
+bool
+CNameDB::WritePrunedHeight (int nHeight)
+{
+  return Write (std::string ("pruned"), nHeight);
+}
+
+void
+CNameDB::Prune (unsigned nHeight)
+{
+  /* In a first step, we iterate over the DB and extract a list of names
+     to process.  Afterwards, we process each name and prune it.  This prevents
+     problems due to iterator invalidation.  It should also not use as
+     much memory as keeping the full "in work" nameindex in memory.  */
+
+  Dbc* pcursor = GetCursor ();
+  if (!pcursor)
+    {
+      printf ("ERROR: CNameDB::Prune: GetCursor failed\n");
+      return;
+    }
+
+  std::set<vchType> names;
+  unsigned int fFlags = DB_SET_RANGE;
+  loop
+    {
+      // Read next record
+      CDataStream ssKey;
+      if (fFlags == DB_SET_RANGE)
+        ssKey << std::make_pair (std::string("namei"), vchType());
+      CDataStream ssValue;
+      const int ret = ReadAtCursor (pcursor, ssKey, ssValue, fFlags);
+      fFlags = DB_NEXT;
+      if (ret == DB_NOTFOUND)
+        break;
+      if (ret != 0)
+        {
+          printf ("ERROR: CNameDB::Prune: ReadAtCursor failed\n");
+          return;
+        }
+
+      // Unserialize
+      string strType;
+      ssKey >> strType;
+      if (strType == "namei")
+        {
+          vchType vchName;
+          ssKey >> vchName;
+          names.insert (vchName);
+        }
+    }
+  pcursor->close ();
+
+  /* Now do the actual pruning.  */
+
+  if (!WritePrunedHeight (nHeight))
+    {
+      printf ("ERROR: CNameDB::Prune: WritePrunedHeight failed\n");
+      return;
+    }
+
+  unsigned nEntries = 0;
+  unsigned nPruned = 0;
+  unsigned nNames = 0;
+  unsigned nNamesPruned = 0;
+  const vchType vchDead = vchFromString (VALUE_DEAD);
+  BOOST_FOREACH(const vchType& name, names)
+    {
+      std::vector<CNameIndex> vec;
+      if (!ReadNameVec (name, vec))
+        {
+          printf ("WARNING: CNameDB::Prune: ReadNameVec failed, continuing\n");
+          nEntries += vec.size ();
+          ++nNames;
+          continue;
+        }
+
+      /* If the last entry is a death and it is long enough ago,
+         remove the name entirely.  */
+      if (vec.back ().vValue == vchFromString (VALUE_DEAD)
+          && vec.back ().nHeight < nHeight)
+        {
+          ++nNamesPruned;
+          EraseName (name);
+          continue;
+        }
+      ++nNames;
+
+      /* Remove everything too old.  */
+      std::vector<CNameIndex> vecNew;
+      for (unsigned i = 0; i < vec.size (); ++i)
+        if (vec[i].nHeight >= nHeight || i + 1 == vec.size ())
+          vecNew.push_back (vec[i]);
+
+      nEntries += vecNew.size ();
+      nPruned += vec.size () - vecNew.size ();
+      WriteName (name, vecNew);
+    }
+
+  printf ("Pruned nameindex:\n"
+          "  Removed:   %u entries, %u names\n"
+          "  Remaining: %u entries, %u names\n",
+          nPruned, nNamesPruned, nEntries, nNames);
+  Rewrite ();
+}
 
 /* ************************************************************************** */
 /* CUtxoDB.  */
