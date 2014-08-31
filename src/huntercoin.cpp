@@ -663,12 +663,10 @@ Value name_list(const Array& params, bool fHelp)
     std::map<vchType, int> vNamesI;
     std::map<vchType, Object> vNamesO;
 
-    /* Collect some info for performance optimisation.  We store the total
-       number of transactions processed (which were name tx) and the
-       number that needed to be loaded from disk (its txindex) since
-       they couldn't be short-cut.  */
-    unsigned totalTx = 0;
-    unsigned loadedTx = 0;
+    /* Game transactions are not ordinarily processed, but we keep track
+       of the latest height at which a name is killed.  This is used
+       to set those names' "dead" flag in the end.  */
+    std::map<vchType, int> killedAt;
 
     CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
@@ -679,49 +677,37 @@ Value name_list(const Array& params, bool fHelp)
                       pwalletMain->mapWallet)
           {
             const CWalletTx& tx = item.second;
-
-            vchType vchName, vchValue;
-            int nOut;
-            if (!tx.GetNameUpdate (nOut, vchName, vchValue))
-              continue;
-
-            ++totalTx;
-
-            if (!vchNameUniq.empty () && vchNameUniq != vchName)
-              continue;
-
-            /* The expensive part of this routine is loading the
-               tx index from disk later on.  To improve the situation
-               especially for wallets with loads of name_update operations
-               (typical for Huntercoin), we bail out early if the name
-               output of the transaction is already spent (since then,
-               a follow-up transaction will occur later anyway).
-
-               Note that the vfSpent array we check here (for a wallet
-               transaction) only tracks outpoints owned by the wallet user.
-               Thus it is also no problem if someone else spends the output
-               after transferring a name to them, even though in that case
-               *no* follow-up wtx will appear in the loop.
-
-               The only thing to watch out for is if we just did a name_update
-               and have a pending transaction in the wallet.  In that case,
-               the output will already be marked as spent in the wallet, but
-               we won't get a later entry (since it fails the txindex lookup
-               later on as an unconfirmed transaction).  Thus never apply
-               this shortcut to names which appear in mapNamePending.  */
-
-            if (nOut < tx.vfSpent.size ()
-                && mapNamePending.count (vchName) == 0
-                && tx.IsSpent (nOut))
-              continue;
-            
-            ++loadedTx;
+            vchType vchName;
 
             /* Get the tx's confirmation height from the Merkle branch.  */
             const int nHeight = tx.GetHeightInMainChain ();
             if (nHeight == -1)
               continue;
             assert (nHeight >= 0);
+
+            /* Process game transactions to fill in the killedAt array.  */
+            if (tx.IsGameTx ())
+              {
+                BOOST_FOREACH(const CTxIn& txi, tx.vin)
+                  if (IsPlayerDeathInput (txi, vchName))
+                    {
+                      std::map<vchType, int>::iterator pos;
+                      pos = killedAt.find (vchName);
+                      if (pos == killedAt.end ())
+                        killedAt.insert (std::make_pair (vchName, nHeight));
+                      else if (pos->second < nHeight)
+                        pos->second = nHeight;
+                    }
+                continue;
+              }
+
+            vchType vchValue;
+            int nOut;
+            if (!tx.GetNameUpdate (nOut, vchName, vchValue))
+              continue;
+
+            if (!vchNameUniq.empty () && vchNameUniq != vchName)
+              continue;
 
             // get last active name only
             if (vNamesI.find (vchName) != vNamesI.end ()
@@ -738,22 +724,27 @@ Value name_list(const Array& params, bool fHelp)
             GetNameAddress(tx, strAddress);
             oName.push_back(Pair("address", strAddress));
 
-            /* Load txindex to check for dead players.  */
-            CTxIndex txindex;
-            if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
-              continue;
-            if (IsPlayerDead (tx, txindex))
-              oName.push_back (Pair("dead", 1));
-
             vNamesI[vchName] = nHeight;
             vNamesO[vchName] = oName;
           }
       }
 
     BOOST_FOREACH(const PAIRTYPE(vchType, Object)& item, vNamesO)
-      oRes.push_back(item.second);
+      {
+        Object obj = item.second;
 
-    printf ("name_list: total %u name tx, loaded %u.\n", totalTx, loadedTx);
+        std::map<vchType, int>::const_iterator pos;
+        pos = killedAt.find (item.first);
+        if (pos != killedAt.end () && pos->second >= vNamesI[item.first])
+          {
+            /* Note:  When a player is killed due to self-destruct,
+               then we have equality in the heights above.  This is
+               fine and should be considered to be "dead".  */
+            obj.push_back (Pair("dead", 1));
+          }
+
+        oRes.push_back (obj);
+      }
 
     return oRes;
 }
