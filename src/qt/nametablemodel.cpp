@@ -8,6 +8,7 @@
 #include "../huntercoin.h"
 #include "../gamedb.h"
 #include "../gamestate.h"
+#include "../gametx.h"
 #include "ui_interface.h"
 
 #include "gamechatview.h" // For ColorCSS
@@ -55,6 +56,14 @@ struct NameTableEntryLessThan
 // Private implementation
 class NameTablePriv
 {
+private:
+
+    /* Internal implementation matching "name_list" that returns
+       a list of NameTableEntry's.  This is used both in
+       refreshNameTable and in refreshName.  */
+    void listNames (std::map<vchType, NameTableEntry>& names,
+                    const vchType* nameFilter = NULL) const;
+
 public:
     CWallet *wallet;
     QList<NameTableEntry> cachedNameTable;
@@ -71,80 +80,14 @@ public:
         cachedNameTable.clear();
 
         std::map<vchType, NameTableEntry> vNamesO;
-        
-        CRITICAL_BLOCK(cs_main)
-        CRITICAL_BLOCK(wallet->cs_mapWallet)
-        {
-            CTxDB txdb("r");
-
-            BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
-            {
-                const CWalletTx& tx = item.second;
-
-                vchType vchName, vchValue;
-                int nOut;
-                if (!tx.GetNameUpdate (nOut, vchName, vchValue))
-                  continue;
-
-                /* Compare the name_list implementation.  */
-                if (nOut < tx.vfSpent.size ()
-                    && mapNamePending.count (vchName) == 0
-                    && tx.IsSpent (nOut))
-                  continue;
-
-                int nHeight = tx.GetHeightInMainChain ();
-                const bool fConfirmed = (nHeight != -1);
-                if (fConfirmed)
-                  assert (nHeight >= 0);
-                else
-                  nHeight = NameTableEntry::NAME_UNCONFIRMED;
-
-                // If tx is unconfirmed, but invalid (won't get into a block), ignore it
-                if (!fConfirmed)
-                {
-                    const std::string sName = stringFromVch (vchName);
-                    const std::string sValue = stringFromVch (vchValue);
-                    Game::Move m;
-                    m.Parse(sName, sValue);
-                    if (!m || !m.IsValid(GetCurrentGameState()))
-                        continue;
-                }
-
-                bool fTransferred = false;
-                if (!hooks->IsMine (tx))
-                    fTransferred = true;
-
-                /* Check for dead players.  We have to load the txindex
-                   in order to check the spent-type.  */
-                if (fConfirmed && !fTransferred)
-                  {
-                    CTxIndex txindex;
-                    if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
-                      {
-                        printf ("ERROR: refreshNameTable: ReadTxIndex failed\n");
-                        continue;
-                      }
-
-                    if (IsPlayerDead (tx, txindex))
-                      fTransferred = true;
-                  }
-
-                // get last active name only
-                std::map<vchType, NameTableEntry>::iterator mi = vNamesO.find(vchName);
-                if (mi != vNamesO.end() && !NameTableEntry::CompareHeight(mi->second.nHeight, nHeight))
-                    continue;
-
-                std::string strAddress = "";
-                GetNameAddress(tx, strAddress);
-
-                vNamesO[vchName] = NameTableEntry(stringFromVch(vchName), stringFromVch(vchValue), strAddress, nHeight, fTransferred);
-            }
-        }
+        listNames (vNamesO);
 
         // Add existing names
-        BOOST_FOREACH(const PAIRTYPE(std::vector<unsigned char>, NameTableEntry)& item, vNamesO)
+        BOOST_FOREACH(const PAIRTYPE(vchType, NameTableEntry)& item, vNamesO)
+          {
             if (!item.second.transferred)
-                cachedNameTable.append(item.second);
+              cachedNameTable.append (item.second);
+          }
 
         // Add pending names (name_new)
         BOOST_FOREACH(const PAIRTYPE(std::vector<unsigned char>, PreparedNameFirstUpdate)& item, mapMyNameFirstUpdate)
@@ -161,82 +104,22 @@ public:
         qSort(cachedNameTable.begin(), cachedNameTable.end(), NameTableEntryLessThan());
     }
 
-    void refreshName(const std::vector<unsigned char> &inName)
+    void
+    refreshName (const vchType& inName)
     {
-        NameTableEntry nameObj(stringFromVch(inName), std::string(), std::string(), NameTableEntry::NAME_NON_EXISTING);
+        NameTableEntry nameObj;
 
-        CRITICAL_BLOCK(cs_main)
-        CRITICAL_BLOCK(wallet->cs_mapWallet)
-        {
-            CTxIndex txindex;
-            CTxDB txdb("r");
-            CTransaction tx;
+        std::map<vchType, NameTableEntry> names;
+        listNames (names, &inName);
 
-            std::vector<unsigned char> vchName;
-            std::vector<unsigned char> vchValue;
-            int nHeight;
-
-            BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
-            {
-                bool fConfirmed;
-                bool fTransferred = false;
-
-                if (!txdb.ReadDiskTx(item.first, tx, txindex))
-                {
-                    tx = item.second;
-                    fConfirmed = false;
-                }
-                else
-                    fConfirmed = true;
-
-                if (tx.nVersion != NAMECOIN_TX_VERSION)
-                    continue;
-
-                // name
-                if (!GetNameOfTx(tx, vchName) || vchName != inName)
-                    continue;
-
-                // value
-                if (!GetValueOfNameTx(tx, vchValue))
-                    continue;
-
-                // If tx is unconfirmed, but invalid (won't get into a block), ignore it
-                if (!fConfirmed)
-                {
-                    std::string sName = stringFromVch(vchName), sValue = stringFromVch(vchValue);
-                    Game::Move m;
-                    m.Parse(sName, sValue);
-                    if (!m || !m.IsValid(GetCurrentGameState()))
-                        continue;
-                }
-
-                const CWalletTx &nameTx = wallet->mapWallet[tx.GetHash()];
-                if (!hooks->IsMine(nameTx))
-                    fTransferred = true;
-
-                // Dead player can be considered transferred ("transferred to the game")
-                if (fConfirmed && IsPlayerDead(nameTx, txindex))
-                    fTransferred = true;
-
-                // height
-                if (fConfirmed)
-                    nHeight = GetTxPosHeight(txindex.pos);
-                else
-                    nHeight = NameTableEntry::NAME_UNCONFIRMED;
-
-                // get last active name only
-                if (!NameTableEntry::CompareHeight(nameObj.nHeight, nHeight))
-                    continue;
-
-                std::string strAddress = "";
-                GetNameAddress(tx, strAddress);
-
-                nameObj.value = stringFromVch(vchValue);
-                nameObj.address = QString::fromStdString(strAddress);
-                nameObj.nHeight = nHeight;
-                nameObj.transferred = fTransferred;
-            }
-        }
+        std::map<vchType, NameTableEntry>::const_iterator pos;
+        pos = names.find (inName);
+        if (pos == names.end ())
+          nameObj = NameTableEntry(stringFromVch (inName),
+                                   std::string(), std::string(),
+                                   NameTableEntry::NAME_NON_EXISTING);
+        else
+          nameObj = pos->second;
 
         // Transferred name is not ours anymore - remove it from the table
         if (nameObj.transferred)
@@ -397,6 +280,113 @@ public:
         }
     }
 };
+
+void
+NameTablePriv::listNames (std::map<vchType, NameTableEntry>& names,
+                          const vchType* nameFilter) const
+{
+  names.clear ();
+
+  /* Game transactions are not ordinarily processed, but we keep track
+     of the latest height at which a name is killed.  This is used
+     to set those names' "dead" flag in the end.  */
+  std::map<vchType, int> killedAt;
+  
+  CRITICAL_BLOCK(cs_main)
+  CRITICAL_BLOCK(wallet->cs_mapWallet)
+    {
+      CTxDB txdb("r");
+
+      BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, wallet->mapWallet)
+        {
+          const CWalletTx& tx = item.second;
+          vchType vchName;
+
+          int nHeight = tx.GetHeightInMainChain ();
+          const bool fConfirmed = (nHeight != -1);
+          if (fConfirmed)
+            assert (nHeight >= 0);
+          else
+            nHeight = NameTableEntry::NAME_UNCONFIRMED;
+
+          /* Process game transactions to fill in the killedAt array.  Ignore
+             unconfirmed ones, since they belong to orphaned blocks.  */
+          if (tx.IsGameTx ())
+            {
+              if (fConfirmed)
+                BOOST_FOREACH(const CTxIn& txi, tx.vin)
+                  if (IsPlayerDeathInput (txi, vchName))
+                    {
+                      if (nameFilter && vchName != *nameFilter)
+                        continue;
+
+                      std::map<vchType, int>::iterator pos;
+                      pos = killedAt.find (vchName);
+                      if (pos == killedAt.end ())
+                        killedAt.insert (std::make_pair (vchName, nHeight));
+                      else if (pos->second < nHeight)
+                        pos->second = nHeight;
+                    }
+
+              continue;
+            }
+
+          vchType vchValue;
+          int nOut;
+          if (!tx.GetNameUpdate (nOut, vchName, vchValue))
+            continue;
+
+          if (nameFilter && vchName != *nameFilter)
+            continue;
+
+          /* If tx is unconfirmed, but invalid (won't get into a block),
+             ignore it.  */
+          if (!fConfirmed)
+            {
+              const std::string sName = stringFromVch (vchName);
+              const std::string sValue = stringFromVch (vchValue);
+              Game::Move m;
+              m.Parse (sName, sValue);
+              if (!m || !m.IsValid (GetCurrentGameState ()))
+                continue;
+            }
+
+          /* Get last active name only.  */
+          std::map<vchType, NameTableEntry>::iterator mi;
+          mi = names.find (vchName);
+          if (mi != names.end ()
+              && !NameTableEntry::CompareHeight (mi->second.nHeight,
+                                                 nHeight))
+            continue;
+
+          const bool fTransferred = !hooks->IsMine (tx);
+          /* Dead players are also considered transferred for our
+             purposes, but this is done later on using killedAt.  */
+
+          std::string strAddress = "";
+          GetNameAddress(tx, strAddress);
+
+          NameTableEntry entry(stringFromVch (vchName),
+                               stringFromVch (vchValue),
+                               strAddress, nHeight, fTransferred);
+          names[vchName] = entry;
+        }
+    }
+
+  /* Set killed players to "transferred".  */
+  for (std::map<vchType, NameTableEntry>::iterator i = names.begin ();
+       i != names.end (); ++i)
+    {
+      if (i->second.transferred)
+        continue;
+
+      std::map<vchType, int>::const_iterator pos = killedAt.find (i->first);
+      if (pos != killedAt.end ()
+          && !NameTableEntry::CompareHeight (pos->second,
+                                             i->second.nHeight))
+        i->second.transferred = true;
+    }
+}
 
 NameTableModel::NameTableModel(CWallet *wallet, WalletModel *parent) :
     QAbstractTableModel(parent), walletModel(parent), wallet(wallet), priv(0), cachedNumBlocks(0)
