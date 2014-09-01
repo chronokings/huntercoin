@@ -22,7 +22,7 @@ class CScript;
 
 bool PerformStep (CNameDB& pnameDb, const Game::GameState& inState,
                   const CBlock* block, int64& nTax, Game::GameState& outState,
-                  std::vector<CTransaction>& outvgametx);
+                  std::vector<CTransaction>* outvgametx = NULL);
 
 // Caller of these functions must hold cs_main lock
 bool GetGameState (DatabaseSet& dbset, CBlockIndex* pindex,

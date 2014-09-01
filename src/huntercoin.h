@@ -22,6 +22,11 @@ static const int MIN_FIRSTUPDATE_DEPTH = 2;
    general, and poison-disaster introduced.  */
 static const unsigned FORK_HEIGHT_POISON = 255000;
 
+// The following value is assigned to the name when the player is dead.
+// It must not be a valid move JSON string, because it is checked in NameAvailable
+// as a shortcut to reading tx and checking IsGameTx.
+const static std::string VALUE_DEAD("{\"dead\":1}");
+
 class CNameIndex;
 class CDiskTxPos;
 class uint256;
@@ -35,8 +40,9 @@ int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
 CScript RemoveNameScriptPrefix(const CScript& scriptIn);
 bool NameAvailable (DatabaseSet& dbset, const vchType& vchName);
-bool GetTxOfName(CNameDB& dbName, const std::vector<unsigned char> &vchName, CTransaction& tx);
-bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx);
+bool GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx);
+bool GetTxOfNameAtHeight (CNameDB& dbName, const vchType& vchName,
+                          int nHeight, CTransaction& tx);
 int IndexOfNameOutput(const CTransaction& tx);
 bool GetValueOfTxPos(const CNameIndex& txPos, std::vector<unsigned char>& vchValue, uint256& hash, int& nHeight);
 bool GetValueOfTxPos(const CDiskTxPos& txPos, std::vector<unsigned char>& vchValue, uint256& hash, int& nHeight);

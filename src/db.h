@@ -436,12 +436,19 @@ public:
        But we do not insist on that.  */
     bool PopEntry (const vchType& name, int nHeight);
 
+    /* Read and write information about what heights have been pruned.  The
+       value here is the earliest height which has not been removed.  It is -1
+       if no pruning has been done so far.  */
+    int ReadPrunedHeight ();
+    bool WritePrunedHeight (int nHeight);
+
+    /* Prune all index entries older than the given height.  */
+    void Prune (unsigned nHeight);
+
     bool ScanNames(
             const vchType& vchName,
             int nMax,
             std::vector<std::pair<vchType, CNameIndex> >& nameScan);
-
-    bool test();
 
     bool ReconstructNameIndex();
 };

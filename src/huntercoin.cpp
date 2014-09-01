@@ -61,11 +61,6 @@ extern bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, 
 extern void rescanfornames();
 extern Value sendtoaddress(const Array& params, bool fHelp);
 
-// The following value is assigned to the name when the player is dead.
-// It must not be a valid move JSON string, because it is checked in NameAvailable
-// as a shortcut to reading tx and checking IsGameTx.
-const static std::string VALUE_DEAD("{\"dead\":1}");
-
 uint256 hashHuntercoinGenesisBlock[2] = {
         uint256("00000000db7eb7a9e1a06cf995363dcdc4c28e8ae04827a961942657db9a1631"),    // Main net
         uint256("000000492c361a01ce7558a3bfb198ea3ff2f86f8b0c2e00d26135c53f4acbf7")     // Test net
@@ -550,42 +545,32 @@ GetValueOfName (CNameDB& dbName, const vchType& vchName,
 bool
 GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx)
 {
+  return GetTxOfNameAtHeight (dbName, vchName, -1, tx);
+}
+
+/* The same as GetTxOfName, but verify that the value is current at the
+   given height.  This only adds a sanity-check over GetTxOfName, which is
+   used in CreateGameTransactions.  */
+bool
+GetTxOfNameAtHeight (CNameDB& dbName, const vchType& vchName,
+                     int nHeight, CTransaction& tx)
+{
   CNameIndex nidx;
   if (!dbName.ReadName (vchName, nidx))
     return false;
 
+  /* Verify that the entry found (which is the "latest" known in the DB)
+     is not younger than the height we want.  This ensures that it actually
+     is the correct one at the given height, even if we pruned entries
+     from earlier on.  */
+  if (nHeight != -1 && nHeight < nidx.nHeight)
+    return error ("GetTxOfNameAtHeight: height mismatch, want %d got %d",
+                  nHeight, nidx.nHeight);
+
   if (!tx.ReadFromDisk (nidx.txPos))
-    return error ("GetTxOfName() : could not read tx from disk");
+    return error ("GetTxOfName: could not read tx from disk");
 
   return true;
-}
-
-// Returns only player move transactions, i.e. ignores game-created transaction (player death)
-bool GetTxOfNameAtHeight(CNameDB& dbName, const std::vector<unsigned char> &vchName, int nHeight, CTransaction& tx)
-{
-    vector<CNameIndex> vtxPos;
-    if (!dbName.ReadNameVec (vchName, vtxPos) || vtxPos.empty())
-        return false;
-    int i = vtxPos.size();
-
-    loop
-    {
-        // Find maximum height less or equal to nHeight
-        // TODO: binary search (preferably with bias towards the last element, e.g. split at 3/4)
-        do
-        {
-            if (i == 0)
-                return false;
-            i--;
-        } while (vtxPos[i].nHeight > nHeight);
-        if (!tx.ReadFromDisk(vtxPos[i].txPos))
-            return error("GetTxOfNameAtHeight() : could not read tx from disk");
-
-        if (!tx.IsGameTx())
-            return true;
-
-        // If game transaction found (player death) proceed to the previous transaction
-    }
 }
 
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress)
@@ -1031,10 +1016,6 @@ Value name_filter(const Array& params, bool fHelp)
             break;
     }
 
-    if (NAME_DEBUG) {
-        dbName.test();
-    }
-
     if(fStat)
     {
         Object oStat;
@@ -1104,9 +1085,6 @@ Value name_scan(const Array& params, bool fHelp)
         oRes.push_back(oName);
     }
 
-    if (NAME_DEBUG) {
-        dbName.test();
-    }
     return oRes;
 }
 
@@ -1735,7 +1713,28 @@ prune_gamedb (const Array& params, bool fHelp)
   if (depth >= 0)
     PruneGameDB (nBestHeight - depth);
 
-  return true;
+  return json_spirit::Value::null;
+}
+
+Value
+prune_nameindex (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () != 1)
+    throw runtime_error ("prune_nameindex DEPTH\n"
+                         "Remove old data from the name index.  We keep\n"
+                         "at least the last DEPTH blocks.\n");
+
+  int depth = params[0].get_int ();
+  if (depth > nBestHeight)
+    depth = nBestHeight;
+  if (depth >= 0)
+    CRITICAL_BLOCK(cs_main)
+      {
+        CNameDB nameDb("r+");
+        nameDb.Prune (nBestHeight - depth);
+      }
+
+  return json_spirit::Value::null;
 }
 
 void UnspendInputs(CWalletTx& wtx)
@@ -1827,47 +1826,6 @@ Value name_clean(const Array& params, bool fHelp)
     EraseBadMoveTransactions ();
 
     return true;
-}
-
-bool CNameDB::test()
-{
-    Dbc* pcursor = GetCursor();
-    if (!pcursor)
-        return false;
-
-    loop
-    {
-        // Read next record
-        CDataStream ssKey;
-        CDataStream ssValue;
-        int ret = ReadAtCursor(pcursor, ssKey, ssValue);
-        if (ret == DB_NOTFOUND)
-            break;
-        else if (ret != 0)
-            return false;
-
-        // Unserialize
-        string strType;
-        ssKey >> strType;
-        if (strType == "namei")
-        {
-            vector<unsigned char> vchName;
-            ssKey >> vchName;
-            string strName = stringFromVch(vchName);
-            vector<CDiskTxPos> vtxPos;
-            ssValue >> vtxPos;
-            if (NAME_DEBUG)
-              printf("NAME %s : ", strName.c_str());
-            BOOST_FOREACH(CDiskTxPos& txPos, vtxPos) {
-                txPos.print();
-                if (NAME_DEBUG)
-                  printf(" @ %d, ", GetTxPosHeight(txPos));
-            }
-            if (NAME_DEBUG)
-              printf("\n");
-        }
-    }
-    pcursor->close();
 }
 
 bool CNameDB::ScanNames(
@@ -2123,6 +2081,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("game_getplayerstate", &game_getplayerstate));
     mapCallTable.insert(make_pair("game_getpath", &game_getpath));
     mapCallTable.insert(make_pair("prune_gamedb", &prune_gamedb));
+    mapCallTable.insert(make_pair("prune_nameindex", &prune_nameindex));
     mapCallTable.insert(make_pair("deletetransaction", &deletetransaction));
     setCallAsync.insert("game_waitforchange");
     hashGenesisBlock = hashHuntercoinGenesisBlock[fTestNet ? 1 : 0];
