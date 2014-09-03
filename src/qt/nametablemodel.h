@@ -98,13 +98,15 @@ struct NameTableEntry
     NameTableEntry() : nHeight(NAME_NON_EXISTING), transferred(false) {}
     NameTableEntry(const QString &name, const std::string &value, const QString &address, int nHeight, bool transferred = false) :
         name(name), value(value), address(address),
-        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1)
+        fRewardAddressDifferent(false), color(-1),
+        nHeight(nHeight), transferred(transferred)
     {
     }
 
     NameTableEntry(const std::string &name, const std::string &value, const std::string &address, int nHeight, bool transferred = false) :
         name(QString::fromStdString(name)), value(value), address(QString::fromStdString(address)),
-        fRewardAddressDifferent(false), nHeight(nHeight), transferred(transferred), color(-1)
+        fRewardAddressDifferent(false), color(-1),
+        nHeight(nHeight), transferred(transferred)
     {
     }
 };
