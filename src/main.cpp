@@ -464,13 +464,16 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         COutPoint outpoint = vin[i].prevout;
         if (mapNextTx.count(outpoint))
         {
+            ptxOld = mapNextTx[outpoint].ptx;
+
             // Disable replacement feature for now
-            return false;
+            return error ("AcceptToMemoryPool: can't replace %s by %s",
+                          ptxOld->GetHash ().ToString ().c_str (),
+                          GetHash ().ToString ().c_str ());
 
             // Allow replacing with a newer version of the same transaction
             if (i != 0)
                 return false;
-            ptxOld = mapNextTx[outpoint].ptx;
             if (ptxOld->IsFinal())
                 return false;
             if (!IsNewerThan(*ptxOld))
