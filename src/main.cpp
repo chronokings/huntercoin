@@ -1689,14 +1689,6 @@ CBlock::SetBestChain (DatabaseSet& dbset, CBlockIndex* pindexNew)
         }
     }
 
-    // Update best block in wallet (so we can detect restored wallets)
-    if (!IsInitialBlockDownload())
-    {
-        const CBlockLocator locator(pindexNew);
-        ::SetBestChain(locator);
-        EraseBadMoveTransactions ();
-    }
-
     // New best block
     hashBestChain = hash;
     pindexBest = pindexNew;
@@ -1705,6 +1697,14 @@ CBlock::SetBestChain (DatabaseSet& dbset, CBlockIndex* pindexNew)
     nTimeBestReceived = GetTime();
     nTransactionsUpdated++;
     printf("SetBestChain: new best=%s  height=%d  work=%s\n", hashBestChain.ToString().substr(0,20).c_str(), nBestHeight, bnBestChainWork.ToString().c_str());
+
+    // Update best block in wallet (so we can detect restored wallets)
+    if (!IsInitialBlockDownload())
+    {
+        const CBlockLocator locator(pindexNew);
+        ::SetBestChain(locator);
+        EraseBadMoveTransactions ();
+    }
 
     // When everything is done, call hook for new block so that the game
     // state can be finally updated in front-ends and such.
