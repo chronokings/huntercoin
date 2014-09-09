@@ -1809,16 +1809,6 @@ void rescanfornames()
     dbName.ReconstructNameIndex();
 }
 
-Value name_clean(const Array& params, bool fHelp)
-{
-    if (fHelp || params.size())
-        throw runtime_error("name_clean\nClean unsatisfiable transactions from the wallet - including name_update on an already taken name\n");
-
-    EraseBadMoveTransactions ();
-
-    return true;
-}
-
 bool CNameDB::ScanNames(
         const vector<unsigned char>& vchName,
         int nMax,
@@ -2064,7 +2054,6 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_history", &name_history));
     mapCallTable.insert(make_pair("name_debug", &name_debug));
     mapCallTable.insert(make_pair("name_debug1", &name_debug1));
-    mapCallTable.insert(make_pair("name_clean", &name_clean));
     mapCallTable.insert(make_pair("name_pending", &name_pending));
     mapCallTable.insert(make_pair("sendtoname", &sendtoname));
     mapCallTable.insert(make_pair("game_getstate", &game_getstate));
