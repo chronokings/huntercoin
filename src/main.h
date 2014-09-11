@@ -1220,6 +1220,12 @@ public:
     bool AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos);
     bool CheckBlock(int nHeight) const;
     bool AcceptBlock();
+
+    /* Put all outpoints spent by this block into the set.  This is used
+       to later remove transactions that are double-spends of them
+       from the mempool in ClearDoubleSpendings.  */
+    void GetSpentOutputs (std::set<COutPoint>& outs) const;
+
 };
 
 

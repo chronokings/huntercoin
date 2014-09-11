@@ -7,6 +7,7 @@
 #include "init.h"
 #include "auxpow.h"
 #include "cryptopp/sha.h"
+#include "gamedb.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
@@ -464,13 +465,16 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         COutPoint outpoint = vin[i].prevout;
         if (mapNextTx.count(outpoint))
         {
+            ptxOld = mapNextTx[outpoint].ptx;
+
             // Disable replacement feature for now
-            return false;
+            return error ("AcceptToMemoryPool: can't replace %s by %s",
+                          ptxOld->GetHash ().ToString ().c_str (),
+                          GetHash ().ToString ().c_str ());
 
             // Allow replacing with a newer version of the same transaction
             if (i != 0)
                 return false;
-            ptxOld = mapNextTx[outpoint].ptx;
             if (ptxOld->IsFinal())
                 return false;
             if (!IsNewerThan(*ptxOld))
@@ -535,6 +539,10 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
     {
         if (ptxOld)
         {
+            /* This is disabled for now and should not happen due to
+               an earlier error being returned above.  */
+            assert (false);
+
             printf("AcceptToMemoryPool() : replacing tx %s with new version\n", ptxOld->GetHash().ToString().c_str());
             ptxOld->RemoveFromMemoryPool();
         }
@@ -590,6 +598,47 @@ bool CTransaction::RemoveFromMemoryPool()
         nTransactionsUpdated++;
     }
     return true;
+}
+
+/* Remove transactions from the mempool that are double-spends of the given
+   outpoints.  This is used to clear the mempool with unsatisfiable transactions
+   once a new block is connected.  */
+static void
+ClearDoubleSpendings (const std::set<COutPoint>& outs)
+{
+  /* Keep also track of hashes to prevent duplicate deletion of
+     the same transaction.  This could happen otherwise if it spends
+     *two* of the outputs at the same time.  */
+
+  std::set<uint256> deleteHash;
+  std::vector<CTransaction> vDelete;
+  CRITICAL_BLOCK(cs_mapTransactions)
+    {
+      BOOST_FOREACH (const COutPoint& out, outs)
+        {
+          std::map<COutPoint, CInPoint>::const_iterator mi;
+          mi = mapNextTx.find (out);
+          if (mi != mapNextTx.end ())
+            {
+              const CTransaction& tx = *mi->second.ptx;
+              const uint256 hash = tx.GetHash ();
+              if (deleteHash.count (hash) == 0)
+                {
+                  deleteHash.insert (hash);
+                  vDelete.push_back (tx);
+                }
+            }
+        }
+    }
+
+  assert (deleteHash.size () == vDelete.size ());
+  if (!vDelete.empty ())
+    {
+      printf ("ClearDoubleSpendings: removing %d transactions\n",
+              vDelete.size ());
+      BOOST_FOREACH (CTransaction& tx, vDelete)
+        tx.RemoveFromMemoryPool ();
+    }
 }
 
 
@@ -1525,6 +1574,7 @@ Reorganize (DatabaseSet& dbset, CBlockIndex* pindexNew)
     reverse(vConnect.begin(), vConnect.end());
 
     vector<CTransaction> vResurrect, vDelete;
+    std::set<COutPoint> setSpent;
     CRITICAL_BLOCK(cs_main)    // Lock to prevent concurrent game state reads on the non-main chain
     {
         // Disconnect shorter branch
@@ -1559,6 +1609,7 @@ Reorganize (DatabaseSet& dbset, CBlockIndex* pindexNew)
             // Queue memory transactions to delete
             BOOST_FOREACH(const CTransaction& tx, block.vtx)
                 vDelete.push_back(tx);
+            block.GetSpentOutputs (setSpent);
         }
         if (!dbset.tx ().WriteHashBestChain (pindexNew->GetBlockHash ()))
             return error("Reorganize() : WriteHashBestChain failed");
@@ -1585,6 +1636,7 @@ Reorganize (DatabaseSet& dbset, CBlockIndex* pindexNew)
     // Delete redundant memory transactions that are in the connected branch
     BOOST_FOREACH(CTransaction& tx, vDelete)
         tx.RemoveFromMemoryPool();
+    ClearDoubleSpendings (setSpent);
 
     return true;
 }
@@ -1620,8 +1672,11 @@ CBlock::SetBestChain (DatabaseSet& dbset, CBlockIndex* pindexNew)
         pindexNew->pprev->pnext = pindexNew;
 
         // Delete redundant memory transactions
+        std::set<COutPoint> setSpent;
+        GetSpentOutputs (setSpent);
         BOOST_FOREACH(CTransaction& tx, vtx)
             tx.RemoveFromMemoryPool();
+        ClearDoubleSpendings (setSpent);
     }
     else
     {
@@ -1634,13 +1689,6 @@ CBlock::SetBestChain (DatabaseSet& dbset, CBlockIndex* pindexNew)
         }
     }
 
-    // Update best block in wallet (so we can detect restored wallets)
-    if (!IsInitialBlockDownload())
-    {
-        const CBlockLocator locator(pindexNew);
-        ::SetBestChain(locator);
-    }
-
     // New best block
     hashBestChain = hash;
     pindexBest = pindexNew;
@@ -1649,6 +1697,14 @@ CBlock::SetBestChain (DatabaseSet& dbset, CBlockIndex* pindexNew)
     nTimeBestReceived = GetTime();
     nTransactionsUpdated++;
     printf("SetBestChain: new best=%s  height=%d  work=%s\n", hashBestChain.ToString().substr(0,20).c_str(), nBestHeight, bnBestChainWork.ToString().c_str());
+
+    // Update best block in wallet (so we can detect restored wallets)
+    if (!IsInitialBlockDownload())
+    {
+        const CBlockLocator locator(pindexNew);
+        ::SetBestChain(locator);
+        EraseBadMoveTransactions ();
+    }
 
     // When everything is done, call hook for new block so that the game
     // state can be finally updated in front-ends and such.
@@ -1910,6 +1966,24 @@ bool CBlock::AcceptBlock()
                     pnode->PushInventory(CInv(MSG_BLOCK, hash));
 
     return true;
+}
+
+static void
+GetSpentOutputsOfVtx (const std::vector<CTransaction>& vtx,
+                      std::set<COutPoint>& outs)
+{
+  for (std::vector<CTransaction>::const_iterator i = vtx.begin ();
+       i != vtx.end (); ++i)
+    for (std::vector<CTxIn>::const_iterator j = i->vin.begin ();
+         j != i->vin.end (); ++j)
+      outs.insert (j->prevout);
+}
+
+void
+CBlock::GetSpentOutputs (std::set<COutPoint>& outs) const
+{
+  GetSpentOutputsOfVtx (vtx, outs);
+  GetSpentOutputsOfVtx (vgametx, outs);
 }
 
 bool ProcessBlock(CNode* pfrom, CBlock* pblock)

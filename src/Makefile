@@ -100,6 +100,8 @@ cryptopp/obj/%.o: cryptopp/%.cpp
 obj/%.o: %.cpp $(HEADERS)
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
+obj/main.o: gamedb.h
+
 obj/huntercoin.o: huntercoin.h gamestate.h gamedb.h gamemovecreator.h
 
 obj/gamestate.o: huntercoin.h gamestate.h gamemap.h
