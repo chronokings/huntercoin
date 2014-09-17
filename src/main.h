@@ -28,6 +28,7 @@ class CWallet;
 class CKeyItem;
 class CReserveKey;
 class CWalletDB;
+class CTestPool;
 
 class CMessageHeader;
 class CAddress;
@@ -708,18 +709,13 @@ public:
     /** Fetch from memory and/or disk. inputsRet keys are transaction hashes.
 
      @param[in] txdb	Transaction database
-     @param[in] mapTestPool	List of pending changes to the transaction index database
-     @param[in] fBlock	True if being called to add a new best-block to the chain
-     @param[in] fMiner	True if being called by CreateNewBlock
      @param[out] inputsRet	Pointers to this transaction's inputs
      @param[out] fInvalid	returns true if transaction is invalid
-     @return	Returns true if all inputs are in txdb or mapTestPool
+     @return	Returns true if all inputs are in txdb
      */
-    bool FetchInputs(CTxDB& txdb, const std::map<uint256, CTxIndex>& mapTestPool,
-                     bool fBlock, bool fMiner, MapPrevTx& inputsRet, bool& fInvalid);
+    bool FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid);
 
-    bool ConnectInputs(DatabaseSet& dbset,
-                       std::map<uint256, CTxIndex>& mapTestPool,
+    bool ConnectInputs(DatabaseSet& dbset, CTestPool& testPool,
                        CDiskTxPos posThisTx, CBlockIndex* pindexBlock,
                        int64& nFees, bool fBlock, bool fMiner, int64 nMinFee=0);
     bool ClientConnectInputs();
@@ -947,6 +943,65 @@ public:
     const CBlockIndex* GetContainingBlock () const;
     int GetHeight () const;
     int GetDepthInMainChain () const;
+};
+
+
+/* Test pool while creating a block (for miners).  This records (somehow)
+   the changes made to the UTXO set -- new transactions as well as
+   spent outputs.  */
+class CTestPool
+{
+public:
+
+  /* New transactions available.  This contains only their hash, since
+     the full tx is available in mapTransactions.  */
+  std::set<uint256> includedTx;
+
+  /* Spent outpoints so far.  */
+  std::set<COutPoint> spent;
+
+  /* Construct an empty test pool.  */
+  inline CTestPool ()
+    : includedTx(), spent()
+  {}
+
+  /* Copy constructor.  */
+  inline CTestPool (const CTestPool& p)
+    : includedTx(p.includedTx), spent(p.spent)
+  {}
+
+  /* Add a transaction to the test pool.  */
+  inline void
+  AddTx (const CTransaction& tx)
+  {
+    const uint256 hash = tx.GetHash ();
+    assert (includedTx.count (hash) == 0);
+    includedTx.insert (hash);
+  }
+
+  /* Mark an outpoint as spent.  */
+  inline void
+  SetSpent (const COutPoint& out)
+  {
+    assert (!IsSpent (out));
+    spent.insert (out);
+  }
+
+  /* See if an out point has already been spent.  */
+  inline bool
+  IsSpent (const COutPoint& out) const
+  {
+    return spent.count (out) > 0;
+  }
+
+  /* Swap with another test pool.  */
+  inline void
+  swap (CTestPool& pool)
+  {
+    includedTx.swap (pool.includedTx);
+    spent.swap (pool.spent);
+  }
+
 };
 
 

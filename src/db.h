@@ -341,9 +341,14 @@ public:
 private:
     CTxDB(const CTxDB&);
     void operator=(const CTxDB&);
+
+    /* The txindex is immutable (only storing disk pos which doesn't change)
+       during normal operation, but for updating the storage format
+       we need this internally.  */
+    bool UpdateTxIndex (const uint256& hash, const CTxIndex& txindex);
+
 public:
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
-    bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);
     bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos);
     bool EraseTxIndex(const CTransaction& tx);
     bool ContainsTx(uint256 hash);
@@ -364,7 +369,6 @@ public:
     bool WriteBlockFileReserved (unsigned num, unsigned size);
 
     bool LoadBlockIndex();
-    bool FixTxIndexBug();
 
     /* Update txindex to new data format.  */
     bool RewriteTxIndex (int oldVersion);

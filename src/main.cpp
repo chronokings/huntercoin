@@ -492,9 +492,9 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
     if (fCheckInputs)
     {
         // Check against previous transactions
-        map<uint256, CTxIndex> mapUnused;
+        CTestPool poolUnused;
         int64 nFees = 0;
-        if (!ConnectInputs (dbset, mapUnused, CDiskTxPos(1,1,1), pindexBest,
+        if (!ConnectInputs (dbset, poolUnused, CDiskTxPos(1,1,1), pindexBest,
                             nFees, false, false))
         {
             if (pfMissingInputs)
@@ -1081,16 +1081,6 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
             if (!dbset.tx ().ReadTxIndex (prevout.hash, txindex))
                 return error("DisconnectInputs() : ReadTxIndex failed");
 
-            if (prevout.n >= txindex.GetOutputCount ())
-                return error("DisconnectInputs() : prevout.n out of range");
-
-            // Mark outpoint as not spent
-            txindex.SetUnspent (prevout.n);
-
-            // Write back
-            if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
-                return error("DisconnectInputs() : UpdateTxIndex failed");
-
             /* Put the previous txo back to the UTXO set.  This requires loading
                the transaction from disk first.  We could avoid that by keeping
                "not too old" UTXO entries somewhere, but for now this
@@ -1117,8 +1107,7 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
     return true;
 }
 
-bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTestPool,
-                               bool fBlock, bool fMiner, MapPrevTx& inputsRet, bool& fInvalid)
+bool CTransaction::FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid)
 {
     // FetchInputs can return false either because we just haven't seen some inputs
     // (in which case the transaction should be stored as an orphan)
@@ -1131,7 +1120,7 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
 
     for (unsigned int i = 0; i < vin.size(); i++)
     {
-        COutPoint prevout = vin[i].prevout;
+        const COutPoint prevout = vin[i].prevout;
         if (IsGameTx() && prevout.IsNull())
             continue;
         if (inputsRet.count(prevout.hash))
@@ -1139,23 +1128,7 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
 
         // Read txindex
         CTxIndex& txindex = inputsRet[prevout.hash].first;
-        bool fFound = true;
-        if ((fBlock || fMiner) && mapTestPool.count(prevout.hash))
-        {
-            // Get txindex from current proposed changes
-            txindex = mapTestPool.find(prevout.hash)->second;
-        }
-        else
-        {
-            // Read txindex from txdb
-            fFound = txdb.ReadTxIndex(prevout.hash, txindex);
-        }
-        if (!fFound && (fBlock || fMiner))
-            return fMiner ? false
-                          : error ("FetchInputs() : %s prev tx %s"
-                                   " index entry not found",
-                                   GetHashForLog (),
-                                   prevout.hash.ToLogString ());
+        const bool fFound = txdb.ReadTxIndex(prevout.hash, txindex);
 
         // Read txPrev
         CTransaction& txPrev = inputsRet[prevout.hash].second;
@@ -1201,9 +1174,8 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
 }
 
 bool
-CTransaction::ConnectInputs (DatabaseSet& dbset,
-    map<uint256, CTxIndex>& mapTestPool, CDiskTxPos posThisTx,
-    CBlockIndex* pindexBlock, int64& nFees,
+CTransaction::ConnectInputs (DatabaseSet& dbset, CTestPool& testPool,
+    CDiskTxPos posThisTx, CBlockIndex* pindexBlock, int64& nFees,
     bool fBlock, bool fMiner, int64 nMinFee)
 {
     // Take over previous transactions' spent pointers
@@ -1215,48 +1187,21 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
         for (int i = 0; i < vin.size(); i++)
         {
             const COutPoint prevout = vin[i].prevout;
-            CTxIndex txindex;
 
-            /* Get the previous txindex if we have a prevout.  */
-            bool fFound = true;
-            if (!prevout.IsNull ())
-            {
-                if (fMiner && mapTestPool.count(prevout.hash))
-                {
-                    // Get txindex from current proposed changes
-                    txindex = mapTestPool[prevout.hash];
-                }
-                else
-                {
-                    // Read txindex from txdb
-                    fFound = dbset.tx ().ReadTxIndex (prevout.hash, txindex);
-                }
-                if (!fFound && (fBlock || fMiner))
-                    return fMiner ? false
-                                  : error ("ConnectInputs() : %s prev tx %s"
-                                           " index entry not found",
-                                           GetHashForLog (),
-                                           prevout.hash.ToLogString ());
+            /* Handle the case of mining, where the prev tx may
+               be from the test pool.  Also make sure that the prevout
+               has not yet been spent in the test pool.  */
+            bool prevTxFromPool = false;
+            if (!prevout.IsNull () && fMiner)
+              {
+                if (testPool.IsSpent (prevout))
+                  return error ("ConnectInputs: %s prevout #%d is already"
+                                " spent in test pool",
+                                GetHashForLog (), prevout.n);
 
-                /* If we have a txindex already, do some additional checks.
-                   For !fFound they make no sense as we would have
-                   unspent / "empty" vSpent anyway.  */
-                if (fFound)
-                {
-                    /* Check range of prevout.n.  */
-                    if (prevout.n >= txindex.GetOutputCount ())
-                        return error ("ConnectInputs() : %s prevout.n %d out of"
-                                      " range %d\n",
-                                      GetHashForLog (),
-                                      prevout.n, txindex.GetOutputCount ());
-
-                    /* Check for conflicts with double-spends.  */
-                    if (txindex.IsSpent (prevout.n))
-                        return fMiner ? false
-                                      : error ("ConnectInputs() : %s prev tx"
-                                               " already spent", GetHashForLog ());
-                }
-            }
+                if (testPool.includedTx.count (prevout.hash))
+                  prevTxFromPool = true;
+              }
 
             /* If this is a game transaction, we can bypass most of the
                logic below.  But we have to potentially mark the outpoint
@@ -1270,7 +1215,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                 /* Read the previous input from either the memory
                    pool or the UTXO set.  */
                 CUtxoEntry txo;
-                if (!fFound || txindex.pos == CDiskTxPos(1,1,1))
+                if (prevTxFromPool)
                 {
                     // Get prev tx from single transactions in memory
                     CRITICAL_BLOCK(cs_mapTransactions)
@@ -1344,25 +1289,20 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
                when either fBlock or fMiner.  */
             if (!prevout.IsNull () && (fBlock || fMiner))
             {
-                assert (fFound);
-                txindex.SetSpent (prevout.n, *this);
-
                 if (fBlock)
                 {
-                    if (!dbset.tx ().UpdateTxIndex (prevout.hash, txindex))
-                        return error("ConnectInputs() : UpdateTxIndex failed");
                     if (!dbset.utxo ().RemoveUtxo (prevout))
                         return error ("ConnectInputs() : RemoveUtxo failed");
                 }
                 else
                 {
                     assert (fMiner);
-                    mapTestPool[prevout.hash] = txindex;
+                    testPool.SetSpent (prevout);
                 }
             }
         }
 
-        if (!hooks->ConnectInputs (dbset, mapTestPool, *this, vTxoPrev,
+        if (!hooks->ConnectInputs (dbset, testPool, *this, vTxoPrev,
                                    pindexBlock, posThisTx, fBlock, fMiner))
             return false;
 
@@ -1391,7 +1331,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
     else if (fMiner)
     {
         // Add transaction to test pool
-        mapTestPool[GetHash()] = CTxIndex(CDiskTxPos(1,1,1), vout.size());
+        testPool.AddTx (*this);
     }
 
     return true;
@@ -1489,14 +1429,14 @@ CBlock::ConnectBlock (DatabaseSet& dbset, CBlockIndex* pindex)
     //// issue here: it doesn't know the version
     unsigned int nTxPos = pindex->nBlockPos + ::GetSerializeSize(*this, SER_DISK|SER_BLOCKHEADERONLY) + GetSizeOfCompactSize(vtx.size());
 
-    map<uint256, CTxIndex> mapUnused;
+    CTestPool poolUnused;
     int64 nFees = 0;
     BOOST_FOREACH(CTransaction& tx, vtx)
     {
         CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, nTxPos);
         nTxPos += ::GetSerializeSize(tx, SER_DISK);
 
-        if (!tx.ConnectInputs (dbset, mapUnused, posThisTx, pindex,
+        if (!tx.ConnectInputs (dbset, poolUnused, posThisTx, pindex,
                                nFees, true, false))
             return false;
     }
@@ -2283,10 +2223,8 @@ bool LoadBlockIndex(bool fAllowNew)
 
       if (nTxDbVersion < 1000400)
         {
-          CTxDB txdb("r+");
-          printf ("FixTxIndexBug...\n");
-          if (!txdb.FixTxIndexBug ())
-            printf ("FixTxIndexBug failed\n");
+          printf ("ERROR: Too old blkindex.dat.\n");
+          return false;
         }
 
       if (nTxDbVersion < 1001000)
@@ -3642,7 +3580,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
         GameStepMiner gameStepMiner(dbset, pindexPrev);
 
         // Collect transactions into block
-        map<uint256, CTxIndex> mapTestPool;
+        CTestPool testPool;
         uint64 nBlockSize = 1000;
         int nBlockSigOps = 100;
         while (!mapPriority.empty())
@@ -3666,13 +3604,13 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
 
             // Connecting shouldn't fail due to dependency on other memory pool transactions
             // because we're already processing them in order of dependency
-            map<uint256, CTxIndex> mapTestPoolTmp(mapTestPool);
-            if (!tx.ConnectInputs (dbset, mapTestPoolTmp, CDiskTxPos(1,1,1),
+            CTestPool tmpPool(testPool);
+            if (!tx.ConnectInputs (dbset, tmpPool, CDiskTxPos(1,1,1),
                                    pindexPrev, nFees, false, true, nMinFee))
                 continue;
             if (!gameStepMiner.AddTx(tx))
                 continue;
-            swap(mapTestPool, mapTestPoolTmp);
+            testPool.swap (tmpPool);
 
             // Added
             pblock->vtx.push_back(tx);

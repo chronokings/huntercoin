@@ -72,8 +72,7 @@ public:
     virtual bool IsStandard(const CScript& scriptPubKey);
     virtual void AddToWallet(CWalletTx& tx);
     virtual bool CheckTransaction(const CTransaction& tx);
-    virtual bool ConnectInputs(DatabaseSet& dbset,
-            const std::map<uint256, CTxIndex>& mapTestPool,
+    virtual bool ConnectInputs(DatabaseSet& dbset, const CTestPool& testPool,
             const CTransaction& tx,
             const std::vector<CUtxoEntry>& vTxoPrev,
             const CBlockIndex* pindexBlock,
@@ -2422,7 +2421,7 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
 
 bool
 CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
-                                 const std::map<uint256, CTxIndex>& mapTestPool,
+                                 const CTestPool& testPool,
                                  const CTransaction& tx,
                                  const std::vector<CUtxoEntry>& vTxoPrev,
                                  const CBlockIndex* pindexBlock,
@@ -2534,13 +2533,13 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (fMiner)
             {
                 const set<uint256>& setPending = mapNamePending[vvchArgs[0]];
-                BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& s, mapTestPool)
+                BOOST_FOREACH(const uint256& hash, testPool.includedTx)
                 {
-                    if (setPending.count(s.first))
+                    if (setPending.count(hash))
                     {
                         printf("ConnectInputsHook() : will not mine %s because it clashes with %s",
                                 tx.GetHash().GetHex().c_str(),
-                                s.first.GetHex().c_str());
+                                hash.GetHex().c_str());
                         return false;
                     }
                 }
@@ -2799,15 +2798,15 @@ CHuntercoinHooks::ConnectBlock (CBlock& block, DatabaseSet& dbset,
         }
     }
 
-    map<uint256, CTxIndex> mapUnused;
     unsigned int nTxPos = block.nGameTxPos + GetSizeOfCompactSize(block.vgametx.size());
 
+    CTestPool poolUnused;
     BOOST_FOREACH(CTransaction& tx, block.vgametx)
     {
         CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, block.nGameTxFile, nTxPos);
         nTxPos += ::GetSerializeSize(tx, SER_DISK);
 
-        if (!tx.ConnectInputs (dbset, mapUnused, posThisTx, pindex,
+        if (!tx.ConnectInputs (dbset, poolUnused, posThisTx, pindex,
                                nFees, true, false))
             return error("ConnectBlock hook : ConnectInputs failed for game tx");
     }
