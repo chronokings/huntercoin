@@ -2372,7 +2372,6 @@ IsPlayerDead (const CWalletTx &nameTx, const CTxIndex &txindex)
 
 static bool
 ConnectInputsGameTx (DatabaseSet& dbset,
-                     const std::map<uint256, CTxIndex>& mapTestPool,
                      const CTransaction& tx, const CBlockIndex* pindexBlock,
                      const CDiskTxPos& txPos)
 {
@@ -2433,8 +2432,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     if (tx.IsGameTx ())
       {
         if (fBlock)
-          return ConnectInputsGameTx (dbset, mapTestPool, tx,
-                                      pindexBlock, txPos);
+          return ConnectInputsGameTx (dbset, tx, pindexBlock, txPos);
         return true;
       }
 
