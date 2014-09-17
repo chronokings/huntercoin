@@ -344,7 +344,7 @@ private:
 public:
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
     bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);
-    bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos, int nHeight);
+    bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos);
     bool EraseTxIndex(const CTransaction& tx);
     bool ContainsTx(uint256 hash);
     bool ReadDiskTx(uint256 hash, CTransaction& tx, CTxIndex& txindex);

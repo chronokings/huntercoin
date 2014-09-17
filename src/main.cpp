@@ -1385,7 +1385,7 @@ CTransaction::ConnectInputs (DatabaseSet& dbset,
         // Add transaction to disk index
         if (!dbset.utxo ().InsertUtxo (*this, pindexBlock->nHeight))
             return error ("ConnectInputs() : failed to InsertUtxo");
-        if (!dbset.tx ().AddTxIndex (*this, posThisTx, pindexBlock->nHeight))
+        if (!dbset.tx ().AddTxIndex (*this, posThisTx))
             return error("ConnectInputs() : AddTxPos failed");
     }
     else if (fMiner)
