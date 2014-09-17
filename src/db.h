@@ -510,6 +510,10 @@ public:
        is correct.  This is used to check that the updating in ConnectBlock
        and DisconnectBlock works as it should.  */
     bool Verify ();
+
+    /* Read all entries to analyse the total money supply as well as
+       the number of entries.  */
+    bool Analyse (unsigned& nUtxo, int64_t& amount);
 };
 
 

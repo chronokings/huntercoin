@@ -737,16 +737,6 @@ bool CWalletTx::AcceptWalletTransaction()
     return AcceptWalletTransaction (dbset);
 }
 
-unsigned char
-CTxIndex::GetSpentType (const CTransaction& tx)
-{
-  if (tx.IsGameTx ())
-    return SPENT_GAMETX;
-  if (tx.nVersion == NAMECOIN_TX_VERSION)
-    return SPENT_NAMETX;
-  return SPENT_TX;
-}
-
 const CBlockIndex*
 CTxIndex::GetContainingBlock () const
 {
@@ -1141,8 +1131,6 @@ bool CTransaction::FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid
                 if (mi != mapTransactions.end())
                     txPrev = mi->second;
             }
-            if (!fFound)
-              txindex.ResizeOutputs (txPrev.vout.size ());
         }
         else
         {
@@ -1161,12 +1149,12 @@ bool CTransaction::FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid
         assert(inputsRet.count(prevout.hash) != 0);
         const CTxIndex& txindex = inputsRet[prevout.hash].first;
         const CTransaction& txPrev = inputsRet[prevout.hash].second;
-        if (prevout.n >= txPrev.vout.size() || prevout.n >= txindex.GetOutputCount ())
+        if (prevout.n >= txPrev.vout.size())
         {
             // Revisit this if/when transaction replacement is implemented and allows
             // adding inputs:
             fInvalid = true;
-            return /*DoS(100,*/ error("FetchInputs() : %s prevout.n out of range %d %"PRIszu" %"PRIszu" prev tx %s\n%s", GetHash().ToString().substr(0,10).c_str(), prevout.n, txPrev.vout.size(), txindex.GetOutputCount (), prevout.hash.ToString().substr(0,10).c_str(), txPrev.ToString().c_str()) /* ) */ ;
+            return /*DoS(100,*/ error("FetchInputs() : %s prevout.n out of range %d %"PRIszu" prev tx %s\n%s", GetHash().ToString().substr(0,10).c_str(), prevout.n, txPrev.vout.size(), prevout.hash.ToString().substr(0,10).c_str(), txPrev.ToString().c_str()) /* ) */ ;
         }
     }
 
@@ -2227,7 +2215,7 @@ bool LoadBlockIndex(bool fAllowNew)
           return false;
         }
 
-      if (nTxDbVersion < 1001000)
+      if (nTxDbVersion < 1001300)
         {
           CTxDB wtxdb;
           /* SerialisationVersion is set to VERSION by default.  */
