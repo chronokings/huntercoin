@@ -549,6 +549,8 @@ void CWallet::ReacceptWalletTransactions()
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, mapWallet)
         {
             CWalletTx& wtx = item.second;
+            const uint256& txHash = item.first;
+
             if (wtx.IsCoinBase() && wtx.IsSpent(0))
                 continue;
 
@@ -557,21 +559,21 @@ void CWallet::ReacceptWalletTransactions()
             if (dbset.tx ().ReadTxIndex (wtx.GetHash (), txindex))
             {
                 // Update fSpent if a tx got spent somewhere else by a copy of wallet.dat
-                if (txindex.GetOutputCount () != wtx.vout.size())
-                {
-                    printf("ERROR: ReacceptWalletTransactions() : txindex.OutputCount %d != wtx.vout.size() %d\n", txindex.GetOutputCount (), wtx.vout.size());
-                    continue;
-                }
-                for (int i = 0; i < txindex.GetOutputCount (); i++)
+                for (int i = 0; i < wtx.vout.size (); i++)
                 {
                     if (wtx.IsSpent(i))
                         continue;
-                    if (txindex.IsSpent (i) && IsMine(wtx.vout[i]))
-                    {
-                        wtx.MarkSpent(i);
-                        fUpdated = true;
-                        hasMissingTx = true;
-                    }
+                    if (IsMine (wtx.vout[i]))
+                      {
+                        CUtxoEntry txo;
+                        const COutPoint outp(txHash, i);
+                        if (!dbset.utxo ().ReadUtxo (outp, txo))
+                          {
+                            wtx.MarkSpent(i);
+                            fUpdated = true;
+                            hasMissingTx = true;
+                          }
+                      }
                 }
                 if (fUpdated)
                 {

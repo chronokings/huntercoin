@@ -429,19 +429,20 @@ bool CTxDB::ReadTxIndex(uint256 hash, CTxIndex& txindex)
     return Read(make_pair(string("tx"), hash), txindex);
 }
 
-bool CTxDB::UpdateTxIndex(uint256 hash, const CTxIndex& txindex)
+bool
+CTxDB::UpdateTxIndex (const uint256& hash, const CTxIndex& txindex)
 {
-    assert(!fClient);
-    return Write(make_pair(string("tx"), hash), txindex);
+  assert (!fClient);
+  return Write (std::make_pair (std::string ("tx"), hash), txindex);
 }
 
-bool CTxDB::AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos, int nHeight)
+bool CTxDB::AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos)
 {
     assert(!fClient);
 
     // Add to tx index
     uint256 hash = tx.GetHash();
-    CTxIndex txindex(pos, tx.vout.size());
+    CTxIndex txindex(pos);
     return Write(make_pair(string("tx"), hash), txindex);
 }
 
@@ -679,66 +680,6 @@ bool CTxDB::LoadBlockIndex()
     return true;
 }
 
-// Fix a bug in CDiskTxPos where nBlockFile was uninitialized. As of now we can safely set nBlockFile = 1.
-bool CTxDB::FixTxIndexBug()
-{
-    // Get database cursor
-    Dbc* pcursor = GetCursor();
-    if (!pcursor)
-        return false;
-
-    // All updates are saved to map, because the db cursor implementation here is read-only
-    std::map<uint256, CTxIndex> mapUpdate;
-
-    unsigned int fFlags = DB_SET_RANGE;
-    loop
-    {
-        // Read next record
-        CDataStream ssKey;
-        if (fFlags == DB_SET_RANGE)
-            ssKey << make_pair(string("tx"), uint256(0));
-        CDataStream ssValue;
-        int ret = ReadAtCursor(pcursor, ssKey, ssValue, fFlags);
-        fFlags = DB_NEXT;
-        if (ret == DB_NOTFOUND)
-            break;
-        else if (ret != 0)
-            return false;
-
-        // Deserialize
-        string strType;
-        ssKey >> strType;
-        if (strType == "tx")
-        {
-            uint256 hash;
-            ssKey >> hash;
-            CTxIndex txindex;
-            ssValue >> txindex;
-            if (txindex.pos.nBlockFile != 1 && txindex.pos.nTxFile == 1)
-            {
-                // Fix. Will become invalid when blk0001.dat comes to an end and blk0002.dat takes over.
-                txindex.pos.nBlockFile = 1;
-                mapUpdate[hash] = txindex;
-            }
-        }
-        else
-            break;
-    }
-    pcursor->close();
-
-    BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& item, mapUpdate)
-        if (!UpdateTxIndex(item.first, item.second))
-            return error("FixTxIndexBug: UpdateTxIndex failed");
-
-    if (!mapUpdate.empty())
-        printf("FixTxIndexBug updated %d transactions\n", mapUpdate.size());
-
-    if (!WriteVersion(VERSION))
-        return error("FixTxIndexBug: WriteVersion failed");
-
-  return true;
-}
-
 /* Rewrite all txindex objects in the DB to update the data format.  */
 bool
 CTxDB::RewriteTxIndex (int oldVersion)
@@ -787,54 +728,6 @@ CTxDB::RewriteTxIndex (int oldVersion)
       txindex.insert (std::make_pair (hash, obj));
     }
   pcursor->close ();
-
-  /* Go through all possible spending transactions and set their inputs'
-     spent type accordingly.  */
-  if (oldVersion < 1001000)
-    {
-      printf ("Fixing tx spent types...\n");
-      CBlockIndex* pindex = pindexGenesisBlock;
-      for (const CBlockIndex* pindex = pindexGenesisBlock;
-           pindex; pindex = pindex->pnext)
-        {
-          if (pindex->nHeight % 1000 == 0)
-            printf ("  at height %d...\n", pindex->nHeight);
-
-          CBlock block;
-          block.ReadFromDisk (pindex);
-
-          std::vector<const CTransaction*> vtx;
-          vtx.reserve (block.vtx.size () + block.vgametx.size ());
-          BOOST_FOREACH(const CTransaction& tx, block.vtx)
-            {
-              vtx.push_back (&tx);
-            }
-          BOOST_FOREACH(const CTransaction& tx, block.vgametx)
-            {
-              vtx.push_back (&tx);
-            }
-
-          BOOST_FOREACH(const CTransaction* tx, vtx)
-            {
-              for (unsigned i = 0; i < tx->vin.size (); ++i)
-                if (!tx->vin[i].prevout.IsNull ())
-                  {
-                    const uint256& prevHash = tx->vin[i].prevout.hash;
-
-                    if (txindex.find (prevHash) == txindex.end ())
-                      return error ("RewriteTxIndex: Failed to find prev tx");
-                    txindex[prevHash].SetSpent (tx->vin[i].prevout.n, *tx);
-                  }
-            }
-        }
-
-      BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& item, txindex)
-        {
-          for (unsigned i = 0; i < item.second.GetOutputCount (); ++i)
-            if (item.second.GetSpent (i) == CTxIndex::SPENT_UNKNOWN)
-              return error ("RewriteTxIndex: Still unknown spent type");
-        }
-    }
 
   /* Now write everything back.  */
   printf ("Writing everything back...\n");
@@ -1078,7 +971,14 @@ CUtxoDB::InsertUtxo (const COutPoint& pos, const CUtxoEntry& txo)
       CUtxoEntry existing;
       ReadUtxo (pos, existing);
       if (existing.height >= txo.height)
-        return error ("Existing UTXO entry should have lower height than new!");
+        {
+          /* When recreating the UTXO set from the chain, we process the
+             blocks in *reverse* order.  In this case, the existing entry
+             has already the larger height.  Keep it that way.  */
+          printf ("WARNING: Existing UTXO entry should have lower height than"
+                  " new one.  This is fine if recreating the UTXO set.\n");
+          return true;
+        }
     }
 
   return Write (GetKey (pos), txo);
@@ -1152,8 +1052,13 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
   unsigned txoCnt = 0;
   int64_t amount = 0;
 
-  const CBlockIndex* pInd = pindexGenesisBlock;
-  for (; pInd; pInd = pInd->pnext)
+  /* We work backwards and keep track of spent outpoints in the blocks
+     we find.  This way, we can be sure to only find really unspent
+     outputs.  */
+  std::set<COutPoint> spent;
+
+  const CBlockIndex* pInd = pindexBest;
+  for (; pInd; pInd = pInd->pprev)
     {
       if (pInd->nHeight % 1000 == 0)
         printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
@@ -1170,67 +1075,80 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
       if (!fVerify)
         TxnBegin ();
 
+      /* Loop over the transactions also in reverse order.  This is
+         necessary to preserve the "spending tx before spent tx"
+         logic we have here.  */
+      std::reverse (vTxs.begin (), vTxs.end ());
+
       allTxCnt += vTxs.size ();
       for (unsigned i = 0; i < vTxs.size (); ++i)
         {
           const CTransaction& tx = *vTxs[i];
+          const uint256 txHash = tx.GetHash ();
 
-          CTxIndex txindex;
-          if (!txdb.ReadTxIndex (tx.GetHash (), txindex))
-            {
-              printf ("Could not read txindex for %s @%d.\n",
-                      tx.GetHash ().ToString ().c_str (), pInd->nHeight);
-
-              if (!fVerify)
-                TxnAbort ();
-              return error ("ReadTxIndex failed.");
-            }
-
+          /* Go through all outputs of this transaction.  If they haven't
+             yet appeared as input of a later one, they are unspent and should
+             be part of the UTXO set.  */
           bool hasUnspent = false;
           allTxoCnt += tx.vout.size ();
           for (unsigned j = 0; j < tx.vout.size (); ++j)
-            if (!txindex.IsSpent (j))
-              {
-                hasUnspent = true;
-                ++txoCnt;
-                amount += tx.vout[j].nValue;
+            {
+              const COutPoint outp(txHash, j);
+              if (spent.count (outp) == 0)
+                {
+                  hasUnspent = true;
+                  ++txoCnt;
+                  amount += tx.vout[j].nValue;
 
-                if (fVerify)
-                  {
-                    const COutPoint p(tx.GetHash (), j);
-                    CUtxoEntry txo;
-                    if (!ReadUtxo (p, txo))
-                      {
-                        printf ("Missing %s in UTXO database.\n",
-                                p.ToString ().c_str ());
-                        return error ("UTXO database is incomplete.");
-                      }
+                  if (fVerify)
+                    {
+                      CUtxoEntry txo;
+                      if (!ReadUtxo (outp, txo))
+                        {
+                          printf ("Missing %s in UTXO database.\n",
+                                  outp.ToString ().c_str ());
+                          return error ("UTXO database is incomplete.");
+                        }
 
-                    /* It is possible that a single tx is twice
-                       in the blockchain, so ignore height in the
-                       comparison below.  Set it to the old entry's height.  */
-                    const CUtxoEntry entry(tx, j, txo.height);
-                    if (txo != entry)
-                      {
-                        printf ("Mismatch for %s in UTXO database.\n",  
-                                p.ToString ().c_str ());
-                        return error ("UTXO database has wrong entry.");
-                      }
-                    outPoints->insert (p);
-                  }
-                else
-                  {
-                    if (!InsertUtxo (tx, j, pInd->nHeight))
-                      {
-                        printf ("Failed: %s %d (%d in block @%d)\n",
-                                tx.GetHash ().ToString ().c_str (), j,
-                                i, pInd->nHeight);
-                        return error ("InsertUtxo failed.");
-                      }
-                  }
-              }
+                      /* It is possible that a single tx is twice
+                         in the blockchain, so ignore height in the
+                         comparison below.  */
+                      const CUtxoEntry entry(tx, j, txo.height);
+                      if (txo != entry)
+                        {
+                          printf ("Mismatch for %s in UTXO database.\n",  
+                                  outp.ToString ().c_str ());
+                          return error ("UTXO database has wrong entry.");
+                        }
+                      outPoints->insert (outp);
+                    }
+                  else
+                    {
+                      if (!InsertUtxo (tx, j, pInd->nHeight))
+                        {
+                          printf ("Failed: %s %d (%d in block @%d)\n",
+                                  tx.GetHash ().ToString ().c_str (), j,
+                                  i, pInd->nHeight);
+                          return error ("InsertUtxo failed.");
+                        }
+                    }
+                }
+            }
           if (hasUnspent)
             ++txCnt;
+
+          /* Mark all inputs of the transaction as spent (for later
+             transactions to be loaded).  */
+          for (unsigned j = 0; j < tx.vin.size (); ++j)
+            if (!tx.vin[j].prevout.IsNull ())
+              {
+                if (spent.count (tx.vin[j].prevout) > 0)
+                  return error ("Double spend in the blockchain: tx %s,"
+                                " output %s is already spent.",
+                                tx.GetHashForLog (),
+                                tx.vin[j].prevout.ToString ().c_str ());
+                spent.insert (tx.vin[j].prevout);
+              }
         }
 
       if (!fVerify)
@@ -1312,6 +1230,49 @@ CUtxoDB::Verify ()
           printf ("Spuriously in the UTXO DB: %s\n", pos.ToString ().c_str ());
           return error ("UTXO DB contains too many entries.");
         }
+    }
+  pcursor->close ();
+
+  return true;
+}
+
+bool
+CUtxoDB::Analyse (unsigned& nUtxo, int64_t& amount)
+{
+  nUtxo = 0;
+  amount = 0;
+
+  Dbc* pcursor = GetCursor ();
+  if (!pcursor)
+    return error ("Failed to get DB cursor.");
+
+  unsigned int fFlags = DB_SET_RANGE;
+  while (true)
+    {
+      CDataStream ssKey;
+      if (fFlags == DB_SET_RANGE)
+        {
+          COutPoint p(uint256 (0), 0);
+          ssKey << GetKey (p);
+        }
+      CDataStream ssValue;
+      const int ret = ReadAtCursor (pcursor, ssKey, ssValue, fFlags);
+      fFlags = DB_NEXT;
+      if (ret == DB_NOTFOUND)
+        break;
+      if (ret != 0)
+        return error ("ReadAtCursor failed.");
+
+      std::string strType;
+      ssKey >> strType;
+      if (strType != "txo")
+        break;
+
+      CUtxoEntry obj;
+      ssValue >> obj;
+
+      ++nUtxo;
+      amount += obj.txo.nValue;
     }
   pcursor->close ();
 

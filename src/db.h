@@ -341,10 +341,15 @@ public:
 private:
     CTxDB(const CTxDB&);
     void operator=(const CTxDB&);
+
+    /* The txindex is immutable (only storing disk pos which doesn't change)
+       during normal operation, but for updating the storage format
+       we need this internally.  */
+    bool UpdateTxIndex (const uint256& hash, const CTxIndex& txindex);
+
 public:
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
-    bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);
-    bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos, int nHeight);
+    bool AddTxIndex(const CTransaction& tx, const CDiskTxPos& pos);
     bool EraseTxIndex(const CTransaction& tx);
     bool ContainsTx(uint256 hash);
     bool ReadDiskTx(uint256 hash, CTransaction& tx, CTxIndex& txindex);
@@ -364,7 +369,6 @@ public:
     bool WriteBlockFileReserved (unsigned num, unsigned size);
 
     bool LoadBlockIndex();
-    bool FixTxIndexBug();
 
     /* Update txindex to new data format.  */
     bool RewriteTxIndex (int oldVersion);
@@ -506,6 +510,10 @@ public:
        is correct.  This is used to check that the updating in ConnectBlock
        and DisconnectBlock works as it should.  */
     bool Verify ();
+
+    /* Read all entries to analyse the total money supply as well as
+       the number of entries.  */
+    bool Analyse (unsigned& nUtxo, int64_t& amount);
 };
 
 

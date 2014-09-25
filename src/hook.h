@@ -11,8 +11,7 @@ public:
     virtual bool IsStandard(const CScript& scriptPubKey) = 0;
     virtual void AddToWallet(CWalletTx& tx) = 0;
     virtual bool CheckTransaction(const CTransaction& tx) = 0;
-    virtual bool ConnectInputs(DatabaseSet& dbset,
-            const std::map<uint256, CTxIndex>& mapTestPool,
+    virtual bool ConnectInputs(DatabaseSet& dbset, const CTestPool& testPool,
             const CTransaction& tx,
             const std::vector<CUtxoEntry>& vTxoPrev,
             const CBlockIndex* pindexBlock,

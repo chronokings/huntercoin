@@ -28,6 +28,7 @@ class CWallet;
 class CKeyItem;
 class CReserveKey;
 class CWalletDB;
+class CTestPool;
 
 class CMessageHeader;
 class CAddress;
@@ -708,18 +709,13 @@ public:
     /** Fetch from memory and/or disk. inputsRet keys are transaction hashes.
 
      @param[in] txdb	Transaction database
-     @param[in] mapTestPool	List of pending changes to the transaction index database
-     @param[in] fBlock	True if being called to add a new best-block to the chain
-     @param[in] fMiner	True if being called by CreateNewBlock
      @param[out] inputsRet	Pointers to this transaction's inputs
      @param[out] fInvalid	returns true if transaction is invalid
-     @return	Returns true if all inputs are in txdb or mapTestPool
+     @return	Returns true if all inputs are in txdb
      */
-    bool FetchInputs(CTxDB& txdb, const std::map<uint256, CTxIndex>& mapTestPool,
-                     bool fBlock, bool fMiner, MapPrevTx& inputsRet, bool& fInvalid);
+    bool FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid);
 
-    bool ConnectInputs(DatabaseSet& dbset,
-                       std::map<uint256, CTxIndex>& mapTestPool,
+    bool ConnectInputs(DatabaseSet& dbset, CTestPool& testPool,
                        CDiskTxPos posThisTx, CBlockIndex* pindexBlock,
                        int64& nFees, bool fBlock, bool fMiner, int64 nMinFee=0);
     bool ClientConnectInputs();
@@ -811,34 +807,17 @@ class CTxIndex
 public:
     CDiskTxPos pos;
 
-    /* Possible types of "spendings" for outputs.  It is necessary to record
-       when a name has been spent by a game tx, so that we know that the
-       player is dead.  */
-    static const unsigned char SPENT_UNSPENT = 0;
-    static const unsigned char SPENT_TX = 1;
-    static const unsigned char SPENT_NAMETX = 2;
-    static const unsigned char SPENT_GAMETX = 3;
-    static const unsigned char SPENT_UNKNOWN = 128;
-
-private:
-    std::vector<unsigned char> isSpent;
-
-    /* Given the spending tx of an output, decide what the correct SPENT_*
-       type is for the output.  */
-    static unsigned char GetSpentType (const CTransaction& tx);
-
 public:
 
-    CTxIndex()
+    inline CTxIndex ()
     {
-        SetNull();
+      SetNull ();
     }
 
-    CTxIndex(const CDiskTxPos& posIn, unsigned int nOutputs)
-    {
-        pos = posIn;
-        isSpent.resize (nOutputs, SPENT_UNSPENT);
-    }
+    inline explicit
+    CTxIndex (const CDiskTxPos& posIn)
+      : pos(posIn)
+    {}
 
     IMPLEMENT_SERIALIZE
     (
@@ -857,31 +836,18 @@ public:
             assert (fRead); 
             std::vector<CDiskTxPos> vSpent;
             READWRITE (vSpent);
-
-            std::vector<unsigned char>& newIsSpent = const_cast<std::vector<unsigned char>&> (isSpent);
-            newIsSpent.resize (vSpent.size ());
-            for (unsigned i = 0; i < vSpent.size (); ++i)
-              {
-                if (vSpent[i].IsNull ())
-                  newIsSpent[i] = SPENT_UNSPENT;
-                else
-                  {
-                    /* Set value to SPENT_UNKNOWN for now.  This should only
-                       ever be used during database upgrading, and there
-                       the correct spending type is set later while
-                       iterating through all possible spending tx.  */
-                    newIsSpent[i] = SPENT_UNKNOWN;
-                  }
-              }
           }
-        else
-          READWRITE(isSpent);
+        else if (nVersion < 1001300)
+          {
+            assert (fRead);
+            std::vector<unsigned char> vSpent;
+            READWRITE (vSpent);
+          }
     )
 
     void SetNull()
     {
         pos.SetNull();
-        isSpent.clear ();
     }
 
     bool IsNull()
@@ -889,54 +855,9 @@ public:
         return pos.IsNull();
     }
 
-    inline unsigned
-    GetOutputCount () const
-    {
-      return isSpent.size ();
-    }
-
-    inline void
-    ResizeOutputs (unsigned n)
-    {
-      isSpent.resize (n, SPENT_UNSPENT);
-    }
-
-    inline bool
-    IsSpent (unsigned n) const
-    {
-      assert (n < isSpent.size ());
-      return (isSpent[n] != SPENT_UNSPENT);
-    }
-
-    inline unsigned char
-    GetSpent (unsigned n) const
-    {
-      assert (n < isSpent.size ());
-      return isSpent[n];
-    }
-
-    inline void
-    SetSpent (unsigned n, const CTransaction& txSpending)
-    {
-      assert (n < isSpent.size ());
-      /* Allow also SPENT_UNKNOWN to be "reset" so that the correct type
-         can be set during the upgrade procedure.  */
-      assert (isSpent[n] == SPENT_UNSPENT || isSpent[n] == SPENT_UNKNOWN);
-      isSpent[n] = GetSpentType (txSpending);
-    }
-
-    inline void
-    SetUnspent (unsigned n)
-    {
-      assert (n < isSpent.size ());
-      assert (isSpent[n] != SPENT_UNSPENT);
-      isSpent[n] = SPENT_UNSPENT;
-    }
-
     friend bool operator==(const CTxIndex& a, const CTxIndex& b)
     {
-        return (a.pos    == b.pos &&
-                a.isSpent == b.isSpent);
+        return (a.pos == b.pos);
     }
 
     friend bool operator!=(const CTxIndex& a, const CTxIndex& b)
@@ -947,6 +868,65 @@ public:
     const CBlockIndex* GetContainingBlock () const;
     int GetHeight () const;
     int GetDepthInMainChain () const;
+};
+
+
+/* Test pool while creating a block (for miners).  This records (somehow)
+   the changes made to the UTXO set -- new transactions as well as
+   spent outputs.  */
+class CTestPool
+{
+public:
+
+  /* New transactions available.  This contains only their hash, since
+     the full tx is available in mapTransactions.  */
+  std::set<uint256> includedTx;
+
+  /* Spent outpoints so far.  */
+  std::set<COutPoint> spent;
+
+  /* Construct an empty test pool.  */
+  inline CTestPool ()
+    : includedTx(), spent()
+  {}
+
+  /* Copy constructor.  */
+  inline CTestPool (const CTestPool& p)
+    : includedTx(p.includedTx), spent(p.spent)
+  {}
+
+  /* Add a transaction to the test pool.  */
+  inline void
+  AddTx (const CTransaction& tx)
+  {
+    const uint256 hash = tx.GetHash ();
+    assert (includedTx.count (hash) == 0);
+    includedTx.insert (hash);
+  }
+
+  /* Mark an outpoint as spent.  */
+  inline void
+  SetSpent (const COutPoint& out)
+  {
+    assert (!IsSpent (out));
+    spent.insert (out);
+  }
+
+  /* See if an out point has already been spent.  */
+  inline bool
+  IsSpent (const COutPoint& out) const
+  {
+    return spent.count (out) > 0;
+  }
+
+  /* Swap with another test pool.  */
+  inline void
+  swap (CTestPool& pool)
+  {
+    includedTx.swap (pool.includedTx);
+    spent.swap (pool.spent);
+  }
+
 };
 
 

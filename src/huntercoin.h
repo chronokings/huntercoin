@@ -62,7 +62,6 @@ int64 GetNetworkFee(int nHeight);
 int64 GetNameCoinAmount (unsigned nHeight, bool frontEnd = false);
 bool IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name);
 void UnspendInputs(CWalletTx& wtx);
-bool IsPlayerDead(const CWalletTx &nameTx, const CTxIndex &txindex);
 bool IsValidPlayerName (const std::string& player);
 
 /* For the front-end and the game_waitforchange RPC call, we allow threads

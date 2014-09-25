@@ -72,8 +72,7 @@ public:
     virtual bool IsStandard(const CScript& scriptPubKey);
     virtual void AddToWallet(CWalletTx& tx);
     virtual bool CheckTransaction(const CTransaction& tx);
-    virtual bool ConnectInputs(DatabaseSet& dbset,
-            const std::map<uint256, CTxIndex>& mapTestPool,
+    virtual bool ConnectInputs(DatabaseSet& dbset, const CTestPool& testPool,
             const CTransaction& tx,
             const std::vector<CUtxoEntry>& vTxoPrev,
             const CBlockIndex* pindexBlock,
@@ -1870,58 +1869,42 @@ analyseutxo (const Array& params, bool fHelp)
           "analyseutxo\n"
           "Look through the UTXO and construct certain data about it.");
 
-  CTxDB txdb("r");
   CCriticalBlock lock(cs_main);
+  DatabaseSet dbset("r");
 
-  unsigned txCnt = 0;
-  unsigned txoCnt = 0;
-  unsigned totalTx = 0;
-  unsigned totalTxo = 0;
-  int64_t amount = 0;
-  const CBlockIndex* pInd = pindexBest;
-  const unsigned startingHeight = pInd->nHeight;
-  for (; pInd; pInd = pInd->pprev)
+  /* Read UTXO database.  */
+  unsigned txoCnt;
+  int64_t amount;
+  if (!dbset.utxo ().Analyse (txoCnt, amount))
+    throw std::runtime_error ("failed to read UTXO database");
+
+  /* Find duplicate coinbase transactions in the blockchain.  */
+  int64_t dupCoinbase = 0;
+  std::set<uint256> seenHashes;
+  const CBlockIndex* pInd = pindexGenesisBlock;
+  for (; pInd; pInd = pInd->pnext)
     {
-      printf ("Analyse UTXO at block height %d...\n", pInd->nHeight);
-      std::vector<const CTransaction*> vTxs;
+      if (pInd->nHeight % 1000 == 0)
+        printf ("Searching for duplicate coinbase at height %d...\n",
+                pInd->nHeight);
 
       CBlock block;
       block.ReadFromDisk (pInd);
 
-      for (unsigned i = 0; i < block.vtx.size (); ++i)
-        vTxs.push_back (&block.vtx[i]);
-      for (unsigned i = 0; i < block.vgametx.size (); ++i)
-        vTxs.push_back (&block.vgametx[i]);
+      assert (!block.vtx.empty ());
+      const CTransaction& tx = block.vtx[0];
+      assert (tx.IsCoinBase ());
+      const uint256 txHash = tx.GetHash ();
 
-      totalTx += vTxs.size ();
-      for (unsigned i = 0; i < vTxs.size (); ++i)
-        {
-          CTxIndex txindex;
-          if (!txdb.ReadTxIndex (vTxs[i]->GetHash (), txindex))
-            throw std::runtime_error ("ReadTxIndex failed.");
-
-          bool hasUnspent = false;
-          totalTxo += vTxs[i]->vout.size ();
-          for (unsigned j = 0; j < vTxs[i]->vout.size (); ++j)
-            if (!txindex.IsSpent (j))
-              {
-                hasUnspent = true;
-                ++txoCnt;
-                amount += vTxs[i]->vout[j].nValue;
-              }
-          if (hasUnspent)
-            ++txCnt;
-        }
-
-      /* Since this is an async RPC call, give the main thread a chance
-         to interrupt this thread in case the server is going to shut down.  */
-      boost::this_thread::interruption_point ();
+      if (seenHashes.count (txHash) > 0)
+        dupCoinbase += tx.GetValueOut ();
+      else
+        seenHashes.insert (txHash);
     }
 
   /* Also calculate total number of coins on the map, so that we get the total
      money supply and can check it.  */
   const Game::GameState& state = GetCurrentGameState ();
-  assert (state.nHeight == startingHeight);
   const int64 onMap = state.GetCoinsOnMap ();
   const int64 lostCoins = state.lostCoins;
   const int64 rewards = pindexBest->GetTotalRewards ();
@@ -1929,30 +1912,24 @@ analyseutxo (const Array& params, bool fHelp)
   /* Construct the result.  */
 
   Object res;
-  res.push_back (Pair ("height", static_cast<int> (startingHeight)));
+  res.push_back (Pair ("height", static_cast<int> (nBestHeight)));
+  res.push_back (Pair ("num_utxo", static_cast<int> (txoCnt)));
 
   Object subobj;
-  subobj.push_back (Pair ("tx", static_cast<int> (txCnt)));
-  subobj.push_back (Pair ("txo", static_cast<int> (txoCnt)));
-  res.push_back (Pair ("unspent", subobj));
-
-  subobj.clear ();
-  subobj.push_back (Pair ("tx", static_cast<int> (totalTx)));
-  subobj.push_back (Pair ("txo", static_cast<int> (totalTxo)));
-  res.push_back (Pair ("total", subobj));
-
-  subobj.clear ();
   subobj.push_back (Pair ("utxo", ValueFromAmount (amount)));
   subobj.push_back (Pair ("map", ValueFromAmount (onMap)));
   subobj.push_back (Pair ("total", ValueFromAmount (amount + onMap)));
   res.push_back (Pair ("moneysupply", subobj));
 
   subobj.clear ();
+  const int64_t expected = rewards - lostCoins - dupCoinbase;
   subobj.push_back (Pair ("rewards", ValueFromAmount (rewards)));
   subobj.push_back (Pair ("lost", ValueFromAmount (lostCoins)));
-  subobj.push_back (Pair ("total", ValueFromAmount (rewards - lostCoins)));
+  subobj.push_back (Pair ("dup_coinbase", ValueFromAmount (dupCoinbase)));
+  subobj.push_back (Pair ("total", ValueFromAmount (expected)));
   res.push_back (Pair ("expected", subobj));
-  res.push_back (Pair ("check", amount + onMap == rewards - lostCoins));
+
+  res.push_back (Pair ("check", amount + onMap == expected));
 
   return res;
 }
@@ -2355,24 +2332,8 @@ IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name)
     return false;
 }
 
-// Detect if player is dead by checking wheter his name is spent by a game transaction
-bool
-IsPlayerDead (const CWalletTx &nameTx, const CTxIndex &txindex)
-{
-  if (nameTx.IsGameTx ())
-      return true;
-
-  const unsigned nOut = IndexOfNameOutput (nameTx);
-  if (nOut < txindex.GetOutputCount ()
-      && txindex.GetSpent (nOut) == CTxIndex::SPENT_GAMETX)
-    return true;
-
-  return false;
-}
-
 static bool
 ConnectInputsGameTx (DatabaseSet& dbset,
-                     const std::map<uint256, CTxIndex>& mapTestPool,
                      const CTransaction& tx, const CBlockIndex* pindexBlock,
                      const CDiskTxPos& txPos)
 {
@@ -2423,7 +2384,7 @@ DisconnectInputsGameTx (DatabaseSet& dbset, const CTransaction& tx,
 
 bool
 CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
-                                 const std::map<uint256, CTxIndex>& mapTestPool,
+                                 const CTestPool& testPool,
                                  const CTransaction& tx,
                                  const std::vector<CUtxoEntry>& vTxoPrev,
                                  const CBlockIndex* pindexBlock,
@@ -2433,8 +2394,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     if (tx.IsGameTx ())
       {
         if (fBlock)
-          return ConnectInputsGameTx (dbset, mapTestPool, tx,
-                                      pindexBlock, txPos);
+          return ConnectInputsGameTx (dbset, tx, pindexBlock, txPos);
         return true;
       }
 
@@ -2536,13 +2496,13 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (fMiner)
             {
                 const set<uint256>& setPending = mapNamePending[vvchArgs[0]];
-                BOOST_FOREACH(const PAIRTYPE(uint256, CTxIndex)& s, mapTestPool)
+                BOOST_FOREACH(const uint256& hash, testPool.includedTx)
                 {
-                    if (setPending.count(s.first))
+                    if (setPending.count(hash))
                     {
                         printf("ConnectInputsHook() : will not mine %s because it clashes with %s",
                                 tx.GetHash().GetHex().c_str(),
-                                s.first.GetHex().c_str());
+                                hash.GetHex().c_str());
                         return false;
                     }
                 }
@@ -2801,15 +2761,15 @@ CHuntercoinHooks::ConnectBlock (CBlock& block, DatabaseSet& dbset,
         }
     }
 
-    map<uint256, CTxIndex> mapUnused;
     unsigned int nTxPos = block.nGameTxPos + GetSizeOfCompactSize(block.vgametx.size());
 
+    CTestPool poolUnused;
     BOOST_FOREACH(CTransaction& tx, block.vgametx)
     {
         CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, block.nGameTxFile, nTxPos);
         nTxPos += ::GetSerializeSize(tx, SER_DISK);
 
-        if (!tx.ConnectInputs (dbset, mapUnused, posThisTx, pindex,
+        if (!tx.ConnectInputs (dbset, poolUnused, posThisTx, pindex,
                                nFees, true, false))
             return error("ConnectBlock hook : ConnectInputs failed for game tx");
     }
