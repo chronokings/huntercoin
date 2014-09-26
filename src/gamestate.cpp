@@ -43,14 +43,14 @@ inline bool IsWalkable(const Coord &c)
    and possibly properties of the player.  Returns -1 if the capacity
    is unlimited.  */
 inline static
-int64 GetCarryingCapacity (int nHeight, bool isCrownHolder)
+int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
 {
   /* FIXME: Decide about the actual logic here.  */
 
   if (nHeight < FORK_HEIGHT_CARRYINGCAP || isCrownHolder)
     return -1;
 
-  return 100 * COIN;
+  return (isGeneral ? 100 : 50) * COIN;
 }
 
 } // namespace Game
@@ -855,7 +855,8 @@ void GameState::DivideLootAmongPlayers()
 
           const bool isCrownHolder = (tileChar.pid == crownHolder.player
                                       && tileChar.cid == crownHolder.index);
-          tileChar.carryCap = GetCarryingCapacity (nHeight, isCrownHolder);
+          tileChar.carryCap = GetCarryingCapacity (nHeight, tileChar.cid == 0,
+                                                   isCrownHolder);
 
           const Coord& coord = tileChar.ch->coord;
           if (loot.count (coord) > 0)
@@ -940,7 +941,8 @@ GameState::CrownBonus (int64 nAmount)
       CharacterState& ch = p.characters[crownHolder.index];
 
       const LootInfo loot(nAmount, nHeight);
-      const int64 cap = GetCarryingCapacity (nHeight, true);
+      const int64 cap = GetCarryingCapacity (nHeight, crownHolder.index == 0,
+                                             true);
       const int64 rem = ch.CollectLoot (loot, nHeight, cap);
 
       /* We keep to the logic of "crown on the floor -> coins lost" and
