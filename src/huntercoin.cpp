@@ -570,16 +570,6 @@ bool GetNameAddress(const CTransaction& tx, uint160 &hash160)
     return true;
 }
 
-/* FIXME: Can we get rid of this?  */
-bool GetNameAddress(const CDiskTxPos& txPos, std::string& strAddress)
-{
-    CTransaction tx;
-    if (!tx.ReadFromDisk(txPos))
-        return error("GetNameAddress() : could not read tx from disk");
-
-    return GetNameAddress(tx, strAddress);
-}
-
 Value sendtoname(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
