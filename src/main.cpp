@@ -1048,8 +1048,6 @@ void static InvalidChainFound(CBlockIndex* pindexNew)
 bool
 CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
 {
-    /* FIXME: Implement updating of the UTXO DB.  */
-
     if (!hooks->DisconnectInputs (dbset, *this, pindex))
         return false;
 
