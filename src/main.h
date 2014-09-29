@@ -69,6 +69,7 @@ extern int miningAlgo;
 
 extern CCriticalSection cs_main;
 extern CCriticalSection cs_AppendBlockFile;
+extern CCriticalSection cs_mapTransactions;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
 extern uint256 hashGenesisBlock;
 extern CBigNum bnProofOfWorkLimit[NUM_ALGOS], bnInitialHashTarget[NUM_ALGOS];

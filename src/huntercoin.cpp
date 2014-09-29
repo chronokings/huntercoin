@@ -1395,6 +1395,7 @@ name_pending (const Array& params, bool fHelp)
 
   Array res;
 
+  CRITICAL_BLOCK (cs_mapTransactions)
   CRITICAL_BLOCK (cs_main)
     {
       std::map<vchType, std::set<uint256> >::const_iterator i;
@@ -1408,14 +1409,13 @@ name_pending (const Array& params, bool fHelp)
           for (std::set<uint256>::const_iterator j = i->second.begin ();
                j != i->second.end (); ++j)
             {
-              CTransaction tx;
-              uint256 hashBlock;
-              if (!GetTransaction (*j, tx, hashBlock))
+              if (mapTransactions.count (*j) == 0)
                 {
-                  printf ("name_pending: failed to GetTransaction of hash %s\n",
+                  printf ("name_pending: Tx %s not found in mapTransactions\n",
                           j->GetHex ().c_str ());
                   continue;
                 }
+              const CTransaction& tx = mapTransactions[*j];
 
               int op, nOut;
               std::vector<vchType> vvch;

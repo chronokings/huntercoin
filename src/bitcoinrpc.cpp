@@ -49,8 +49,6 @@ using namespace boost;
 using namespace boost::asio;
 using namespace json_spirit;
 
-extern CCriticalSection cs_mapTransactions;
-
 const char* rpcWarmupStatus = "uninitialised";
 
 void ThreadRPCServer2(void* parg);
