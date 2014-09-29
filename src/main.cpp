@@ -3530,11 +3530,9 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
             double dPriority = 0;
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
             {
-                // Read prev transaction
+                /* Read prev output from UTXO set.  */
                 CUtxoEntry txo;
-                CTransaction txPrev;
-                CTxIndex txindex;
-                if (!txPrev.ReadFromDisk (dbset.tx (), txin.prevout, txindex))
+                if (!dbset.utxo ().ReadUtxo (txin.prevout, txo))
                 {
                     // Has to wait for dependencies
                     if (!porphan)
@@ -3549,20 +3547,12 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
                     assert (!dbset.utxo ().ReadUtxo (txin.prevout, txo));
                     continue;
                 }
-                const int64 nValueIn = txPrev.vout[txin.prevout.n].nValue;
 
-                // Read block header
-                int nConf = txindex.GetDepthInMainChain();
-
-                /* FIXME: Remove txPrev completely and use ReadUtxo
-                   also to find orphans.  Then handle failure in a better
-                   way!  */
-                if (!dbset.utxo ().ReadUtxo (txin.prevout, txo))
-                  assert (false);
-                assert (nValueIn == txo.txo.nValue);
-                assert (nConf == 1 + nBestHeight - txo.height);
-
-                dPriority += (double)nValueIn * nConf;
+                /* Calculate priority.  */
+                const int64 nValueIn = txo.txo.nValue;
+                const int nConf = 1 + nBestHeight - txo.height;
+                assert (nConf > 0);
+                dPriority += static_cast<double> (nValueIn) * nConf;
 
                 if (fDebug && GetBoolArg("-printpriority"))
                     printf("priority     nValueIn=%.8f nConf=%d dPriority=%.4f\n", static_cast<double> (nValueIn) / COIN, nConf, dPriority);
