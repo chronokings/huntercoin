@@ -3531,6 +3531,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
             {
                 // Read prev transaction
+                CUtxoEntry txo;
                 CTransaction txPrev;
                 CTxIndex txindex;
                 if (!txPrev.ReadFromDisk (dbset.tx (), txin.prevout, txindex))
@@ -3544,17 +3545,27 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
                     }
                     mapDependers[txin.prevout.hash].push_back(porphan);
                     porphan->setDependsOn.insert(txin.prevout.hash);
+
+                    assert (!dbset.utxo ().ReadUtxo (txin.prevout, txo));
                     continue;
                 }
-                int64 nValueIn = txPrev.vout[txin.prevout.n].nValue;
+                const int64 nValueIn = txPrev.vout[txin.prevout.n].nValue;
 
                 // Read block header
                 int nConf = txindex.GetDepthInMainChain();
 
+                /* FIXME: Remove txPrev completely and use ReadUtxo
+                   also to find orphans.  Then handle failure in a better
+                   way!  */
+                if (!dbset.utxo ().ReadUtxo (txin.prevout, txo))
+                  assert (false);
+                assert (nValueIn == txo.txo.nValue);
+                assert (nConf == 1 + nBestHeight - txo.height);
+
                 dPriority += (double)nValueIn * nConf;
 
                 if (fDebug && GetBoolArg("-printpriority"))
-                    printf("priority     nValueIn=%-12I64d nConf=%-5d dPriority=%-20.1f\n", nValueIn, nConf, dPriority);
+                    printf("priority     nValueIn=%.8f nConf=%d dPriority=%.4f\n", static_cast<double> (nValueIn) / COIN, nConf, dPriority);
             }
 
             // Priority is sum(valuein * age) / txsize
@@ -3567,7 +3578,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
 
             if (fDebug && GetBoolArg("-printpriority"))
             {
-                printf("priority %-20.1f %s\n%s", dPriority, tx.GetHash().ToString().substr(0,10).c_str(), tx.ToString().c_str());
+                printf("priority %.4f %s\n%s", dPriority, tx.GetHash().ToString().substr(0,10).c_str(), tx.ToString().c_str());
                 if (porphan)
                     porphan->print();
                 printf("\n");
