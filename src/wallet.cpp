@@ -554,9 +554,8 @@ void CWallet::ReacceptWalletTransactions()
             if (wtx.IsCoinBase() && wtx.IsSpent(0))
                 continue;
 
-            CTxIndex txindex;
             bool fUpdated = false;
-            if (dbset.tx ().ReadTxIndex (wtx.GetHash (), txindex))
+            if (dbset.tx ().ContainsTx (wtx.GetHash ()))
             {
                 // Update fSpent if a tx got spent somewhere else by a copy of wallet.dat
                 for (int i = 0; i < wtx.vout.size (); i++)
