@@ -10,6 +10,7 @@
 #include "gamedb.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <boost/format.hpp>
 
 #include <cassert>
 
@@ -1637,6 +1638,18 @@ CBlock::SetBestChain (DatabaseSet& dbset, CBlockIndex* pindexNew)
     // When everything is done, call hook for new block so that the game
     // state can be finally updated in front-ends and such.
     hooks->NewBlockAdded();
+
+    std::string strCmd = GetArg("-blocknotify", "");
+
+    if (!IsInitialBlockDownload() && !strCmd.empty())
+    {
+        boost::replace_all(strCmd, "%s", hashBestChain.GetHex());
+        unsigned int nBits1 = GetNextWorkRequired(pindexBest, ALGO_SHA256D);
+        unsigned int nBits2 = GetNextWorkRequired(pindexBest, ALGO_SCRYPT);
+        boost::replace_all(strCmd, "%height", str(boost::format("%d") % (nBestHeight + 1)));
+        boost::replace_all(strCmd, "%bits", str(boost::format("%08x %08x") % nBits1 % nBits2));
+        boost::thread t(runCommand, strCmd); // thread runs free
+    }
 
     return true;
 }
@@ -3542,7 +3555,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
                 dPriority += (double)nValueIn * nConf;
 
                 if (fDebug && GetBoolArg("-printpriority"))
-                    printf("priority     nValueIn=%-12I64d nConf=%-5d dPriority=%-20.1f\n", nValueIn, nConf, dPriority);
+                    printf("priority     nValueIn=%-12"PRI64d" nConf=%-5d dPriority=%-20.1f\n", nValueIn, nConf, dPriority);
             }
 
             // Priority is sum(valuein * age) / txsize

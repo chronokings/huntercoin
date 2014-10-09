@@ -1162,3 +1162,10 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue)
     else
         return SoftSetArg(strArg, std::string("0"));
 }
+
+void runCommand(std::string strCommand)
+{
+    int nErr = ::system(strCommand.c_str());
+    if (nErr)
+        printf("runCommand error: system(%s) returned %d\n", strCommand.c_str(), nErr);
+}

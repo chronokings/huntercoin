@@ -61,6 +61,8 @@ static CCriticalSection cs_nWalletUnlockTime;
 
 void ThreadCleanWalletPassphrase(void* parg);
 
+void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry);
+
 static inline unsigned short GetDefaultRPCPort()
 {
     return GetBoolArg("-testnet", false) ? 18399 : 8399;
@@ -443,6 +445,24 @@ Value BlockToValue(const CBlock &block, const CBlockIndex* blockindex)
     for (int i = 0; i < block.vGameMerkleTree.size(); i++)
         mrkl.push_back(block.vGameMerkleTree[i].ToString().c_str());
     obj.push_back(Pair("game_mrkl_tree", mrkl));
+
+    if (block.nVersion & BLOCK_VERSION_AUXPOW) {
+        Object auxpow;
+        Object coinbasetx;
+        TxToJSON(*block.auxpow, 0, coinbasetx);
+        auxpow.push_back(Pair("coinbasetx", Value(coinbasetx)));
+        Array coinbaseMerkle;
+        BOOST_FOREACH(const uint256 &hash, block.auxpow->vMerkleBranch)
+            coinbaseMerkle.push_back(hash.GetHex());
+        auxpow.push_back(Pair("coinbaseMerkleBranch", coinbaseMerkle));
+        auxpow.push_back(Pair("coinbaseIndex", block.auxpow->nIndex));
+        Array chainMerkle;
+        BOOST_FOREACH(const uint256 &hash, block.auxpow->vChainMerkleBranch)
+            chainMerkle.push_back(hash.GetHex());
+        auxpow.push_back(Pair("chainMerkleBranch", chainMerkle));
+        auxpow.push_back(Pair("chainIndex", (boost::uint64_t)block.auxpow->nChainIndex));
+        obj.push_back(Pair("auxpow", Value(auxpow)));
+    }
 
     return obj;
 }
@@ -2442,9 +2462,9 @@ Value getmemorypool(const Array& params, bool fHelp)
 
 Value getauxblock(const Array& params, bool fHelp)
 {
-    if (fHelp || (params.size() != 0 && params.size() != 2))
+    if (fHelp || (params.size() > 3))
         throw runtime_error(
-            "getauxblock [<hash> <auxpow>]\n"
+            "getauxblock [<hash> <auxpow>] [algo]\n"
             " create a new block"
             "If <hash>, <auxpow> is not specified, returns a new block hash.\n"
             "If <hash>, <auxpow> is specified, tries to solve the block based on "
@@ -2456,60 +2476,91 @@ Value getauxblock(const Array& params, bool fHelp)
     if (IsInitialBlockDownload())
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Huntercoin is downloading blocks...");
 
-    static map<uint256, CBlock*> mapNewBlock;
-    static vector<CBlock*> vNewBlock;
+    static map<uint256, CBlock*> mapNewBlock[2];
+    static vector<CBlock*> vNewBlock[2];
     static CReserveKey reservekey(pwalletMain);
 
-    if (params.size() == 0)
-    {
-        // Update block
-        static unsigned int nTransactionsUpdatedLast;
-        static CBlockIndex* pindexPrev;
-        static int64 nStart;
-        static CBlock* pblock;
-        if (pindexPrev != pindexBest ||
-            (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60))
+    int algo = miningAlgo;
+    if (params.size() == 1 || params.size() == 3)
+        switch (params[params.size() - 1].get_int())
         {
-            if (pindexPrev != pindexBest)
-            {
-                // Deallocate old blocks since they're obsolete now
-                mapNewBlock.clear();
-                BOOST_FOREACH(CBlock* pblock, vNewBlock)
-                    delete pblock;
-                vNewBlock.clear();
-            }
-            nTransactionsUpdatedLast = nTransactionsUpdated;
-            pindexPrev = pindexBest;
-            nStart = GetTime();
-
-            // Create new block with nonce = 0 and extraNonce = 1
-            pblock = CreateNewBlock(reservekey, miningAlgo);
-
-            // Update nTime
-            pblock->nTime = max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
-            pblock->nNonce = 0;
-
-            // Push OP_2 just in case we want versioning later
-            pblock->vtx[0].vin[0].scriptSig = CScript() << pblock->nBits << CBigNum(1) << OP_2;
-            pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
-
-            // Sets the version
-            pblock->SetAuxPow(new CAuxPow(miningAlgo));
-
-            // Save
-            mapNewBlock[pblock->GetHash()] = pblock;
-
-            if (!pblock)
-                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
-            vNewBlock.push_back(pblock);
+        case 1:
+            algo = ALGO_SHA256D;
+            break;
+        case 2:
+            algo = ALGO_SCRYPT;
+            break;
         }
 
-        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
+    if (params.size() == 0 || params.size() == 1)
+    {
+        // Update block
+        static unsigned int nTransactionsUpdatedLast[2];
+        static CBlockIndex* pindexPrev[2];
+        static int64 nStart[2];
+        static CBlock* pblock[2];
+
+        if (pindexPrev[algo - 1] != pindexBest || (nTransactionsUpdated != nTransactionsUpdatedLast[algo - 1] && GetTime() - nStart[algo - 1] > 60))
+        {
+            if (pindexPrev[algo - 1] != pindexBest)
+            {
+                // Deallocate old blocks since they're obsolete now
+                mapNewBlock[algo - 1].clear();
+                BOOST_FOREACH(CBlock* pblock, vNewBlock[algo - 1])
+                    delete pblock;
+                vNewBlock[algo - 1].clear();
+            }
+            nTransactionsUpdatedLast[algo - 1] = nTransactionsUpdated;
+            pindexPrev[algo - 1] = pindexBest;
+            nStart[algo - 1] = GetTime();
+
+            // Create new block with nonce = 0 and extraNonce = 1
+            pblock[algo - 1] = CreateNewBlock(reservekey, algo);
+
+            // Update nTime
+            pblock[algo - 1]->nTime = max(pindexPrev[algo - 1]->GetMedianTimePast()+1, GetAdjustedTime());
+            pblock[algo - 1]->nNonce = 0;
+
+            // Push OP_2 just in case we want versioning later
+            pblock[algo - 1]->vtx[0].vin[0].scriptSig = CScript() << pblock[algo - 1]->nBits << CBigNum(1) << OP_2;
+            char fmt[30], buf[46];
+            struct timeval tv;
+            struct tm *tm;
+            gettimeofday(&tv, NULL);
+            if ((tm = gmtime(&tv.tv_sec)) != NULL) {
+                strftime(fmt, sizeof(fmt), "[%Y-%m-%dT%H:%M:%S.%%06uZ]", tm);
+                snprintf(buf, sizeof(buf), fmt, tv.tv_usec);
+                buf[29] = 0x20;
+                snprintf(buf + 30, sizeof(buf) - 30, "\xe4\xb8\x83\xe5\xbd\xa9\xe7\xa5\x9e\xe4\xbb\x99\xe9\xb1\xbc");
+                pblock[algo - 1]->vtx[0].vin[0].scriptSig = CScript((unsigned char *)buf, (unsigned char *)buf + strlen(buf));
+            }
+            pblock[algo - 1]->hashMerkleRoot = pblock[algo - 1]->BuildMerkleTree(false);
+
+            // Sets the version
+            pblock[algo - 1]->SetAuxPow(new CAuxPow(algo));
+
+            // Save
+            mapNewBlock[algo - 1][pblock[algo - 1]->GetHash()] = pblock[algo - 1];
+
+            if (!pblock[algo - 1])
+                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+            vNewBlock[algo - 1].push_back(pblock[algo - 1]);
+        }
+
+        uint256 hashTarget = CBigNum().SetCompact(pblock[algo - 1]->nBits).getuint256();
 
         Object result;
-        result.push_back(Pair("target",   HexStr(BEGIN(hashTarget), END(hashTarget))));
-        result.push_back(Pair("hash", pblock->GetHash().GetHex()));
-        result.push_back(Pair("chainid", pblock->GetChainID()));
+        result.push_back(Pair("previousblockhash", pblock[algo - 1]->hashPrevBlock.GetHex()));
+        result.push_back(Pair("height", pindexPrev[algo - 1]->nHeight + 1));
+        union {
+            int32_t nBits;
+            char cBits[4];
+        } uBits;
+        uBits.nBits = htonl((int32_t)pblock[algo - 1]->nBits);
+        result.push_back(Pair("bits", HexStr(BEGIN(uBits.cBits), END(uBits.cBits))));
+        result.push_back(Pair("blockhash", pblock[algo - 1]->GetHash().GetHex()));
+        result.push_back(Pair("coinbasevalue", (int64_t)pblock[algo - 1]->vtx[0].vout[0].nValue));
+        result.push_back(Pair("chainid", pblock[algo - 1]->GetChainID()));
         return result;
     }
     else
@@ -2517,13 +2568,13 @@ Value getauxblock(const Array& params, bool fHelp)
         uint256 hash;
         hash.SetHex(params[0].get_str());
         vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
-        CDataStream ss(vchAuxPow, SER_GETHASH|SER_BLOCKHEADERONLY);
-        CAuxPow* pow = new CAuxPow(miningAlgo);
+        CDataStream ss(vchAuxPow, SER_GETHASH | SER_BLOCKHEADERONLY);
+        CAuxPow* pow = new CAuxPow(algo);
         ss >> *pow;
-        if (!mapNewBlock.count(hash))
+        if (!mapNewBlock[algo - 1].count(hash))
             return ::error("getauxblock() : block not found");
 
-        CBlock* pblock = mapNewBlock[hash];
+        CBlock* pblock = mapNewBlock[algo - 1][hash];
         pblock->SetAuxPow(pow);
 
         if (!CheckWork(pblock, *pwalletMain, reservekey))
@@ -2622,7 +2673,7 @@ Value importprivkey(const Array& params, bool fHelp)
     return Value::null;
 }
 
-// Based on Codeshark's pull reqeust: https://github.com/bitcoin/bitcoin/pull/2121/files
+// Based on Codeshark's pull request: https://github.com/bitcoin/bitcoin/pull/2121/files
 Value importaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
@@ -3055,7 +3106,7 @@ Value listunspent(const Array& params, bool fHelp)
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid Huntercoin address: ")+input.get_str());
             if (setAddress.count(address))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+input.get_str());
-           setAddress.insert(address);
+            setAddress.insert(address);
         }
     }
 
@@ -4354,6 +4405,7 @@ void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
     if (strMethod == "game_getpath"           && n > 1) ConvertTo<Array>(params[1]);
     if (strMethod == "prune_gamedb"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "prune_nameindex"        && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getauxblock" && (n == 1 || n == 3)) ConvertTo<boost::int64_t>(params[n - 1]);
 }
 
 int CommandLineRPC(int argc, char *argv[])
