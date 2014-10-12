@@ -258,6 +258,19 @@ IsValidPlayerName (const std::string& player)
     return regex_search(player, match, regex);
 }
 
+/* Check whether a new-style name registration is allowed at the given height.
+   The fork height is different for test-net.  */
+/* TODO: Get rid of this once enough blocks have passed after the block.
+   We don't have to forbid this back in history forever.  */
+static bool
+AllowNewStyleRegistration (unsigned nHeight)
+{
+  if (fTestNet)
+    return nHeight >= 1000000; // FIXME: Decide about height.
+
+  return nHeight >= FORK_HEIGHT_CARRYINGCAP;
+}
+
 int GetTxPosHeight(const CNameIndex& txPos)
 {
     return txPos.nHeight;
@@ -1432,9 +1445,14 @@ name_pending (const Array& params, bool fHelp)
               switch (op)
                 {
                 case OP_NAME_FIRSTUPDATE:
-                  assert (vvch.size () == 3);
                   opString = "name_firstupdate";
-                  value = stringFromVch (vvch[2]);
+                  if (vvch.size () == 3)
+                    value = stringFromVch (vvch[2]);
+                  else
+                    {
+                      assert (vvch.size () == 2);
+                      value = stringFromVch (vvch[1]);
+                    }
                   break;
 
                 case OP_NAME_UPDATE:
@@ -2040,6 +2058,7 @@ bool DecodeNameScript(const CScript& script, int& op,
     pc--;
 
     if ((op == OP_NAME_NEW && vvch.size() == 1) ||
+            (op == OP_NAME_FIRSTUPDATE && vvch.size() == 2) ||
             (op == OP_NAME_FIRSTUPDATE && vvch.size() == 3) ||
             (op == OP_NAME_UPDATE && vvch.size() == 2))
         return true;
@@ -2090,7 +2109,7 @@ int64 GetNameNetFee(const CTransaction& tx)
 
 bool GetValueOfNameTx(const CTransaction& tx, vector<unsigned char>& value)
 {
-    vector<vector<unsigned char> > vvch;
+    std::vector<vchType> vvch;
 
     int op;
     int nOut;
@@ -2103,7 +2122,13 @@ bool GetValueOfNameTx(const CTransaction& tx, vector<unsigned char>& value)
         case OP_NAME_NEW:
             return false;
         case OP_NAME_FIRSTUPDATE:
-            value = vvch[2];
+            if (vvch.size () == 3)
+              value = vvch[2];
+            else
+              {
+                assert (vvch.size () == 2);
+                value = vvch[1];
+              }
             return true;
         case OP_NAME_UPDATE:
             value = vvch[1];
@@ -2244,7 +2269,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 {
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
-    vector<vector<unsigned char> > vvchArgs;
+    std::vector<vchType> vvchArgs;
     int op;
     int nOut;
 
@@ -2422,10 +2447,13 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             nNetFee = GetNameNetFee(tx);
             if (nNetFee < GetNetworkFee(pindexBlock->nHeight))
                 return error("ConnectInputsHook() : got tx %s with fee too low %d", tx.GetHash().GetHex().c_str(), nNetFee);
-            if (!found || prevOp != OP_NAME_NEW)
-                return error("ConnectInputsHook() : name_firstupdate tx without previous name_new tx");
 
-            {
+            if (vvchArgs.size () == 3)
+              {
+                if (!found || prevOp != OP_NAME_NEW)
+                  return error ("ConnectInputsHook: old-style name_firstupdate"
+                                " tx without previous name_new tx");
+
                 // Check hash
                 const vchType& vchHash = vvchPrevArgs[0];
                 const vchType& vchName = vvchArgs[0];
@@ -2435,7 +2463,17 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                 uint160 hash = Hash160(vchToHash);
                 if (uint160(vchHash) != hash)
                     return error("ConnectInputsHook() : name_firstupdate hash mismatch");
-            }
+              }
+            else
+              {
+                if (!AllowNewStyleRegistration (pindexBlock->nHeight))
+                  return error ("ConnectInputsHook: new-style name_firstupdate"
+                                " not allowed at height %d",
+                                pindexBlock->nHeight);
+
+                /* Otherwise, no more checks required for a new-style
+                   name_firstupdate.  */
+              }
 
             if (tx.vout[nOut].nValue < GetNameCoinAmount (pindexBlock->nHeight))
                 return error ("ConnectInputsHook: name_firstupdate tx:"
@@ -2549,7 +2587,7 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;
 
-    vector<vector<unsigned char> > vvch;
+    std::vector<vchType> vvch;
     int op;
     int nOut;
 
@@ -2565,18 +2603,32 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
             if (vvch[0].size() != 20)
                 return error("name_new tx with incorrect hash length");
             break;
+
         case OP_NAME_FIRSTUPDATE:
-            if (vvch[1].size() > 20)
-                return error("name_firstupdate tx with rand too big");
-            if (vvch[2].size() > MAX_VALUE_LENGTH)
+          {
+            unsigned valueInd;
+            if (vvch.size () == 2)
+              valueInd = 1;
+            else
+              {
+                assert (vvch.size () == 3);
+                valueInd = 2;
+                if (vvch[1].size() > 20)
+                  return error ("name_firstupdate tx with rand too big");
+              }
+
+            if (vvch[valueInd].size() > MAX_VALUE_LENGTH)
                 return error("name_firstupdate tx with value too long");
-            m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
+            m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[valueInd]));
             if (!m)
                 return error("name_firstupdate : incorrect game move");
+
             /* Move parsing already checks for valid player name, which
                in turn includes the length check.  */
             assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
+          }
+
         case OP_NAME_UPDATE:
             if (vvch[1].size() > MAX_VALUE_LENGTH)
                 return error("name_update tx with value too long");
@@ -2587,6 +2639,7 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
                in turn includes the length check.  */
             assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
+
         default:
             return error("name transaction has unknown op");
     }
@@ -2627,7 +2680,8 @@ bool CHuntercoinHooks::ExtractAddress(const CScript& script, string& address)
 #ifdef GUI
         LOCK(cs_main);
 
-        std::map<uint160, std::vector<unsigned char> >::const_iterator mi = mapMyNameHashes.find(uint160(vvch[0]));
+        std::map<uint160, vchType>::const_iterator mi;
+        mi = mapMyNameHashes.find (uint160(vvch[0]));
         if (mi != mapMyNameHashes.end())
             strName = stringFromVch(mi->second);
         else

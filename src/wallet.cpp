@@ -688,7 +688,13 @@ CWalletTx::GetNameUpdate (int& nOut, vchType& nm, vchType& val) const
           {
           case OP_NAME_FIRSTUPDATE:
             vchName = vvch[0];
-            vchValue = vvch[2];
+            if (vvch.size () == 3)
+              vchValue = vvch[2];
+            else
+              {
+                assert (vvch.size () == 2);
+                vchValue = vvch[1];
+              }
             nameTxDecodeSuccess = true;
             break;
 

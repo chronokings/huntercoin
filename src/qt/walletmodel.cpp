@@ -16,7 +16,7 @@
 #include <QDateTime>
 
 std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
-std::map<uint160, std::vector<unsigned char> > mapMyNameHashes;
+std::map<uint160, vchType> mapMyNameHashes;
 
 WalletModel::WalletModel(CWallet *wallet, OptionsModel *optionsModel, QObject *parent) :
     QObject(parent), wallet(wallet), optionsModel(optionsModel), addressTableModel(0),
@@ -124,7 +124,7 @@ void WalletModel::sendPendingNameFirstUpdates()
 {
     CRITICAL_BLOCK(cs_main)
     {
-        for (std::map<std::vector<unsigned char>, PreparedNameFirstUpdate>::iterator mi = mapMyNameFirstUpdate.begin();
+        for (std::map<vchType, PreparedNameFirstUpdate>::iterator mi = mapMyNameFirstUpdate.begin();
                 mi != mapMyNameFirstUpdate.end(); )
         {
             if (mi->second.fPostponed)
