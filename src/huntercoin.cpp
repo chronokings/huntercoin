@@ -1328,6 +1328,85 @@ Value name_new(const Array& params, bool fHelp)
     return res;
 }
 
+static Value
+name_register (const Array& params, bool fHelp)
+{
+  if (fHelp || (params.size() != 2 && params.size () != 3))
+      throw std::runtime_error (
+              "name_register <name> <value> [<toaddress>]\n"
+              "Register a new player name according to the 'new-style rules'."
+              + HelpRequiringPassphrase ());
+
+  if (nBestHeight < FORK_HEIGHT_NEW_FIRSTUPDATE)
+    throw std::runtime_error ("name_register is not yet available");
+
+  const std::string& name = params[0].get_str ();
+  if (!IsValidPlayerName (name))
+    throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid player name");
+  const vchType vchName = vchFromString (name);
+  const vchType vchValue = vchFromValue (params[1]);
+
+  CRITICAL_BLOCK (cs_main)
+    {
+      if (mapNamePending.count (vchName) && !mapNamePending[vchName].empty ())
+        {
+          error ("name_register: there are %d pending operations"
+                 " on that name, including %s",
+                 mapNamePending[vchName].size (),
+                 mapNamePending[vchName].begin ()->GetHex ().c_str ());
+          throw runtime_error ("there are pending operations on that name");
+        }
+
+      CNameDB dbName("r");
+      CTransaction tx;
+      if (GetTxOfName (dbName, vchName, tx) && !tx.IsGameTx ())
+        {
+          error ("name_register: this name is already active with tx %s",
+                 tx.GetHash ().GetHex ().c_str ());
+          throw std::runtime_error ("this name is already active");
+        }
+    }
+
+  CWalletTx wtx;
+  wtx.nVersion = NAMECOIN_TX_VERSION;
+
+  CScript scriptPubKeyOrig;
+  if (params.size () == 3)
+    {
+      const std::string strAddress = params[2].get_str ();
+      uint160 hash160;
+      bool isValid = AddressToHash160 (strAddress, hash160);
+      if (!isValid)
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                           "Invalid huntercoin address");
+      scriptPubKeyOrig.SetBitcoinAddress (strAddress);
+    }
+  else
+    {
+      const vchType vchPubKey = pwalletMain->GetKeyFromKeyPool ();
+      scriptPubKeyOrig.SetBitcoinAddress (vchPubKey);
+    }
+
+  CScript scriptPubKey;
+  scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchValue
+               << OP_2DROP << OP_DROP;
+  scriptPubKey += scriptPubKeyOrig;
+
+  CRITICAL_BLOCK(cs_main)
+    {
+      EnsureWalletIsUnlocked ();
+
+      const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+      string strError = pwalletMain->SendMoney (scriptPubKey, nCoinAmount,
+                                                wtx, false);
+      if (strError != "")
+          throw JSONRPCError(RPC_WALLET_ERROR, strError);
+      mapMyNames[vchName] = wtx.GetHash ();
+    }
+
+  return wtx.GetHash ().GetHex ();
+}
+
 /* Implement name operations for createrawtransaction.  */
 void
 AddRawTxNameOperation (CTransaction& tx, const Object& obj)
@@ -1998,6 +2077,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_new", &name_new));
     mapCallTable.insert(make_pair("name_update", &name_update));
     mapCallTable.insert(make_pair("name_firstupdate", &name_firstupdate));
+    mapCallTable.insert(make_pair("name_register", &name_register));
     mapCallTable.insert(make_pair("name_list", &name_list));
     mapCallTable.insert(make_pair("name_scan", &name_scan));
     mapCallTable.insert(make_pair("name_filter", &name_filter));
@@ -2481,9 +2561,11 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (!NameAvailable (dbset, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
 
-            /* Do not accept if name_new is not mature.  */
-            if ((fBlock || fMiner) && nDepth < MIN_FIRSTUPDATE_DEPTH)
-                return false;
+            /* Do not accept if name_new is not mature.  This only
+               applies to old-style registrations.  */
+            if ((fBlock || fMiner) && vvchArgs.size () == 3
+                && nDepth < MIN_FIRSTUPDATE_DEPTH)
+              return false;
 
             /* Check that no other pending txs on this name are already
                in the block to be mined.  */
