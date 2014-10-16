@@ -1176,19 +1176,29 @@ CTransaction::ConnectInputs (DatabaseSet& dbset, CTestPool& testPool,
         {
             const COutPoint prevout = vin[i].prevout;
 
-            /* Handle the case of mining, where the prev tx may
-               be from the test pool.  Also make sure that the prevout
-               has not yet been spent in the test pool.  */
-            bool prevTxFromPool = false;
-            if (!prevout.IsNull () && fMiner)
-              {
-                if (testPool.IsSpent (prevout))
-                  return error ("ConnectInputs: %s prevout #%d is already"
-                                " spent in test pool",
-                                GetHashForLog (), prevout.n);
+            /* If we are mining, check that the prevout is not yet
+               spent in the testpool.  */
+            if (!prevout.IsNull () && fMiner
+                && testPool.IsSpent (prevout))
+              return error ("ConnectInputs: %s prevout #%d is already"
+                            " spent in test pool",
+                            GetHashForLog (), prevout.n);
 
-                if (testPool.includedTx.count (prevout.hash))
-                  prevTxFromPool = true;
+            /* Check if the prev tx comes from memory (otherwise, it is
+               expected to be in the UTXO database later on).  If we
+               are mining, memory is only allowed if the tx is in the testPool.
+               If we are confirming a block, from memory is never allowed.  */
+            bool prevTxFromMemory = false;
+            if (!prevout.IsNull () && !fBlock
+                && mapTransactions.count (prevout.hash))
+              {
+                if (fMiner)
+                  {
+                    if (testPool.includedTx.count (prevout.hash))
+                      prevTxFromMemory = true;
+                  }
+                else
+                  prevTxFromMemory = true;
               }
 
             /* If this is a game transaction, we can bypass most of the
@@ -1203,16 +1213,18 @@ CTransaction::ConnectInputs (DatabaseSet& dbset, CTestPool& testPool,
                 /* Read the previous input from either the memory
                    pool or the UTXO set.  */
                 CUtxoEntry txo;
-                if (prevTxFromPool)
+                if (prevTxFromMemory)
                 {
+                    /* Be paranoid about block validation.  */
+                    assert (!fBlock);
+
                     // Get prev tx from single transactions in memory
                     CRITICAL_BLOCK(cs_mapTransactions)
                     {
                         CTransaction txPrev;
-                        if (!mapTransactions.count(prevout.hash))
-                            return error("ConnectInputs() : %s mapTransactions prev not found %s", GetHashForLog (), prevout.hash.ToLogString ());
-
+                        assert (mapTransactions.count (prevout.hash));
                         txPrev = mapTransactions[prevout.hash];
+
                         if (prevout.n >= txPrev.vout.size ())
                           return error ("ConnectInputs() : %s prevout.n %d out"
                                         " of range %d prev tx %s\n%s",
