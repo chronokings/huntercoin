@@ -505,29 +505,6 @@ SendMoneyWithInputTx (const CScript& scriptPubKey, int64 nValue,
     return "";
 }
 
-bool GetValueOfTxPos(const CNameIndex& txPos, vector<unsigned char>& vchValue, uint256& hash, int& nHeight)
-{
-    nHeight = GetTxPosHeight(txPos);
-    vchValue = txPos.vValue;
-    CTransaction tx;
-    if (!tx.ReadFromDisk(txPos.txPos))
-        return error("GetValueOfTxPos() : could not read tx from disk");
-    hash = tx.GetHash();
-    return true;
-}
-
-bool GetValueOfTxPos(const CDiskTxPos& txPos, vector<unsigned char>& vchValue, uint256& hash, int& nHeight)
-{
-    nHeight = GetTxPosHeight(txPos);
-    CTransaction tx;
-    if (!tx.ReadFromDisk(txPos))
-        return error("GetValueOfTxPos() : could not read tx from disk");
-    if (!GetValueOfNameTx(tx, vchValue))
-        return error("GetValueOfTxPos() : could not decode value from tx");
-    hash = tx.GetHash();
-    return true;
-}
-
 bool
 GetValueOfName (CNameDB& dbName, const vchType& vchName,
                 vchType& vchValue, int& nHeight)
@@ -591,15 +568,6 @@ bool GetNameAddress(const CTransaction& tx, uint160 &hash160)
     const CScript& scriptPubKey = RemoveNameScriptPrefix(txout.scriptPubKey);
     hash160 = scriptPubKey.GetBitcoinAddressHash160();
     return true;
-}
-
-bool GetNameAddress(const CDiskTxPos& txPos, std::string& strAddress)
-{
-    CTransaction tx;
-    if (!tx.ReadFromDisk(txPos))
-        return error("GetNameAddress() : could not read tx from disk");
-
-    return GetNameAddress(tx, strAddress);
 }
 
 Value sendtoname(const Array& params, bool fHelp)
@@ -817,15 +785,13 @@ Value name_show(const Array& params, bool fHelp)
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "name_show <name>\n"
-            "Show values of a name.\n"
+            "Show value of a name.\n"
             );
 
-    Object oLastName;
-    vector<unsigned char> vchName = vchFromValue(params[0]);
-    string name = stringFromVch(vchName);
+    const vchType vchName = vchFromValue(params[0]);
+
     CRITICAL_BLOCK(cs_main)
     {
-        //vector<CDiskTxPos> vtxPos;
         CNameIndex nidx;
         CNameDB dbName("r");
         if (!dbName.ReadName (vchName, nidx))
@@ -837,31 +803,27 @@ Value name_show(const Array& params, bool fHelp)
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from from disk");
 
         Object oName;
-        vector<unsigned char> vchValue;
-        int nHeight;
-        uint256 hash;
+        oName.push_back (Pair("name", stringFromVch (vchName)));
+        oName.push_back (Pair("txid", tx.GetHash ().GetHex ()));
 
-        if (!txPos.IsNull() && GetValueOfTxPos(txPos, vchValue, hash, nHeight))
-        {
-            oName.push_back(Pair("name", name));
-            string value = stringFromVch(vchValue);
-            oName.push_back(Pair("value", value));
-            oName.push_back(Pair("txid", tx.GetHash().GetHex()));
-            string strAddress = "";
-            GetNameAddress(txPos, strAddress);
-            oName.push_back(Pair("address", strAddress));
-            oLastName = oName;
-        }
-        else if (tx.IsGameTx ())
-        {
-            oName.push_back(Pair("name", name));
+        if (tx.IsGameTx ())
+          {
             oName.push_back(Pair("value", VALUE_DEAD));
-            oName.push_back(Pair("txid", tx.GetHash().GetHex()));
             oName.push_back(Pair("dead", 1));
-            oLastName = oName;
-        }
+          }
+        else
+          {
+            vchType vchValue;
+            GetValueOfNameTx (tx, vchValue);
+            oName.push_back (Pair("value", stringFromVch (vchValue)));
+
+            std::string strAddress = "";
+            GetNameAddress (tx, strAddress);
+            oName.push_back (Pair("address", strAddress));
+          }
+
+        return oName;
     }
-    return oLastName;
 }
 
 Value name_history(const Array& params, bool fHelp)
@@ -872,21 +834,18 @@ Value name_history(const Array& params, bool fHelp)
             "List all name values of a name.\n");
 
     Array oRes;
-    vector<unsigned char> vchName = vchFromValue(params[0]);
-    string name = stringFromVch(vchName);
+    const vchType vchName = vchFromValue(params[0]);
+
     CRITICAL_BLOCK(cs_main)
     {
-        //vector<CDiskTxPos> vtxPos;
         vector<CNameIndex> vtxPos;
         CNameDB dbName("r");
         if (!dbName.ReadNameVec (vchName, vtxPos))
             throw JSONRPCError(RPC_WALLET_ERROR, "failed to read from name DB");
 
-        CNameIndex txPos2;
-        CDiskTxPos txPos;
-        BOOST_FOREACH(txPos2, vtxPos)
+        BOOST_FOREACH(const CNameIndex& txPos2, vtxPos)
         {
-            txPos = txPos2.txPos;
+            const CDiskTxPos& txPos = txPos2.txPos;
             CTransaction tx;
             if (!tx.ReadFromDisk(txPos))
             {
@@ -895,29 +854,26 @@ Value name_history(const Array& params, bool fHelp)
             }
 
             Object oName;
-            vector<unsigned char> vchValue;
-            int nHeight;
-            uint256 hash;
+            oName.push_back (Pair("name", stringFromVch (vchName)));
+            oName.push_back (Pair("txid", tx.GetHash ().GetHex ()));
 
-            if (!txPos.IsNull() && GetValueOfTxPos(txPos, vchValue, hash, nHeight))
-            {
-                oName.push_back(Pair("name", name));
-                string value = stringFromVch(vchValue);
-                oName.push_back(Pair("value", value));
-                oName.push_back(Pair("txid", tx.GetHash().GetHex()));
-                string strAddress = "";
-                GetNameAddress(txPos, strAddress);
-                oName.push_back(Pair("address", strAddress));
-                oRes.push_back(oName);
-            }
-            else if (tx.IsGameTx ())
-            {
-                oName.push_back(Pair("name", name));
+            if (tx.IsGameTx ())
+              {
                 oName.push_back(Pair("value", VALUE_DEAD));
-                oName.push_back(Pair("txid", tx.GetHash().GetHex()));
                 oName.push_back(Pair("dead", 1));
-                oRes.push_back(oName);
-            }
+              }
+            else
+              {
+                vchType vchValue;
+                GetValueOfNameTx (tx, vchValue);
+                oName.push_back (Pair("value", stringFromVch (vchValue)));
+
+                std::string strAddress = "";
+                GetNameAddress (tx, strAddress);
+                oName.push_back (Pair("address", strAddress));
+              }
+
+            oRes.push_back(oName);
         }
     }
     return oRes;
@@ -1439,6 +1395,7 @@ name_pending (const Array& params, bool fHelp)
 
   Array res;
 
+  CRITICAL_BLOCK (cs_mapTransactions)
   CRITICAL_BLOCK (cs_main)
     {
       std::map<vchType, std::set<uint256> >::const_iterator i;
@@ -1452,14 +1409,13 @@ name_pending (const Array& params, bool fHelp)
           for (std::set<uint256>::const_iterator j = i->second.begin ();
                j != i->second.end (); ++j)
             {
-              CTransaction tx;
-              uint256 hashBlock;
-              if (!GetTransaction (*j, tx, hashBlock))
+              if (mapTransactions.count (*j) == 0)
                 {
-                  printf ("name_pending: failed to GetTransaction of hash %s\n",
+                  printf ("name_pending: Tx %s not found in mapTransactions\n",
                           j->GetHex ().c_str ());
                   continue;
                 }
+              const CTransaction& tx = mapTransactions[*j];
 
               int op, nOut;
               std::vector<vchType> vvch;

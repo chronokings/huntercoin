@@ -1048,8 +1048,6 @@ void static InvalidChainFound(CBlockIndex* pindexNew)
 bool
 CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
 {
-    /* FIXME: Implement updating of the UTXO DB.  */
-
     if (!hooks->DisconnectInputs (dbset, *this, pindex))
         return false;
 
@@ -1093,70 +1091,6 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
       return error ("DisconnectInputs: Failed to RemoveUtxo");
     if (!dbset.tx ().EraseTxIndex (*this))
       return error ("DisconnectInputs: EraseTxPos failed");
-
-    return true;
-}
-
-bool CTransaction::FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid)
-{
-    // FetchInputs can return false either because we just haven't seen some inputs
-    // (in which case the transaction should be stored as an orphan)
-    // or because the transaction is malformed (in which case the transaction should
-    // be dropped).  If tx is definitely invalid, fInvalid will be set to true.
-    fInvalid = false;
-
-    if (IsCoinBase())
-        return true; // Coinbase transactions have no inputs to fetch.
-
-    for (unsigned int i = 0; i < vin.size(); i++)
-    {
-        const COutPoint prevout = vin[i].prevout;
-        if (IsGameTx() && prevout.IsNull())
-            continue;
-        if (inputsRet.count(prevout.hash))
-            continue; // Got it already
-
-        // Read txindex
-        CTxIndex& txindex = inputsRet[prevout.hash].first;
-        const bool fFound = txdb.ReadTxIndex(prevout.hash, txindex);
-
-        // Read txPrev
-        CTransaction& txPrev = inputsRet[prevout.hash].second;
-        if (!fFound /*|| txindex.pos.IsMemPool()*/)
-        {
-            // Get prev tx from single transactions in memory
-            CRITICAL_BLOCK(cs_mapTransactions)
-            {
-                std::map<uint256, CTransaction>::iterator mi = mapTransactions.find(prevout.hash);
-                if (mi != mapTransactions.end())
-                    txPrev = mi->second;
-            }
-        }
-        else
-        {
-            // Get prev tx from disk
-            if (!txPrev.ReadFromDisk(txindex.pos))
-                return error("FetchInputs() : %s ReadFromDisk prev tx %s failed", GetHash().ToString().substr(0,10).c_str(),  prevout.hash.ToString().substr(0,10).c_str());
-        }
-    }
-
-    // Make sure all prevout.n indexes are valid:
-    for (unsigned int i = 0; i < vin.size(); i++)
-    {
-        const COutPoint prevout = vin[i].prevout;
-        if (IsGameTx() && prevout.IsNull())
-            continue;
-        assert(inputsRet.count(prevout.hash) != 0);
-        const CTxIndex& txindex = inputsRet[prevout.hash].first;
-        const CTransaction& txPrev = inputsRet[prevout.hash].second;
-        if (prevout.n >= txPrev.vout.size())
-        {
-            // Revisit this if/when transaction replacement is implemented and allows
-            // adding inputs:
-            fInvalid = true;
-            return /*DoS(100,*/ error("FetchInputs() : %s prevout.n out of range %d %"PRIszu" prev tx %s\n%s", GetHash().ToString().substr(0,10).c_str(), prevout.n, txPrev.vout.size(), prevout.hash.ToString().substr(0,10).c_str(), txPrev.ToString().c_str()) /* ) */ ;
-        }
-    }
 
     return true;
 }
@@ -3530,10 +3464,9 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
             double dPriority = 0;
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
             {
-                // Read prev transaction
-                CTransaction txPrev;
-                CTxIndex txindex;
-                if (!txPrev.ReadFromDisk (dbset.tx (), txin.prevout, txindex))
+                /* Read prev output from UTXO set.  */
+                CUtxoEntry txo;
+                if (!dbset.utxo ().ReadUtxo (txin.prevout, txo))
                 {
                     // Has to wait for dependencies
                     if (!porphan)
@@ -3544,17 +3477,19 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
                     }
                     mapDependers[txin.prevout.hash].push_back(porphan);
                     porphan->setDependsOn.insert(txin.prevout.hash);
+
+                    assert (!dbset.utxo ().ReadUtxo (txin.prevout, txo));
                     continue;
                 }
-                int64 nValueIn = txPrev.vout[txin.prevout.n].nValue;
 
-                // Read block header
-                int nConf = txindex.GetDepthInMainChain();
-
-                dPriority += (double)nValueIn * nConf;
+                /* Calculate priority.  */
+                const int64 nValueIn = txo.txo.nValue;
+                const int nConf = 1 + nBestHeight - txo.height;
+                assert (nConf > 0);
+                dPriority += static_cast<double> (nValueIn) * nConf;
 
                 if (fDebug && GetBoolArg("-printpriority"))
-                    printf("priority     nValueIn=%-12I64d nConf=%-5d dPriority=%-20.1f\n", nValueIn, nConf, dPriority);
+                    printf("priority     nValueIn=%.8f nConf=%d dPriority=%.4f\n", static_cast<double> (nValueIn) / COIN, nConf, dPriority);
             }
 
             // Priority is sum(valuein * age) / txsize
@@ -3567,7 +3502,7 @@ CBlock* CreateNewBlock(CReserveKey& reservekey, int algo)
 
             if (fDebug && GetBoolArg("-printpriority"))
             {
-                printf("priority %-20.1f %s\n%s", dPriority, tx.GetHash().ToString().substr(0,10).c_str(), tx.ToString().c_str());
+                printf("priority %.4f %s\n%s", dPriority, tx.GetHash().ToString().substr(0,10).c_str(), tx.ToString().c_str());
                 if (porphan)
                     porphan->print();
                 printf("\n");

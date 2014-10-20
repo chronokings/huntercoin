@@ -3239,27 +3239,35 @@ Value signrawtransaction(const Array& params, bool fHelp)
     CTransaction mergedTx(txVariants[0]);
     bool fComplete = true;
 
-    // Fetch previous transactions (inputs):
-    map<COutPoint, CScript> mapPrevOut;
-    for (unsigned int i = 0; i < mergedTx.vin.size(); i++)
-    {
-        CTransaction tempTx;
-        MapPrevTx mapPrevTx;
-        CTxDB txdb("r");
-        bool fInvalid;
+    /* Fetch previous outputs from the wallet, memory or the UTXO set.  */
+    std::map<COutPoint, CScript> mapPrevOut;
+    CRITICAL_BLOCK(cs_mapTransactions)
+    CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+      {
+        DatabaseSet dbset("r");
+        BOOST_FOREACH (const CTxIn& txin, mergedTx.vin)
+          {
+            const COutPoint& op = txin.prevout;
+            const uint256& prevHash = op.hash;
 
-        // FetchInputs aborts on failure, so we go one at a time.
-        tempTx.vin.push_back(mergedTx.vin[i]);
-        tempTx.FetchInputs(txdb, mapPrevTx, fInvalid);
+            const CTransaction* prevTx = NULL;
+            if (mapTransactions.count (prevHash))
+              prevTx = &mapTransactions[prevHash];
+            else if (pwalletMain->mapWallet.count (prevHash))
+              prevTx = &pwalletMain->mapWallet[prevHash];
 
-        // Copy results into mapPrevOut:
-        BOOST_FOREACH(const CTxIn& txin, tempTx.vin)
-        {
-            const uint256& prevHash = txin.prevout.hash;
-            if (mapPrevTx.count(prevHash) && mapPrevTx[prevHash].second.vout.size()>txin.prevout.n)
-                mapPrevOut[txin.prevout] = mapPrevTx[prevHash].second.vout[txin.prevout.n].scriptPubKey;
-        }
-    }
+            /* If we have a prev tx from memory / the wallet, use it.
+               If not, try also the UTXO set.  */
+            if (prevTx)
+              mapPrevOut[op] = prevTx->vout[op.n].scriptPubKey;
+            else
+              {
+                CUtxoEntry txo;
+                if (dbset.utxo ().ReadUtxo (op, txo))
+                  mapPrevOut[op] = txo.txo.scriptPubKey;
+              }
+          }
+      }
 
     bool fGivenKeys = false;
     CKeyStore tempKeystore;
@@ -3426,8 +3434,6 @@ Value sendrawtransaction(const Array& params, bool fHelp)
 
     return hashTx.GetHex();
 }
-
-extern CCriticalSection cs_mapTransactions;
 
 Value getrawmempool(const Array& params, bool fHelp)
 {

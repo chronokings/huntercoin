@@ -69,6 +69,7 @@ extern int miningAlgo;
 
 extern CCriticalSection cs_main;
 extern CCriticalSection cs_AppendBlockFile;
+extern CCriticalSection cs_mapTransactions;
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
 extern uint256 hashGenesisBlock;
 extern CBigNum bnProofOfWorkLimit[NUM_ALGOS], bnInitialHashTarget[NUM_ALGOS];
@@ -496,8 +497,6 @@ public:
 };
 
 
-typedef std::map<uint256, std::pair<CTxIndex, CTransaction> > MapPrevTx;
-
 //
 // The basic transaction that is broadcasted on the network and contained in
 // blocks.  A transaction can contain multiple inputs and outputs.
@@ -706,15 +705,6 @@ public:
     bool ReadFromDisk(COutPoint prevout);
     bool DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex);
     
-    /** Fetch from memory and/or disk. inputsRet keys are transaction hashes.
-
-     @param[in] txdb	Transaction database
-     @param[out] inputsRet	Pointers to this transaction's inputs
-     @param[out] fInvalid	returns true if transaction is invalid
-     @return	Returns true if all inputs are in txdb
-     */
-    bool FetchInputs(CTxDB& txdb, MapPrevTx& inputsRet, bool& fInvalid);
-
     bool ConnectInputs(DatabaseSet& dbset, CTestPool& testPool,
                        CDiskTxPos posThisTx, CBlockIndex* pindexBlock,
                        int64& nFees, bool fBlock, bool fMiner, int64 nMinFee=0);
