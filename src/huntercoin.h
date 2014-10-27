@@ -21,6 +21,10 @@ static const int MIN_FIRSTUPDATE_DEPTH = 2;
    1 HUC -> 10 HUC, the number of initial players is reduced to just the
    general, and poison-disaster introduced.  */
 static const unsigned FORK_HEIGHT_POISON = 255000;
+/* Hardfork block height at which a maximum carrying capacity will be
+   introduced into the game logic.  */
+/* FIXME: Decide about it.  */
+static const unsigned FORK_HEIGHT_CARRYINGCAP = 1000000;
 
 // The following value is assigned to the name when the player is dead.
 // It must not be a valid move JSON string, because it is checked in NameAvailable

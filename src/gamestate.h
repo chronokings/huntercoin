@@ -245,6 +245,11 @@ struct CharacterState
      */
     unsigned TimeToDestination(const WaypointVector *altWP = NULL) const;
 
+    /* Collect loot by this character.  This takes the carrying capacity
+       into account and only collects until this limit is reached.  All
+       loot amount that *remains* will be returned.  */
+    int64 CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap);
+
     json_spirit::Value ToJsonValue(bool has_crown) const;
 };
 

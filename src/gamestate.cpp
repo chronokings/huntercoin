@@ -38,6 +38,21 @@ inline bool IsWalkable(const Coord &c)
     return IsWalkable(c.x, c.y);
 }
 
+/* Calculate carrying capacity.  This is where it is basically defined.
+   It depends on the block height (taking forks changing it into account)
+   and possibly properties of the player.  Returns -1 if the capacity
+   is unlimited.  */
+inline static
+int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
+{
+  /* FIXME: Decide about the actual logic here.  */
+
+  if (nHeight < FORK_HEIGHT_CARRYINGCAP || isCrownHolder)
+    return -1;
+
+  return (isGeneral ? 100 : 50) * COIN;
+}
+
 } // namespace Game
 
 
@@ -539,6 +554,38 @@ CharacterState::TimeToDestination (const WaypointVector* altWP) const
   return res;
 }
 
+int64
+CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
+{
+  const int64 totalBefore = loot.nAmount + newLoot.nAmount;
+
+  int64 freeCap = carryCap - loot.nAmount;
+  if (freeCap < 0)
+    {
+      /* This means that the character is carrying more than allowed
+         (or carryCap == -1, which is handled later anyway).  This
+         may happen during transition periods, handle it gracefully.  */
+      freeCap = 0;
+    }
+
+  int64 remaining;
+  if (carryCap == -1 || newLoot.nAmount <= freeCap)
+    remaining = 0;
+  else
+    remaining = newLoot.nAmount - freeCap;
+
+  if (remaining > 0)
+    newLoot.nAmount -= remaining;
+  loot.Collect (newLoot, nHeight);
+
+  assert (remaining >= 0 && newLoot.nAmount >= 0);
+  assert (totalBefore == loot.nAmount + remaining);
+  assert (carryCap == -1 || newLoot.nAmount <= freeCap);
+  assert (newLoot.nAmount == 0 || carryCap == -1 || loot.nAmount <= carryCap);
+
+  return remaining;
+}
+
 void PlayerState::SpawnCharacter(RandomGenerator &rnd)
 {
     characters[next_character_index++].Spawn(color, rnd);
@@ -714,54 +761,139 @@ void GameState::AddLoot(Coord coord, int64 nAmount)
         loot.insert(std::make_pair(coord, LootInfo(nAmount, nHeight)));
 }
 
+/*
+
+We try to split loot equally among players on a loot tile.
+If a character hits its carrying capacity, the remaining coins
+are split among the others.  To achieve this effect, we sort
+the players by increasing (remaining) capacity -- so the ones
+with least remaining capacity pick their share first, and if
+it fills the capacity, leave extra coins lying around for the
+others to pick up.  Since they are then filled up anyway,
+it won't matter if others also leave coins, so no "iteration"
+is required.
+
+Note that for indivisible amounts the order of players matters.
+For equal capacity (which is particularly true before the
+hardfork point), we sort by player/character.  This makes
+the new logic compatible with the old one.
+
+The class CharacterOnLootTile takes this sorting into account.
+
+*/
+
+class CharacterOnLootTile
+{
+public:
+
+  PlayerID pid;
+  int cid;
+
+  CharacterState* ch;
+  int64 carryCap;
+
+  /* Get remaining carrying capacity.  */
+  inline int64
+  GetRemainingCapacity () const
+  {
+    if (carryCap == -1)
+      return -1;
+
+    /* During periods of change in the carrying capacity, there may be
+       players "overloaded".  Take care of them.  */
+    if (carryCap < ch->loot.nAmount)
+      return 0;
+
+    return carryCap - ch->loot.nAmount;
+  }
+
+  friend bool operator< (const CharacterOnLootTile& a,
+                         const CharacterOnLootTile& b);
+
+};
+
+bool
+operator< (const CharacterOnLootTile& a, const CharacterOnLootTile& b)
+{
+  const int64 remA = a.GetRemainingCapacity ();
+  const int64 remB = b.GetRemainingCapacity ();
+
+  if (remA == remB)
+    {
+      if (a.pid != b.pid)
+        return a.pid < b.pid;
+      return a.cid < b.cid;
+    }
+
+  if (remA == -1)
+    {
+      assert (remB >= 0);
+      return false;
+    }
+  if (remB == -1)
+    {
+      assert (remA >= 0);
+      return true;
+    }
+
+  return remA < remB;
+}
+
 void GameState::DivideLootAmongPlayers()
 {
     std::map<Coord, int> playersOnLootTile;
-    BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState) &p, players)
-    {
-        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, p.second.characters)
+    std::vector<CharacterOnLootTile> collectors;
+    BOOST_FOREACH (PAIRTYPE(const PlayerID, PlayerState)& p, players)
+      BOOST_FOREACH (PAIRTYPE(const int, CharacterState)& pc,
+                     p.second.characters)
         {
-            int i = pc.first;
-            const CharacterState &ch = pc.second;
+          CharacterOnLootTile tileChar;
 
-            const Coord &coord = ch.coord;
-            if (loot.count(coord) != 0)
+          tileChar.pid = p.first;
+          tileChar.cid = pc.first;
+          tileChar.ch = &pc.second;
+
+          const bool isCrownHolder = (tileChar.pid == crownHolder.player
+                                      && tileChar.cid == crownHolder.index);
+          tileChar.carryCap = GetCarryingCapacity (nHeight, tileChar.cid == 0,
+                                                   isCrownHolder);
+
+          const Coord& coord = tileChar.ch->coord;
+          if (loot.count (coord) > 0)
             {
-                std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
-                if (mi != playersOnLootTile.end())
-                    mi->second++;
-                else
-                    playersOnLootTile.insert(std::make_pair(coord, 1));
+              std::map<Coord, int>::iterator mi;
+              mi = playersOnLootTile.find (coord);
+
+              if (mi != playersOnLootTile.end ())
+                mi->second++;
+              else
+                playersOnLootTile.insert (std::make_pair (coord, 1));
+
+              collectors.push_back (tileChar);
             }
         }
-    }
-    // Split equally, if multiple players on loot cell
-    // If not divisible, the amounts are dependent on the order of players
-    BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, players)
-    {
-        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, p.second.characters)
-        {
-            int i = pc.first;
-            CharacterState &ch = pc.second;
 
-            const Coord &coord = ch.coord;
-            std::map<Coord, int>::iterator mi = playersOnLootTile.find(coord);
-            if (mi != playersOnLootTile.end())
-            {
-                LootInfo lootInfo = loot[coord];
-                lootInfo.nAmount /= (mi->second--);
+    std::sort (collectors.begin (), collectors.end ());
+    for (std::vector<CharacterOnLootTile>::iterator i = collectors.begin ();
+         i != collectors.end (); ++i)
+      {
+        const Coord& coord = i->ch->coord;
+        std::map<Coord, int>::iterator mi = playersOnLootTile.find (coord);
+        assert (mi != playersOnLootTile.end ());
 
-                // If amount was ~1e-8 and several players moved onto it, then some of them will get nothing
-                if (lootInfo.nAmount > 0)
-                {
-                    ch.loot.Collect(lootInfo, nHeight);
-                    AddLoot(coord, -lootInfo.nAmount);
-                }
+        LootInfo lootInfo = loot[coord];
+        assert (mi->second > 0);
+        lootInfo.nAmount /= (mi->second--);
 
-                assert((mi->second == 0) == (loot.count(coord) == 0));   // If no more players on this tile, then all loot must be collected
-            }
-        }
-    }
+        /* If amount was ~1e-8 and several players moved onto it, then
+           some of them will get nothing.  */
+        if (lootInfo.nAmount > 0)
+          {
+            const int64 rem = i->ch->CollectLoot (lootInfo, nHeight,
+                                                  i->carryCap);
+            AddLoot (coord, rem - lootInfo.nAmount);
+          }
+      }
 }
 
 void GameState::UpdateCrownState(bool &respawn_crown)
@@ -807,7 +939,16 @@ GameState::CrownBonus (int64 nAmount)
     {
       PlayerState& p = players[crownHolder.player];
       CharacterState& ch = p.characters[crownHolder.index];
-      ch.loot.Collect (LootInfo(nAmount, nHeight), nHeight);
+
+      const LootInfo loot(nAmount, nHeight);
+      const int64 cap = GetCarryingCapacity (nHeight, crownHolder.index == 0,
+                                             true);
+      const int64 rem = ch.CollectLoot (loot, nHeight, cap);
+
+      /* We keep to the logic of "crown on the floor -> coins lost" and
+         don't distribute coins that can not be hold by the crown holder
+         due to carrying capacity to the map.  */
+      lostCoins += rem;
     }
   else
     lostCoins += nAmount;
