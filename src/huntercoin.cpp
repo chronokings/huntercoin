@@ -219,11 +219,6 @@ string stringFromVch(const vector<unsigned char> &vch) {
     return res;
 }
 
-int64 GetNetworkFee(int nHeight)
-{
-        return 0;
-}
-
 /* Return the minimum necessary amount of locked coins.  This replaces the
    old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
    change it with hard forks.  If the frontEnd flag is set, return the
@@ -475,7 +470,7 @@ CreateTransactionWithInputTx (const vector<pair<CScript, int64> >& vecSend,
 // requires cs_main lock
 std::string
 SendMoneyWithInputTx (const CScript& scriptPubKey, int64 nValue,
-                      int64 nNetFee, const CWalletTx& wtxIn,
+                      const CWalletTx& wtxIn,
                       CWalletTx& wtxNew, bool fAskFee)
 {
     if (wtxIn.IsGameTx())
@@ -485,13 +480,6 @@ SendMoneyWithInputTx (const CScript& scriptPubKey, int64 nValue,
     int64 nFeeRequired;
     vector< pair<CScript, int64> > vecSend;
     vecSend.push_back(make_pair(scriptPubKey, nValue));
-
-    if (nNetFee)
-    {
-        CScript scriptFee;
-        scriptFee << OP_RETURN;
-        vecSend.push_back(make_pair(scriptFee, nNetFee));
-    }
 
     if (!CreateTransactionWithInputTx(vecSend, wtxIn, nTxOut, wtxNew, reservekey, nFeeRequired))
     {
@@ -1167,16 +1155,11 @@ Value name_firstupdate(const Array& params, bool fHelp)
             throw runtime_error("previous tx used a different random value");
         }
 
-        int64 nNetFee = GetNetworkFee(pindexBest->nHeight);
-        // Round up to CENT
-        nNetFee += CENT - 1;
-        nNetFee = (nNetFee / CENT) * CENT;
-
         const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
 
         std::string strError;
         strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
-                                         nNetFee, wtxIn, wtx, false);
+                                         wtxIn, wtx, false);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1262,7 +1245,7 @@ Value name_update(const Array& params, bool fHelp)
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
         string strError;
         strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
-                                         0, wtxIn, wtx, false);
+                                         wtxIn, wtx, false);
 
         /* Make sure to keep the (possibly) reserved key in case
            of a successful transaction!  */
@@ -2171,22 +2154,6 @@ bool DecodeNameTx(const CTransaction& tx, int& op, int& nOut,
     return found;
 }
 
-int64 GetNameNetFee(const CTransaction& tx)
-{
-    int64 nFee = 0;
-
-    for (int i = 0 ; i < tx.vout.size() ; i++)
-    {
-        const CTxOut& out = tx.vout[i];
-        if (out.scriptPubKey.size() == 1 && out.scriptPubKey[0] == OP_RETURN)
-        {
-            nFee += out.nValue;
-        }
-    }
-
-    return nFee;
-}
-
 bool GetValueOfNameTx(const CTransaction& tx, vector<unsigned char>& value)
 {
     std::vector<vchType> vvch;
@@ -2379,9 +2346,6 @@ IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name)
     bool good = DecodeNameTx(tx, op, nOut, vvchArgs);
     if (!good)
         return error("IsConflictedTx() : could not decode a name tx");
-    int nPrevHeight;
-    int nDepth;
-    int64 nNetFee;
 
     switch (op)
     {
@@ -2512,7 +2476,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
       return error ("ConnectInputHook: depth negative"
                     " (block %d, prev %d, depth %d)",
                     pindexBlock->nHeight, prevHeight, nDepth);
-    int64 nNetFee;
 
     switch (op)
     {
@@ -2524,10 +2487,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             break;
 
         case OP_NAME_FIRSTUPDATE:
-            nNetFee = GetNameNetFee(tx);
-            if (nNetFee < GetNetworkFee(pindexBlock->nHeight))
-                return error("ConnectInputsHook() : got tx %s with fee too low %d", tx.GetHash().GetHex().c_str(), nNetFee);
-
             if (vvchArgs.size () == 3)
               {
                 if (!found || prevOp != OP_NAME_NEW)
@@ -2745,11 +2704,6 @@ static string nameFromOp(int op)
 
 bool CHuntercoinHooks::ExtractAddress(const CScript& script, string& address)
 {
-    if (script.size() == 1 && script[0] == OP_RETURN)
-    {
-        address = string("network fee");
-        return true;
-    }
     vector<vector<unsigned char> > vvch;
     int op;
     if (!DecodeNameScript(script, op, vvch))

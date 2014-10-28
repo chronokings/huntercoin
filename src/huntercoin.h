@@ -60,9 +60,8 @@ bool DecodeNameScript(const CScript& script, int& op,
                       std::vector<vchType> &vvch);
 bool GetNameAddress(const CTransaction& tx, std::string& strAddress);
 bool GetNameAddress(const CTransaction& tx, uint160 &hash160);
-std::string SendMoneyWithInputTx(const CScript& scriptPubKey, int64 nValue, int64 nNetFee, const CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
+std::string SendMoneyWithInputTx(const CScript& scriptPubKey, int64 nValue, const CWalletTx& wtxIn, CWalletTx& wtxNew, bool fAskFee);
 bool CreateTransactionWithInputTx(const std::vector<std::pair<CScript, int64> >& vecSend, const CWalletTx& wtxIn, int nTxOut, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet);
-int64 GetNetworkFee(int nHeight);
 int64 GetNameCoinAmount (unsigned nHeight, bool frontEnd = false);
 bool IsConflictedTx (DatabaseSet& dbset, const CTransaction& tx, vchType& name);
 void UnspendInputs(CWalletTx& wtx);

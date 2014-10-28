@@ -3439,7 +3439,7 @@ Value sendrawtransaction(const Array& params, bool fHelp)
     {
         // push to local node
         DatabaseSet dbset("r");
-        if (!tx.AcceptToMemoryPool (dbset, true, false))
+        if (!tx.AcceptToMemoryPool (dbset, true))
             throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX rejected");
 
         SyncWithWallets(tx, NULL, true);
