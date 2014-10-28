@@ -1337,7 +1337,7 @@ name_register (const Array& params, bool fHelp)
               "Register a new player name according to the 'new-style rules'."
               + HelpRequiringPassphrase ());
 
-  if (nBestHeight < FORK_HEIGHT_NEW_FIRSTUPDATE)
+  if (!AllowNewStyleRegistration (nBestHeight))
     throw std::runtime_error ("name_register is not yet available");
 
   const std::string& name = params[0].get_str ();
