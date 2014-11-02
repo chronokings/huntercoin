@@ -217,8 +217,12 @@ bool CWalletDB::LoadWallet(CWallet* pwallet)
                 //    wtx.mapValue["message"].c_str());
                 
 #ifdef GUI
+                /* Populate mapMyNameHashes.  This is only necessary for
+                   "old-style" name_firstupdate operations which reference
+                   a name_new.  Otherwise, there isn't any hash / name_new
+                   anyway, so mapMyNameHashes is irrelevant.  */
                 int op, nOut;
-                std::vector<std::vector<unsigned char> > vvch;
+                std::vector<vchType> vvch;
                 if (DecodeNameTx(wtx, op, nOut, vvch) && op == OP_NAME_FIRSTUPDATE && vvch.size() == 3)
                 {
                     std::vector<unsigned char> &vchName = vvch[0];

@@ -2827,22 +2827,36 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
         case OP_NAME_NEW:
         {
             assert(vvch.size() == 1);
-            const std::string rand = HexStr(vvch[0].begin(), vvch[0].end());
+            const std::string hash = HexStr(vvch[0].begin(), vvch[0].end());
             nameOp.push_back(Pair("op", "name_new"));
-            nameOp.push_back(Pair("rand", rand));
+            nameOp.push_back(Pair("hash", hash));
             break;
         }
 
         case OP_NAME_FIRSTUPDATE:
         {
-            assert(vvch.size() == 3);
-            const std::string name(vvch[0].begin(), vvch[0].end());
-            const std::string rand = HexStr(vvch[1].begin(), vvch[1].end());
-            const std::string val(vvch[2].begin(), vvch[2].end());
+            assert (vvch.size () >= 2);
+            const std::string name(vvch[0].begin (), vvch[0].end ());
             nameOp.push_back(Pair("op", "name_firstupdate"));
             nameOp.push_back(Pair("name", name));
-            nameOp.push_back(Pair("rand", rand));
-            nameOp.push_back(Pair("value", val));
+
+            /* Old form with preceding name_new?  */
+            if (vvch.size () == 3)
+              {
+                const std::string rand = HexStr(vvch[1].begin(), vvch[1].end());
+                const std::string val(vvch[2].begin(), vvch[2].end());
+                nameOp.push_back(Pair("rand", rand));
+                nameOp.push_back(Pair("value", val));
+              }
+            
+            /* New form without name_new?  */
+            else
+              {
+                assert (vvch.size () == 2);
+                const std::string val(vvch[1].begin(), vvch[1].end());
+                nameOp.push_back(Pair("value", val));
+              }
+
             break;
         }
 

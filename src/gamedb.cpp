@@ -109,7 +109,13 @@ public:
         {
         case OP_NAME_FIRSTUPDATE:
           vchName = vvchArgs[0];
-          vchValue = vvchArgs[2];
+          if (vvchArgs.size () == 3)
+            vchValue = vvchArgs[2];
+          else
+            {
+              assert (vvchArgs.size () == 2);
+              vchValue = vvchArgs[1];
+            }
           break;
 
         case OP_NAME_UPDATE:

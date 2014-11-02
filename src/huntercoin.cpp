@@ -258,6 +258,19 @@ IsValidPlayerName (const std::string& player)
     return regex_search(player, match, regex);
 }
 
+/* Check whether a new-style name registration is allowed at the given height.
+   The fork height is different for test-net.  */
+/* TODO: Get rid of this once enough blocks have passed after the block.
+   We don't have to forbid this back in history forever.  */
+static bool
+AllowNewStyleRegistration (unsigned nHeight)
+{
+  if (fTestNet)
+    return nHeight >= 1000000; // FIXME: Decide about height.
+
+  return nHeight >= FORK_HEIGHT_CARRYINGCAP;
+}
+
 int GetTxPosHeight(const CNameIndex& txPos)
 {
     return txPos.nHeight;
@@ -1315,6 +1328,85 @@ Value name_new(const Array& params, bool fHelp)
     return res;
 }
 
+static Value
+name_register (const Array& params, bool fHelp)
+{
+  if (fHelp || (params.size() != 2 && params.size () != 3))
+      throw std::runtime_error (
+              "name_register <name> <value> [<toaddress>]\n"
+              "Register a new player name according to the 'new-style rules'."
+              + HelpRequiringPassphrase ());
+
+  if (!AllowNewStyleRegistration (nBestHeight))
+    throw std::runtime_error ("name_register is not yet available");
+
+  const std::string& name = params[0].get_str ();
+  if (!IsValidPlayerName (name))
+    throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid player name");
+  const vchType vchName = vchFromString (name);
+  const vchType vchValue = vchFromValue (params[1]);
+
+  CRITICAL_BLOCK (cs_main)
+    {
+      if (mapNamePending.count (vchName) && !mapNamePending[vchName].empty ())
+        {
+          error ("name_register: there are %d pending operations"
+                 " on that name, including %s",
+                 mapNamePending[vchName].size (),
+                 mapNamePending[vchName].begin ()->GetHex ().c_str ());
+          throw runtime_error ("there are pending operations on that name");
+        }
+
+      CNameDB dbName("r");
+      CTransaction tx;
+      if (GetTxOfName (dbName, vchName, tx) && !tx.IsGameTx ())
+        {
+          error ("name_register: this name is already active with tx %s",
+                 tx.GetHash ().GetHex ().c_str ());
+          throw std::runtime_error ("this name is already active");
+        }
+    }
+
+  CWalletTx wtx;
+  wtx.nVersion = NAMECOIN_TX_VERSION;
+
+  CScript scriptPubKeyOrig;
+  if (params.size () == 3)
+    {
+      const std::string strAddress = params[2].get_str ();
+      uint160 hash160;
+      bool isValid = AddressToHash160 (strAddress, hash160);
+      if (!isValid)
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                           "Invalid huntercoin address");
+      scriptPubKeyOrig.SetBitcoinAddress (strAddress);
+    }
+  else
+    {
+      const vchType vchPubKey = pwalletMain->GetKeyFromKeyPool ();
+      scriptPubKeyOrig.SetBitcoinAddress (vchPubKey);
+    }
+
+  CScript scriptPubKey;
+  scriptPubKey << OP_NAME_FIRSTUPDATE << vchName << vchValue
+               << OP_2DROP << OP_DROP;
+  scriptPubKey += scriptPubKeyOrig;
+
+  CRITICAL_BLOCK(cs_main)
+    {
+      EnsureWalletIsUnlocked ();
+
+      const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+      string strError = pwalletMain->SendMoney (scriptPubKey, nCoinAmount,
+                                                wtx, false);
+      if (strError != "")
+          throw JSONRPCError(RPC_WALLET_ERROR, strError);
+      mapMyNames[vchName] = wtx.GetHash ();
+    }
+
+  return wtx.GetHash ().GetHex ();
+}
+
 /* Implement name operations for createrawtransaction.  */
 void
 AddRawTxNameOperation (CTransaction& tx, const Object& obj)
@@ -1432,9 +1524,14 @@ name_pending (const Array& params, bool fHelp)
               switch (op)
                 {
                 case OP_NAME_FIRSTUPDATE:
-                  assert (vvch.size () == 3);
                   opString = "name_firstupdate";
-                  value = stringFromVch (vvch[2]);
+                  if (vvch.size () == 3)
+                    value = stringFromVch (vvch[2]);
+                  else
+                    {
+                      assert (vvch.size () == 2);
+                      value = stringFromVch (vvch[1]);
+                    }
                   break;
 
                 case OP_NAME_UPDATE:
@@ -1980,6 +2077,7 @@ CHooks* InitHook()
     mapCallTable.insert(make_pair("name_new", &name_new));
     mapCallTable.insert(make_pair("name_update", &name_update));
     mapCallTable.insert(make_pair("name_firstupdate", &name_firstupdate));
+    mapCallTable.insert(make_pair("name_register", &name_register));
     mapCallTable.insert(make_pair("name_list", &name_list));
     mapCallTable.insert(make_pair("name_scan", &name_scan));
     mapCallTable.insert(make_pair("name_filter", &name_filter));
@@ -2040,6 +2138,7 @@ bool DecodeNameScript(const CScript& script, int& op,
     pc--;
 
     if ((op == OP_NAME_NEW && vvch.size() == 1) ||
+            (op == OP_NAME_FIRSTUPDATE && vvch.size() == 2) ||
             (op == OP_NAME_FIRSTUPDATE && vvch.size() == 3) ||
             (op == OP_NAME_UPDATE && vvch.size() == 2))
         return true;
@@ -2090,7 +2189,7 @@ int64 GetNameNetFee(const CTransaction& tx)
 
 bool GetValueOfNameTx(const CTransaction& tx, vector<unsigned char>& value)
 {
-    vector<vector<unsigned char> > vvch;
+    std::vector<vchType> vvch;
 
     int op;
     int nOut;
@@ -2103,7 +2202,13 @@ bool GetValueOfNameTx(const CTransaction& tx, vector<unsigned char>& value)
         case OP_NAME_NEW:
             return false;
         case OP_NAME_FIRSTUPDATE:
-            value = vvch[2];
+            if (vvch.size () == 3)
+              value = vvch[2];
+            else
+              {
+                assert (vvch.size () == 2);
+                value = vvch[1];
+              }
             return true;
         case OP_NAME_UPDATE:
             value = vvch[1];
@@ -2244,7 +2349,7 @@ bool GetNameOfTx(const CTransaction& tx, vector<unsigned char>& name)
 {
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return false;
-    vector<vector<unsigned char> > vvchArgs;
+    std::vector<vchType> vvchArgs;
     int op;
     int nOut;
 
@@ -2422,10 +2527,13 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             nNetFee = GetNameNetFee(tx);
             if (nNetFee < GetNetworkFee(pindexBlock->nHeight))
                 return error("ConnectInputsHook() : got tx %s with fee too low %d", tx.GetHash().GetHex().c_str(), nNetFee);
-            if (!found || prevOp != OP_NAME_NEW)
-                return error("ConnectInputsHook() : name_firstupdate tx without previous name_new tx");
 
-            {
+            if (vvchArgs.size () == 3)
+              {
+                if (!found || prevOp != OP_NAME_NEW)
+                  return error ("ConnectInputsHook: old-style name_firstupdate"
+                                " tx without previous name_new tx");
+
                 // Check hash
                 const vchType& vchHash = vvchPrevArgs[0];
                 const vchType& vchName = vvchArgs[0];
@@ -2435,7 +2543,17 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                 uint160 hash = Hash160(vchToHash);
                 if (uint160(vchHash) != hash)
                     return error("ConnectInputsHook() : name_firstupdate hash mismatch");
-            }
+              }
+            else
+              {
+                if (!AllowNewStyleRegistration (pindexBlock->nHeight))
+                  return error ("ConnectInputsHook: new-style name_firstupdate"
+                                " not allowed at height %d",
+                                pindexBlock->nHeight);
+
+                /* Otherwise, no more checks required for a new-style
+                   name_firstupdate.  */
+              }
 
             if (tx.vout[nOut].nValue < GetNameCoinAmount (pindexBlock->nHeight))
                 return error ("ConnectInputsHook: name_firstupdate tx:"
@@ -2443,9 +2561,11 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (!NameAvailable (dbset, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
 
-            /* Do not accept if name_new is not mature.  */
-            if ((fBlock || fMiner) && nDepth < MIN_FIRSTUPDATE_DEPTH)
-                return false;
+            /* Do not accept if name_new is not mature.  This only
+               applies to old-style registrations.  */
+            if ((fBlock || fMiner) && vvchArgs.size () == 3
+                && nDepth < MIN_FIRSTUPDATE_DEPTH)
+              return false;
 
             /* Check that no other pending txs on this name are already
                in the block to be mined.  */
@@ -2549,7 +2669,7 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
     if (tx.nVersion != NAMECOIN_TX_VERSION)
         return true;
 
-    vector<vector<unsigned char> > vvch;
+    std::vector<vchType> vvch;
     int op;
     int nOut;
 
@@ -2565,18 +2685,32 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
             if (vvch[0].size() != 20)
                 return error("name_new tx with incorrect hash length");
             break;
+
         case OP_NAME_FIRSTUPDATE:
-            if (vvch[1].size() > 20)
-                return error("name_firstupdate tx with rand too big");
-            if (vvch[2].size() > MAX_VALUE_LENGTH)
+          {
+            unsigned valueInd;
+            if (vvch.size () == 2)
+              valueInd = 1;
+            else
+              {
+                assert (vvch.size () == 3);
+                valueInd = 2;
+                if (vvch[1].size() > 20)
+                  return error ("name_firstupdate tx with rand too big");
+              }
+
+            if (vvch[valueInd].size() > MAX_VALUE_LENGTH)
                 return error("name_firstupdate tx with value too long");
-            m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[2]));
+            m.Parse(stringFromVch(vvch[0]), stringFromVch(vvch[valueInd]));
             if (!m)
                 return error("name_firstupdate : incorrect game move");
+
             /* Move parsing already checks for valid player name, which
                in turn includes the length check.  */
             assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
+          }
+
         case OP_NAME_UPDATE:
             if (vvch[1].size() > MAX_VALUE_LENGTH)
                 return error("name_update tx with value too long");
@@ -2587,6 +2721,7 @@ bool CHuntercoinHooks::CheckTransaction(const CTransaction& tx)
                in turn includes the length check.  */
             assert (vvch[0].size () <= MAX_NAME_LENGTH);
             break;
+
         default:
             return error("name transaction has unknown op");
     }
@@ -2627,7 +2762,8 @@ bool CHuntercoinHooks::ExtractAddress(const CScript& script, string& address)
 #ifdef GUI
         LOCK(cs_main);
 
-        std::map<uint160, std::vector<unsigned char> >::const_iterator mi = mapMyNameHashes.find(uint160(vvch[0]));
+        std::map<uint160, vchType>::const_iterator mi;
+        mi = mapMyNameHashes.find (uint160(vvch[0]));
         if (mi != mapMyNameHashes.end())
             strName = stringFromVch(mi->second);
         else
