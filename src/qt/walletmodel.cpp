@@ -273,11 +273,6 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     if (uint160(vchHash) != hash)
         return _("previous tx used a different random value");
 
-    int64 nNetFee = GetNetworkFee(pindexBest->nHeight);
-    // Round up to CENT
-    nNetFee += CENT - 1;
-    nNetFee = (nNetFee / CENT) * CENT;
-
     const int64 nValue = GetNameCoinAmount (pindexBest->nHeight, true);
 
     if (wtxIn.IsGameTx())
@@ -291,18 +286,9 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     std::vector< std::pair<CScript, int64> > vecSend;
     vecSend.push_back(make_pair(scriptPubKey, nValue));
 
-    if (nNetFee)
-    {
-        CScript scriptFee;
-        scriptFee << OP_RETURN;
-        vecSend.push_back(make_pair(scriptFee, nNetFee));
-    }
-
     if (!CreateTransactionWithInputTx(vecSend, wtxIn, nTxOut, wtx, reservekey, nFeeRequired))
     {
         std::string strError;
-        /* FIXME: Should the check include nNetFee also?  It doesn't matter
-           for now, since the network fee is zero anyway.  */
         if (nValue + nFeeRequired > wallet->GetBalance())
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds "), FormatMoney(nFeeRequired).c_str());
         else
@@ -312,7 +298,7 @@ std::string WalletModel::nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vect
     }
 
     if (pnFeeRet)
-        *pnFeeRet = nNetFee + nFeeRequired;
+        *pnFeeRet = nFeeRequired;
 
     // Note: currently we do not notify the user about the name_firstupdate fee:
     // - it can be confusing, since name_firstupdate can be re-configured many times
@@ -690,7 +676,7 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
         CWalletTx& wtxIn = wallet->mapWallet[wtxInHash];
         std::string strError;
         strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
-                                         0, wtxIn, wtx, false);
+                                         wtxIn, wtx, false);
 
         /* Make sure to keep the (possibly) reserved key in case
            of a successful transaction!  */

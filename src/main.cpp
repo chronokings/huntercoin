@@ -418,7 +418,7 @@ bool CTransaction::CheckTransaction() const
 
 bool
 CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
-                                  bool fLimitFree, bool* pfMissingInputs)
+                                  bool* pfMissingInputs)
 {
     if (pfMissingInputs)
         *pfMissingInputs = false;
@@ -503,7 +503,7 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         }
 
         // Don't accept it if it can't get into a block
-        if (fLimitFree && nFees < GetMinFee(1000, true, true))
+        if (nFees < GetMinFee(1000, true, true))
             return error("AcceptToMemoryPool() : not enough fees");
         if (!hooks->CheckFees (*this, nFees))
             return error("AcceptToMemoryPool() : not enough fees for hook");
@@ -511,7 +511,7 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         // Continuously rate-limit free transactions
         // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
         // be annoying or make other's transactions take longer to confirm.
-        if (fLimitFree && nFees < MIN_RELAY_TX_FEE)
+        if (nFees < MIN_RELAY_TX_FEE)
         {
             static CCriticalSection cs;
             static double dFreeCount;
@@ -562,11 +562,10 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
     return true;
 }
 
-bool CTransaction::AcceptToMemoryPool(bool fCheckInputs, bool fLimitFree, bool* pfMissingInputs)
+bool CTransaction::AcceptToMemoryPool(bool fCheckInputs, bool* pfMissingInputs)
 {
     DatabaseSet dbset("r");
-    return AcceptToMemoryPool (dbset, fCheckInputs, fLimitFree,
-                               pfMissingInputs);
+    return AcceptToMemoryPool (dbset, fCheckInputs, pfMissingInputs);
 }
 
 bool CTransaction::AddToMemoryPoolUnchecked()
@@ -2830,7 +2829,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
 
         bool fMissingInputs = false;
-        if (tx.AcceptToMemoryPool(true, true, &fMissingInputs))
+        if (tx.AcceptToMemoryPool(true, &fMissingInputs))
         {
             SyncWithWallets(tx, NULL, true);
             RelayMessage(inv, vMsg);

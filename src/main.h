@@ -711,8 +711,8 @@ public:
     bool ClientConnectInputs();
     bool CheckTransaction() const;
     bool AcceptToMemoryPool(DatabaseSet& dbset, bool fCheckInputs=true,
-                            bool fLimitFree=true, bool* pfMissingInputs=NULL);
-    bool AcceptToMemoryPool(bool fCheckInputs=true, bool fLimitFree=true, bool* pfMissingInputs=NULL);
+                            bool* pfMissingInputs=NULL);
+    bool AcceptToMemoryPool(bool fCheckInputs=true, bool* pfMissingInputs=NULL);
 protected:
     bool AddToMemoryPoolUnchecked();
 public:
