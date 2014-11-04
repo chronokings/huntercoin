@@ -1094,10 +1094,12 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
 
 bool IsStandard(const CScript& scriptPubKey)
 {
-    if (hooks->IsStandard(scriptPubKey))
-        return true;
+    if (!hooks->IsStandard (scriptPubKey))
+        return false;
+
     vector<pair<opcodetype, valtype> > vSolution;
-    return Solver(scriptPubKey, vSolution);
+    const CScript rawScript = RemoveNameScriptPrefix (scriptPubKey, false);
+    return Solver (rawScript, vSolution);
 }
 
 
@@ -1250,14 +1252,7 @@ bool SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTransa
     CTxIn& txin = txTo.vin[nIn];
 
     /* Try to decode a name script and strip it if it is there.  */
-    int op;
-    std::vector<vchType> vvch;
-    CScript::const_iterator pc = fromPubKey.begin ();
-    CScript rawScript;
-    if (DecodeNameScript (fromPubKey, op, vvch, pc))
-        rawScript = CScript(pc, fromPubKey.end ());
-    else
-        rawScript = fromPubKey;
+    const CScript rawScript = RemoveNameScriptPrefix (fromPubKey, false);
 
     // Leave out the signature from the hash, since a signature can't sign itself.
     // The checksig op will also drop the signatures from its hash.

@@ -303,15 +303,20 @@ NameAvailable (DatabaseSet& dbset, const vector<unsigned char> &vchName)
     return false;
 }
 
-CScript RemoveNameScriptPrefix(const CScript& scriptIn)
+CScript RemoveNameScriptPrefix(const CScript& scriptIn, bool strict)
 {
-    int op;
-    vector<vector<unsigned char> > vvch;
-    CScript::const_iterator pc = scriptIn.begin();
+  int op;
+  std::vector<vchType> vvch;
+  CScript::const_iterator pc = scriptIn.begin();
 
-    if (!DecodeNameScript(scriptIn, op, vvch,  pc))
+  if (!DecodeNameScript(scriptIn, op, vvch,  pc))
+    {
+      if (strict)
         throw runtime_error("RemoveNameScriptPrefix() : could not decode name script");
-    return CScript(pc, scriptIn.end());
+
+      return scriptIn;
+    }
+  return CScript(pc, scriptIn.end());
 }
 
 static bool

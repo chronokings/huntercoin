@@ -47,7 +47,7 @@ static const int64 COIN = 100000000;
 static const int64 CENT = 1000000;
 static const int64 MIN_TX_FEE = 500000;
 static const int64 MIN_RELAY_TX_FEE = 10000;
-static const int64 MAX_MONEY = 21000000 * COIN;
+static const int64 MAX_MONEY = 43000000 * COIN; // Allow for premine.
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
 static const int COINBASE_MATURITY = 100;
 static const int COINBASE_MATURITY_DISPLAY = COINBASE_MATURITY + 20;
