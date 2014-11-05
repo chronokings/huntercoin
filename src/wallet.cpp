@@ -974,7 +974,9 @@ bool CWallet::SelectCoins(int64 nTargetValue, set<pair<const CWalletTx*,unsigned
 
 
 
-bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet)
+bool
+CWallet::CreateTransaction (const vecSendT& vecSend, CWalletTx& wtxNew,
+                            CReserveKey& reservekey, int64& nFeeRet)
 {
     int64 nValue = 0;
     BOOST_FOREACH (const PAIRTYPE(CScript, int64)& s, vecSend)
@@ -1084,13 +1086,6 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CW
     return true;
 }
 
-bool CWallet::CreateTransaction(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, CReserveKey& reservekey, int64& nFeeRet)
-{
-    vector< pair<CScript, int64> > vecSend;
-    vecSend.push_back(make_pair(scriptPubKey, nValue));
-    return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet);
-}
-
 // Call after CreateTransaction unless you want to abort
 bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 {
@@ -1144,12 +1139,22 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 
 
 
+// requires cs_main lock
+std::string
+CWallet::SendMoney (const CScript& scriptPubKey, int64 nValue,
+                    CWalletTx& wtxNew, bool fAskFee)
+{
+  vecSendT vecSend;
+  vecSend.push_back (std::make_pair (scriptPubKey, nValue));
+  return SendMoney (vecSend, wtxNew, fAskFee);
+}
 
 // requires cs_main lock
-string CWallet::SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, bool fAskFee)
+std::string
+CWallet::SendMoney (const vecSendT& vecSend, CWalletTx& wtxNew, bool fAskFee)
 {
     CReserveKey reservekey(this);
-    string err = SendMoneyPrepare(scriptPubKey, nValue, wtxNew, reservekey, fAskFee);
+    std::string err = SendMoneyPrepare (vecSend, wtxNew, reservekey, fAskFee);
     if (!err.empty())
         return err;
 
@@ -1159,10 +1164,23 @@ string CWallet::SendMoney(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew,
     return "";
 }
 
-string CWallet::SendMoneyPrepare(CScript scriptPubKey, int64 nValue, CWalletTx& wtxNew, CReserveKey& reservekey, bool fAskFee)
+std::string
+CWallet::SendMoneyPrepare (const vecSendT& vecSend, CWalletTx& wtxNew,
+                           CReserveKey& reservekey, bool fAskFee)
 {
+    int64 nValue = 0;
+    BOOST_FOREACH(const PAIRTYPE(CScript, int64)& send, vecSend)
+      {
+        if (send.second <= 0)
+          return _("Invalid amount");
+
+        nValue += send.second;
+      }
+    if (nValue + nTransactionFee > GetBalance ())
+      return _("Insufficient funds");
+
     int64 nFeeRequired;
-    if (!CreateTransaction(scriptPubKey, nValue, wtxNew, reservekey, nFeeRequired))
+    if (!CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired))
     {
         string strError;
         if (nValue + nFeeRequired > GetBalance())
@@ -1190,12 +1208,6 @@ string CWallet::SendMoneyPrepare(CScript scriptPubKey, int64 nValue, CWalletTx& 
 // requires cs_main lock
 string CWallet::SendMoneyToBitcoinAddress(string strAddress, int64 nValue, CWalletTx& wtxNew, bool fAskFee)
 {
-    // Check amount
-    if (nValue <= 0)
-        return _("Invalid amount");
-    if (nValue + nTransactionFee > GetBalance())
-        return _("Insufficient funds");
-
     // Parse bitcoin address
     CScript scriptPubKey;
     if (!scriptPubKey.SetBitcoinAddress(strAddress))

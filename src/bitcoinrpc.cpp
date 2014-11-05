@@ -1302,7 +1302,7 @@ Value sendmany(const Array& params, bool fHelp)
         wtx.mapValue["comment"] = params[3].get_str();
 
     set<string> setAddress;
-    vector<pair<CScript, int64> > vecSend;
+    CWallet::vecSendT vecSend;
 
     int64 totalAmount = 0;
     BOOST_FOREACH(const Pair& s, sendTo)
@@ -1333,18 +1333,9 @@ Value sendmany(const Array& params, bool fHelp)
         if (totalAmount > nBalance)
             throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
 
-        // Send
-        CReserveKey keyChange(pwalletMain);
-        int64 nFeeRequired = 0;
-        bool fCreated = pwalletMain->CreateTransaction(vecSend, wtx, keyChange, nFeeRequired);
-        if (!fCreated)
-        {
-            if (totalAmount + nFeeRequired > pwalletMain->GetBalance())
-                throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
-            throw JSONRPCError(RPC_WALLET_ERROR, "Transaction creation failed");
-        }
-        if (!pwalletMain->CommitTransaction(wtx, keyChange))
-            throw JSONRPCError(RPC_WALLET_ERROR, "Transaction commit failed");
+        string strError = pwalletMain->SendMoney (vecSend, wtx);
+        if (strError != "")
+            throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
     return wtx.GetHash().GetHex();
