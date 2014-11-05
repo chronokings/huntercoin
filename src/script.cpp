@@ -1222,6 +1222,15 @@ bool ExtractHash160(const CScript& scriptPubKey, uint160& hash160Ret)
     return false;
 }
 
+bool
+CScript::IsUnspendable () const
+{
+  /* Unspendable scripts (OP_RETURN something) are not included in
+     the UTXO set.  */
+
+  return (size () > 0 && *begin () == OP_RETURN);
+}
+
 uint160 CScript::GetBitcoinAddressHash160() const
 {
     uint160 hash160;

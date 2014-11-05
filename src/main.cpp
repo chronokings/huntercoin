@@ -1079,6 +1079,7 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
                             " prev tx %s failed",
                             GetHash ().ToString ().c_str (),
                             prevout.hash.ToString ().c_str ());
+            assert (!txPrev.vout[prevout.n].IsUnspendable ());
             if (!dbset.utxo ().InsertUtxo (txPrev, prevout.n,
                                            txindex.GetHeight ()))
               return error ("DisconnectInputs: Failed to InsertUtxo");

@@ -626,6 +626,8 @@ public:
         return true;
     }
 
+    bool IsUnspendable () const;
+
     uint160 GetBitcoinAddressHash160() const;
 
     std::string GetBitcoinAddress() const

@@ -1919,14 +1919,16 @@ analyseutxo (const Array& params, bool fHelp)
   if (!dbset.utxo ().Analyse (txoCnt, amount))
     throw std::runtime_error ("failed to read UTXO database");
 
-  /* Find duplicate coinbase transactions in the blockchain.  */
+  /* Find duplicate coinbase transactions and unspendable scripts
+     in the blockchain.  */
   int64_t dupCoinbase = 0;
+  int64_t unspendable = 0;
   std::set<uint256> seenHashes;
   const CBlockIndex* pInd = pindexGenesisBlock;
   for (; pInd; pInd = pInd->pnext)
     {
       if (pInd->nHeight % 1000 == 0)
-        printf ("Searching for duplicate coinbase at height %d...\n",
+        printf ("Scanning blockchain at height %d...\n",
                 pInd->nHeight);
 
       CBlock block;
@@ -1941,6 +1943,11 @@ analyseutxo (const Array& params, bool fHelp)
         dupCoinbase += tx.GetValueOut ();
       else
         seenHashes.insert (txHash);
+
+      BOOST_FOREACH(const CTransaction& tx, block.vtx)
+        BOOST_FOREACH(const CTxOut& txo, tx.vout)
+          if (txo.IsUnspendable ())
+            unspendable += txo.nValue;
     }
 
   /* Also calculate total number of coins on the map, so that we get the total
@@ -1963,10 +1970,11 @@ analyseutxo (const Array& params, bool fHelp)
   res.push_back (Pair ("moneysupply", subobj));
 
   subobj.clear ();
-  const int64_t expected = rewards - lostCoins - dupCoinbase;
+  const int64_t expected = rewards - lostCoins - dupCoinbase - unspendable;
   subobj.push_back (Pair ("rewards", ValueFromAmount (rewards)));
   subobj.push_back (Pair ("lost", ValueFromAmount (lostCoins)));
   subobj.push_back (Pair ("dup_coinbase", ValueFromAmount (dupCoinbase)));
+  subobj.push_back (Pair ("unspendable", ValueFromAmount (unspendable)));
   subobj.push_back (Pair ("total", ValueFromAmount (expected)));
   res.push_back (Pair ("expected", subobj));
 

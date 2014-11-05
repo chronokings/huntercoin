@@ -438,6 +438,12 @@ public:
         return !(a == b);
     }
 
+    inline bool
+    IsUnspendable () const
+    {
+      return scriptPubKey.IsUnspendable ();
+    }
+
     std::string ToString() const
     {
         if (scriptPubKey.size() < 6)
@@ -456,7 +462,7 @@ public:
  * contains other information that is needed in ConnectInputs
  * for checking validity of spending the output.
  */
-class CUtxoEntry : public CTxOut
+class CUtxoEntry
 {
 public:
 
@@ -467,8 +473,8 @@ public:
 
 public:
 
+  /* Needed to declare variables as CUtxoEntry and assign to them later.  */
   inline CUtxoEntry ()
-    : CTxOut()
   {}
 
   CUtxoEntry (const CTransaction& tx, unsigned n, int h);
@@ -492,6 +498,12 @@ public:
   operator!= (const CUtxoEntry& a, const CUtxoEntry& b)
   {
     return !(a == b);
+  }
+
+  inline bool
+  IsUnspendable () const
+  {
+    return txo.IsUnspendable ();
   }
 
 };
