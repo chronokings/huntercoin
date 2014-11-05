@@ -1107,7 +1107,7 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
                 {
                   assert (spent.count (outp) == 0);
                   ++unspendableCnt;
-                  ++unspendableAmount;
+                  unspendableAmount += tx.vout[j].nValue;
                   continue;
                 }
 

@@ -17,6 +17,11 @@ static const int OP_NAME_UPDATE = 0x03;
 static const int OP_NAME_NOP = 0x04;
 static const int MIN_FIRSTUPDATE_DEPTH = 2;
 
+/* Configuration for fees and stuff around OP_RETURN data.  */
+static const int64 OPRETURN_MIN_LOCKED = CENT;
+static const unsigned OPRETURN_MAX_LEN = 120;
+static const unsigned OPRETURN_MAX_STRLEN = 100;
+
 /* Hardfork block height at which the fee for generals is increased from
    1 HUC -> 10 HUC, the number of initial players is reduced to just the
    general, and poison-disaster introduced.  */

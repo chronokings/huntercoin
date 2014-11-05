@@ -1231,6 +1231,28 @@ CScript::IsUnspendable () const
   return (size () > 0 && *begin () == OP_RETURN);
 }
 
+bool
+CScript::GetTag (std::string& tag) const
+{
+  CScript::const_iterator pc = begin ();
+  opcodetype opcode;
+
+  if (!GetOp (pc, opcode) || opcode != OP_RETURN)
+    return false;
+
+  vchType vch;
+  if (!GetOp (pc, opcode, vch))
+    return false;
+  if (!(opcode >= 0 && opcode <= OP_PUSHDATA4))
+    return false;
+
+  if (pc != end ())
+    return false;
+
+  tag = stringFromVch (vch);
+  return true;
+}
+
 uint160 CScript::GetBitcoinAddressHash160() const
 {
     uint160 hash160;
