@@ -19,7 +19,6 @@ static const int MIN_FIRSTUPDATE_DEPTH = 2;
 
 /* Configuration for fees and stuff around OP_RETURN data.  */
 static const int64 OPRETURN_MIN_LOCKED = CENT;
-static const unsigned OPRETURN_MAX_LEN = 120;
 static const unsigned OPRETURN_MAX_STRLEN = 100;
 
 /* Hardfork block height at which the fee for generals is increased from

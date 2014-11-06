@@ -444,6 +444,8 @@ public:
       return scriptPubKey.IsUnspendable ();
     }
 
+    bool IsStandard () const;
+
     std::string ToString() const
     {
         if (scriptPubKey.size() < 6)
@@ -637,7 +639,7 @@ public:
             if (!txin.scriptSig.IsPushOnly())
                 return error("nonstandard txin: %s", txin.scriptSig.ToString().c_str());
         BOOST_FOREACH(const CTxOut& txout, vout)
-            if (!::IsStandard(txout.scriptPubKey))
+            if (!txout.IsStandard ())
                 return error("nonstandard txout: %s", txout.scriptPubKey.ToString().c_str());
         return true;
     }
