@@ -3,6 +3,7 @@
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 #include "headers.h"
 #include "db.h"
+#include "huntercoin.h"
 #include "net.h"
 #include "init.h"
 #include "auxpow.h"
@@ -220,6 +221,35 @@ CUtxoEntry::CUtxoEntry (const CTransaction& tx, unsigned n, int h)
     isCoinbase(tx.IsCoinBase ()),
     isGameTx(tx.IsGameTx ())
 {}
+
+
+/* Transaction outputs are standard if their scripts are standard
+   or if they are tags with sufficiently many coins locked.  */
+bool
+CTxOut::IsStandard () const
+{
+  if (::IsStandard (scriptPubKey))
+    return true;
+
+  std::string tag;
+  if (scriptPubKey.GetTag (tag))
+    {
+      /* TODO: Remove after hardfork.  This is just here to prevent
+         such tx from being created before all nodes have logic to remove
+         them from the UTXO set.  */
+      if (nBestHeight < FORK_HEIGHT_CARRYINGCAP)
+        return error ("%s: tagging not yet available", __func__);
+
+      if (tag.size () > OPRETURN_MAX_STRLEN)
+        return error ("%s: too long tag string", __func__);
+      if (nValue < OPRETURN_MIN_LOCKED)
+        return error ("%s: not enough locked coins in the tag", __func__);
+
+      return true;
+    }
+
+  return false;
+}
 
 
 
@@ -1079,6 +1109,7 @@ CTransaction::DisconnectInputs (DatabaseSet& dbset, CBlockIndex* pindex)
                             " prev tx %s failed",
                             GetHash ().ToString ().c_str (),
                             prevout.hash.ToString ().c_str ());
+            assert (!txPrev.vout[prevout.n].IsUnspendable ());
             if (!dbset.utxo ().InsertUtxo (txPrev, prevout.n,
                                            txindex.GetHeight ()))
               return error ("DisconnectInputs: Failed to InsertUtxo");

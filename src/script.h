@@ -626,6 +626,9 @@ public:
         return true;
     }
 
+    bool IsUnspendable () const;
+    bool GetTag (std::string& tag) const;
+
     uint160 GetBitcoinAddressHash160() const;
 
     std::string GetBitcoinAddress() const

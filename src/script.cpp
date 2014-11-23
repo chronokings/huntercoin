@@ -1094,10 +1094,12 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
 
 bool IsStandard(const CScript& scriptPubKey)
 {
-    if (hooks->IsStandard(scriptPubKey))
-        return true;
+    if (!hooks->IsStandard (scriptPubKey))
+        return false;
+
     vector<pair<opcodetype, valtype> > vSolution;
-    return Solver(scriptPubKey, vSolution);
+    const CScript rawScript = RemoveNameScriptPrefix (scriptPubKey, false);
+    return Solver (rawScript, vSolution);
 }
 
 
@@ -1220,6 +1222,37 @@ bool ExtractHash160(const CScript& scriptPubKey, uint160& hash160Ret)
     return false;
 }
 
+bool
+CScript::IsUnspendable () const
+{
+  /* Unspendable scripts (OP_RETURN something) are not included in
+     the UTXO set.  */
+
+  return (size () > 0 && *begin () == OP_RETURN);
+}
+
+bool
+CScript::GetTag (std::string& tag) const
+{
+  CScript::const_iterator pc = begin ();
+  opcodetype opcode;
+
+  if (!GetOp (pc, opcode) || opcode != OP_RETURN)
+    return false;
+
+  vchType vch;
+  if (!GetOp (pc, opcode, vch))
+    return false;
+  if (!(opcode >= 0 && opcode <= OP_PUSHDATA4))
+    return false;
+
+  if (pc != end ())
+    return false;
+
+  tag = stringFromVch (vch);
+  return true;
+}
+
 uint160 CScript::GetBitcoinAddressHash160() const
 {
     uint160 hash160;
@@ -1250,14 +1283,7 @@ bool SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTransa
     CTxIn& txin = txTo.vin[nIn];
 
     /* Try to decode a name script and strip it if it is there.  */
-    int op;
-    std::vector<vchType> vvch;
-    CScript::const_iterator pc = fromPubKey.begin ();
-    CScript rawScript;
-    if (DecodeNameScript (fromPubKey, op, vvch, pc))
-        rawScript = CScript(pc, fromPubKey.end ());
-    else
-        rawScript = fromPubKey;
+    const CScript rawScript = RemoveNameScriptPrefix (fromPubKey, false);
 
     // Leave out the signature from the hash, since a signature can't sign itself.
     // The checksig op will also drop the signatures from its hash.

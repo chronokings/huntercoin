@@ -504,9 +504,11 @@ WalletModel::NameNewReturn WalletModel::nameNew(const QString &name)
             printf("name_new GUI: SendMoneyPrepare (pass %d)\n", pass);
             const int64 nValue = GetNameCoinAmount (pindexBest->nHeight, true);
             std::string strError;
-            strError = wallet->SendMoneyPrepare (scriptPubKey,
-                                                 nValue + nFirstUpdateFee,
-                                                 wtx, reservekey, pass == 1);
+            CWallet::vecSendT vecSend;
+            vecSend.push_back (std::make_pair (scriptPubKey,
+                                               nValue + nFirstUpdateFee));
+            strError = wallet->SendMoneyPrepare (vecSend, wtx, reservekey,
+                                                 pass == 1);
             if (!strError.empty())
             {
                 printf("name_new GUI error: %s\n", strError.c_str());

@@ -183,7 +183,16 @@ void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
     BOOST_FOREACH(const PAIRTYPE(string,string)& item, wtx.mapValue)
         entry.push_back(Pair(item.first, item.second));
 
-
+    /* Construct array of tag values.  */
+    Array tags;
+    BOOST_FOREACH (const CTxOut& txo, wtx.vout)
+      {
+        std::string tag;
+        if (txo.scriptPubKey.GetTag (tag))
+          tags.push_back (tag);
+      }
+    if (tags.size () > 0)
+      entry.push_back (Pair ("tags", tags));
 }
 /*
 void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
@@ -944,16 +953,23 @@ Value setmininput(const Array& params, bool fHelp)
 
 Value sendtoaddress(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 2 || params.size() > 4)
+    if (fHelp || params.size() < 2 || params.size() > 5)
         throw runtime_error(
-            "sendtoaddress <huntercoinaddress> <amount> [comment] [comment-to]\n"
-            "<amount> is a real and is rounded to the nearest 0.01"
+            "sendtoaddress <huntercoinaddress> <amount>"
+            " [comment] [comment-to] [tag-string]\n"
+            "<amount> is a real and is rounded to the nearest 0.01\n"
+            "tag-string can be used to attach data to the transaction"
             + HelpRequiringPassphrase());
 
-    string strAddress = params[0].get_str();
+    // Parse recipient address
+    CScript addrScript;
+    const std::string strAddress = params[0].get_str();
+    if (!addrScript.SetBitcoinAddress (strAddress))
+      throw JSONRPCError (RPC_INVALID_ADDRESS_OR_KEY,
+                          "invalid Huntercoin address");
 
     // Amount
-    int64 nAmount = AmountFromValue(params[1]);
+    const int64 nAmount = AmountFromValue(params[1]);
 
     // Wallet comments
     CWalletTx wtx;
@@ -965,8 +981,30 @@ Value sendtoaddress(const Array& params, bool fHelp)
     CRITICAL_BLOCK(cs_main)
     {
         EnsureWalletIsUnlocked();
+
+        /* Build up the sendvec.  Include an OP_RETURN output if requested.  */
+
+        CWallet::vecSendT vecSend;
+        vecSend.push_back (std::make_pair (addrScript, nAmount));
+
+        if (params.size () >= 5)
+          {
+            /* TODO: Remove after hardfork.  */
+            if (nBestHeight < FORK_HEIGHT_CARRYINGCAP)
+              throw std::runtime_error ("tagging is not yet available");
+
+            const std::string tagString = params[4].get_str ();
+            if (tagString.size () > OPRETURN_MAX_STRLEN)
+              throw JSONRPCError (RPC_INVALID_PARAMETER,
+                                  "the tag string is too long");
+
+            CScript tagScript;
+            tagScript << OP_RETURN << vchFromString (tagString);
+            vecSend.push_back (std::make_pair (tagScript, OPRETURN_MIN_LOCKED));
+          }
     
-        string strError = pwalletMain->SendMoneyToBitcoinAddress(strAddress, nAmount, wtx);
+        /* Perform the send.  */
+        const std::string strError = pwalletMain->SendMoney (vecSend, wtx);
         if (strError != "")
             throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -1302,7 +1340,7 @@ Value sendmany(const Array& params, bool fHelp)
         wtx.mapValue["comment"] = params[3].get_str();
 
     set<string> setAddress;
-    vector<pair<CScript, int64> > vecSend;
+    CWallet::vecSendT vecSend;
 
     int64 totalAmount = 0;
     BOOST_FOREACH(const Pair& s, sendTo)
@@ -1333,18 +1371,9 @@ Value sendmany(const Array& params, bool fHelp)
         if (totalAmount > nBalance)
             throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
 
-        // Send
-        CReserveKey keyChange(pwalletMain);
-        int64 nFeeRequired = 0;
-        bool fCreated = pwalletMain->CreateTransaction(vecSend, wtx, keyChange, nFeeRequired);
-        if (!fCreated)
-        {
-            if (totalAmount + nFeeRequired > pwalletMain->GetBalance())
-                throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
-            throw JSONRPCError(RPC_WALLET_ERROR, "Transaction creation failed");
-        }
-        if (!pwalletMain->CommitTransaction(wtx, keyChange))
-            throw JSONRPCError(RPC_WALLET_ERROR, "Transaction commit failed");
+        string strError = pwalletMain->SendMoney (vecSend, wtx);
+        if (strError != "")
+            throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
     return wtx.GetHash().GetHex();
@@ -2880,6 +2909,10 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
         nameAsmPrefix = "NAME_OPERATION ";
         script = CScript(pc, script.end());
     }
+
+    std::string tag;
+    if (scriptPubKey.GetTag (tag))
+      out.push_back (Pair ("tag", tag));
 
     /* Write out the results.  */
     out.push_back(Pair("asm", nameAsmPrefix + script.ToString()));

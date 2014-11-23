@@ -17,6 +17,10 @@ static const int OP_NAME_UPDATE = 0x03;
 static const int OP_NAME_NOP = 0x04;
 static const int MIN_FIRSTUPDATE_DEPTH = 2;
 
+/* Configuration for fees and stuff around OP_RETURN data.  */
+static const int64 OPRETURN_MIN_LOCKED = CENT;
+static const unsigned OPRETURN_MAX_STRLEN = 100;
+
 /* Hardfork block height at which the fee for generals is increased from
    1 HUC -> 10 HUC, the number of initial players is reduced to just the
    general, and poison-disaster introduced.  */
@@ -42,7 +46,7 @@ std::string stringFromVch(const std::vector<unsigned char> &vch);
 std::vector<unsigned char> vchFromString(const std::string &str);
 int GetTxPosHeight(const CNameIndex& txPos);
 int GetTxPosHeight(const CDiskTxPos& txPos);
-CScript RemoveNameScriptPrefix(const CScript& scriptIn);
+CScript RemoveNameScriptPrefix(const CScript& scriptIn, bool strict = true);
 bool NameAvailable (DatabaseSet& dbset, const vchType& vchName);
 bool GetTxOfName (CNameDB& dbName, const vchType& vchName, CTransaction& tx);
 bool GetTxOfNameAtHeight (CNameDB& dbName, const vchType& vchName,

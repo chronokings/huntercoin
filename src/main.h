@@ -47,7 +47,7 @@ static const int64 COIN = 100000000;
 static const int64 CENT = 1000000;
 static const int64 MIN_TX_FEE = 500000;
 static const int64 MIN_RELAY_TX_FEE = 10000;
-static const int64 MAX_MONEY = 21000000 * COIN;
+static const int64 MAX_MONEY = 43000000 * COIN; // Allow for premine.
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
 static const int COINBASE_MATURITY = 100;
 static const int COINBASE_MATURITY_DISPLAY = COINBASE_MATURITY + 20;
@@ -438,6 +438,14 @@ public:
         return !(a == b);
     }
 
+    inline bool
+    IsUnspendable () const
+    {
+      return scriptPubKey.IsUnspendable ();
+    }
+
+    bool IsStandard () const;
+
     std::string ToString() const
     {
         if (scriptPubKey.size() < 6)
@@ -456,7 +464,7 @@ public:
  * contains other information that is needed in ConnectInputs
  * for checking validity of spending the output.
  */
-class CUtxoEntry : public CTxOut
+class CUtxoEntry
 {
 public:
 
@@ -467,8 +475,8 @@ public:
 
 public:
 
+  /* Needed to declare variables as CUtxoEntry and assign to them later.  */
   inline CUtxoEntry ()
-    : CTxOut()
   {}
 
   CUtxoEntry (const CTransaction& tx, unsigned n, int h);
@@ -492,6 +500,12 @@ public:
   operator!= (const CUtxoEntry& a, const CUtxoEntry& b)
   {
     return !(a == b);
+  }
+
+  inline bool
+  IsUnspendable () const
+  {
+    return txo.IsUnspendable ();
   }
 
 };
@@ -625,7 +639,7 @@ public:
             if (!txin.scriptSig.IsPushOnly())
                 return error("nonstandard txin: %s", txin.scriptSig.ToString().c_str());
         BOOST_FOREACH(const CTxOut& txout, vout)
-            if (!::IsStandard(txout.scriptPubKey))
+            if (!txout.IsStandard ())
                 return error("nonstandard txout: %s", txout.scriptPubKey.ToString().c_str());
         return true;
     }

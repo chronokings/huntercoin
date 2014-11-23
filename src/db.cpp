@@ -947,6 +947,13 @@ CUtxoDB::ReadUtxo (const COutPoint& pos, CUtxoEntry& txo)
 bool
 CUtxoDB::InsertUtxo (const COutPoint& pos, const CUtxoEntry& txo)
 {
+  if (txo.IsUnspendable ())
+    {
+      printf ("Not added unspendable UTXO entry '%s'\n",
+              pos.ToString ().c_str ());
+      return true;
+    }
+
   if (Exists (GetKey (pos)))
     {
       printf ("Already existing in UTXO: %s\n", pos.ToString ().c_str ());
@@ -1051,6 +1058,8 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
   unsigned txCnt = 0;
   unsigned txoCnt = 0;
   int64_t amount = 0;
+  unsigned unspendableCnt = 0;
+  int64_t unspendableAmount = 0;
 
   /* We work backwards and keep track of spent outpoints in the blocks
      we find.  This way, we can be sure to only find really unspent
@@ -1094,6 +1103,14 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
           for (unsigned j = 0; j < tx.vout.size (); ++j)
             {
               const COutPoint outp(txHash, j);
+              if (tx.vout[j].IsUnspendable ())
+                {
+                  assert (spent.count (outp) == 0);
+                  ++unspendableCnt;
+                  unspendableAmount += tx.vout[j].nValue;
+                  continue;
+                }
+
               if (spent.count (outp) == 0)
                 {
                   hasUnspent = true;
@@ -1160,8 +1177,10 @@ CUtxoDB::InternalRescan (bool fVerify, OutPointSet* outPoints)
           "  # tx:        %d\n"
           "  # all txo:   %d\n"
           "  # all tx:    %d\n"
-          "  total coins: %.8f\n",
+          "  unspendable: %d (%.8f HUC)\n"
+          "  spendable:   %.8f HUC\n",
           txoCnt, txCnt, allTxoCnt, allTxCnt,
+          unspendableCnt, static_cast<double> (unspendableAmount) / COIN,
           static_cast<double> (amount) / COIN);
 
   return true;
