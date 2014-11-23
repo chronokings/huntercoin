@@ -398,6 +398,9 @@ struct GameState
        the random numbers.  */
     bool CheckForDisaster (RandomGenerator& rng) const;
 
+    /* Perform spawn deaths.  */
+    void KillSpawnArea (StepResult& step);
+
     /* Apply poison disaster to the state.  */
     void ApplyPoison (RandomGenerator& rng);
     /* Decrement poison life expectation and kill players whose has
