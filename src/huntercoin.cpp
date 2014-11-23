@@ -2456,6 +2456,30 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
     {
+        /* See if there are any name outputs.  If they are, disallow
+           for mempool or after the corresponding soft fork point.  Note
+           that we can't just use 'DecodeNameTx', since that would also
+           report "false" if we have *multiple* name outputs.  This should
+           also be detected, though.  */
+        bool foundOuts = false;
+        for (int i = 0; i < tx.vout.size(); i++)
+        {
+            const CTxOut& out = tx.vout[i];
+
+            std::vector<vchType> vvchRead;
+            int opRead;
+
+            if (DecodeNameScript(out.scriptPubKey, opRead, vvchRead))
+                foundOuts = true;
+        }
+
+        /* TODO: After the softfork, check if we can enforce this
+           check without height condition at all.  Possibly no conflicting
+           tx are in the chain?  */
+        if (foundOuts
+            && (!fBlock || pindexBlock->nHeight >= FORK_HEIGHT_CARRYINGCAP))
+            return error("ConnectInputHook: non-Namecoin tx has name outputs");
+
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
         if (found)
