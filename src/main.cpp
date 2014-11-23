@@ -8,6 +8,7 @@
 #include "auxpow.h"
 #include "cryptopp/sha.h"
 #include "gamedb.h"
+#include "huntercoin.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
@@ -1705,6 +1706,14 @@ bool CBlock::CheckProofOfWork(int nHeight) const
 
         if (auxpow.get() != NULL)
         {
+            /* Disallow auxpow parent blocks that have an auxpow themselves.  */
+            if (nHeight >= FORK_HEIGHT_CARRYINGCAP
+                && (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW))
+              return error ("%s : auxpow parent block has auxpow version",
+                            __func__);
+            assert (nHeight < FORK_HEIGHT_CARRYINGCAP
+                    || !auxpow->parentBlock.auxpow);
+
             if (auxpow->algo != algo)
                 return error("CheckProofOfWork() : AUX POW uses different algorithm");
             if (!auxpow->Check(GetHash(), GetChainID()))
@@ -3654,6 +3663,10 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
 
     if (auxpow != NULL)
     {
+        if (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW)
+          return error ("%s : auxpow parent block has auxpow version",
+                        __func__);
+
         if (auxpow->algo != algo)
             return error("CheckWork() : AUX POW uses different algorithm");
 
