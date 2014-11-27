@@ -1146,6 +1146,55 @@ GameState::CheckForDisaster (RandomGenerator& rng) const
 }
 
 void
+GameState::KillSpawnArea (StepResult& step)
+{
+  /* Even if spawn death is disabled after the corresponding softfork,
+     we still want to do the loop (but not actually kill players)
+     because it keeps stay_in_spawn_area up-to-date.  */
+
+  BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, players)
+    {
+      std::set<int> toErase;
+      BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc,
+                    p.second.characters)
+        {
+          const int i = pc.first;
+          CharacterState &ch = pc.second;
+
+          if (IsInSpawnArea(ch.coord))
+            {
+              /* Note that the condition is constructed carefully to increment
+                 the spawn-stay in any case.  We want to kill only
+                 when the fork is not yet in effect, though.  */
+              if (ch.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA
+                  && nHeight < FORK_HEIGHT_CARRYINGCAP)
+                {
+                  int64 nAmount = ch.loot.nAmount;
+                  if (i == 0)
+                    {
+                      assert (p.second.coinAmount >= 0);
+                      nAmount += p.second.coinAmount;
+
+                      const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
+                      step.KillPlayer (p.first, killer);
+                    }
+                  if (nAmount > 0)
+                    AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
+
+                  /* Cannot erase right now, because it will invalidate the
+                     iterator 'pc'.  */
+                  toErase.insert(i);
+                }
+            }
+          else
+            ch.stay_in_spawn_area = 0;
+        }
+      BOOST_FOREACH(int i, toErase)
+        p.second.characters.erase(i);
+    }
+}
+
+void
 GameState::ApplyPoison (RandomGenerator& rng)
 {
   /* Set random life expectations for every player on the map.  */
@@ -1325,38 +1374,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     delete charactersOnTile;
 
     // Kill players who stay too long in the spawn area
-    BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState) &p, outState.players)
-    {
-        std::set<int> toErase;
-        BOOST_FOREACH(PAIRTYPE(const int, CharacterState) &pc, p.second.characters)
-        {
-            int i = pc.first;
-            CharacterState &ch = pc.second;
-
-            if (IsInSpawnArea(ch.coord))
-            {
-                if (ch.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA)
-                {
-                    int64 nAmount = ch.loot.nAmount;
-                    if (i == 0)
-                    {
-                        assert (p.second.coinAmount >= 0);
-                        nAmount += p.second.coinAmount;
-
-                        const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
-                        stepResult.KillPlayer (p.first, killer);
-                    }
-                    if (nAmount > 0)
-                        outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-                    toErase.insert(i);   // Cannot erase right now, because it will invalidate the iterator 'pc'
-                }
-            }
-            else
-                ch.stay_in_spawn_area = 0;
-        }
-        BOOST_FOREACH(int i, toErase)
-            p.second.characters.erase(i);
-    }
+    outState.KillSpawnArea (stepResult);
 
     /* Decrement poison life expectation and kill players when it
        has dropped to zero.  */
