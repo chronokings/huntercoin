@@ -21,15 +21,6 @@ static const int MIN_FIRSTUPDATE_DEPTH = 2;
 static const int64 OPRETURN_MIN_LOCKED = CENT;
 static const unsigned OPRETURN_MAX_STRLEN = 100;
 
-/* Hardfork block height at which the fee for generals is increased from
-   1 HUC -> 10 HUC, the number of initial players is reduced to just the
-   general, and poison-disaster introduced.  */
-static const unsigned FORK_HEIGHT_POISON = 255000;
-/* Hardfork block height at which a maximum carrying capacity will be
-   introduced into the game logic.  */
-/* FIXME: Decide about it.  */
-static const unsigned FORK_HEIGHT_CARRYINGCAP = 1000000;
-
 // The following value is assigned to the name when the player is dead.
 // It must not be a valid move JSON string, because it is checked in NameAvailable
 // as a shortcut to reading tx and checking IsGameTx.

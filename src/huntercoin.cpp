@@ -229,13 +229,11 @@ string stringFromVch(const vector<unsigned char> &vch) {
 int64
 GetNameCoinAmount (unsigned nHeight, bool frontEnd)
 {
-  unsigned forkHeight = FORK_HEIGHT_POISON;
-
   /* For front-ends, increase the amount a little earlier.  */
   if (frontEnd)
-    forkHeight -= 10;
+    nHeight += 10;
 
-  return (nHeight < forkHeight ? COIN : 10 * COIN);
+  return ForkInEffect (FORK_POISON, nHeight) ? 10 * COIN : COIN;
 }
 
 bool
@@ -251,19 +249,6 @@ IsValidPlayerName (const std::string& player)
     static sregex regex = sregex::compile("^([a-zA-Z0-9_-]+ )*[a-zA-Z0-9_-]+$");
     smatch match;
     return regex_search(player, match, regex);
-}
-
-/* Check whether a new-style name registration is allowed at the given height.
-   The fork height is different for test-net.  */
-/* TODO: Get rid of this once enough blocks have passed after the block.
-   We don't have to forbid this back in history forever.  */
-static bool
-AllowNewStyleRegistration (unsigned nHeight)
-{
-  if (fTestNet)
-    return nHeight >= 1000000; // FIXME: Decide about height.
-
-  return nHeight >= FORK_HEIGHT_CARRYINGCAP;
 }
 
 int GetTxPosHeight(const CNameIndex& txPos)
@@ -1325,7 +1310,7 @@ name_register (const Array& params, bool fHelp)
               "Register a new player name according to the 'new-style rules'."
               + HelpRequiringPassphrase ());
 
-  if (!AllowNewStyleRegistration (nBestHeight))
+  if (!ForkInEffect (FORK_CARRYINGCAP, nBestHeight))
     throw std::runtime_error ("name_register is not yet available");
 
   const std::string& name = params[0].get_str ();
@@ -2489,8 +2474,8 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
         /* TODO: After the softfork, check if we can enforce this
            check without height condition at all.  Possibly no conflicting
            tx are in the chain?  */
-        if (foundOuts
-            && (!fBlock || pindexBlock->nHeight >= FORK_HEIGHT_CARRYINGCAP))
+        if (foundOuts)
+          if (!fBlock || ForkInEffect (FORK_CARRYINGCAP, pindexBlock->nHeight))
             return error("ConnectInputHook: non-Namecoin tx has name outputs");
 
         // Make sure name-op outputs are not spent by a regular transaction, or the name
@@ -2542,7 +2527,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
               }
             else
               {
-                if (!AllowNewStyleRegistration (pindexBlock->nHeight))
+                if (!ForkInEffect (FORK_CARRYINGCAP, pindexBlock->nHeight))
                   return error ("ConnectInputsHook: new-style name_firstupdate"
                                 " not allowed at height %d",
                                 pindexBlock->nHeight);
