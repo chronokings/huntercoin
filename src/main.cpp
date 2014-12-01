@@ -3,7 +3,6 @@
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 #include "headers.h"
 #include "db.h"
-#include "huntercoin.h"
 #include "net.h"
 #include "init.h"
 #include "auxpow.h"
@@ -80,6 +79,25 @@ int fUseUPnP = false;
 
 
 CHooks* hooks;
+
+
+
+/* Configure the fork heights.  */
+bool
+ForkInEffect (Fork type, unsigned nHeight)
+{
+  switch (type)
+    {
+    case FORK_POISON:
+      return nHeight >= (fTestNet ? 190000 : 255000);
+
+    case FORK_CARRYINGCAP:
+      return nHeight >= (fTestNet ? 200000 : 500000);
+
+    default:
+      assert (false);
+    }
+}
 
 
 
@@ -238,7 +256,7 @@ CTxOut::IsStandard () const
       /* TODO: Remove after hardfork.  This is just here to prevent
          such tx from being created before all nodes have logic to remove
          them from the UTXO set.  */
-      if (nBestHeight < FORK_HEIGHT_CARRYINGCAP)
+      if (!ForkInEffect (FORK_CARRYINGCAP, nBestHeight))
         return error ("%s: tagging not yet available", __func__);
 
       if (tag.size () > OPRETURN_MAX_STRLEN)
@@ -1738,11 +1756,13 @@ bool CBlock::CheckProofOfWork(int nHeight) const
         if (auxpow.get() != NULL)
         {
             /* Disallow auxpow parent blocks that have an auxpow themselves.  */
-            if (nHeight >= FORK_HEIGHT_CARRYINGCAP
+            /* TODO: Can possibly be removed and the check made unconditional
+               after the fork is carried out.  */
+            if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
                 && (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW))
               return error ("%s : auxpow parent block has auxpow version",
                             __func__);
-            assert (nHeight < FORK_HEIGHT_CARRYINGCAP
+            assert (!ForkInEffect (FORK_CARRYINGCAP, nHeight)
                     || !auxpow->parentBlock.auxpow);
 
             if (auxpow->algo != algo)

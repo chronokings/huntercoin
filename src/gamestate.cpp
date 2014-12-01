@@ -45,12 +45,10 @@ inline bool IsWalkable(const Coord &c)
 inline static
 int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
 {
-  /* FIXME: Decide about the actual logic here.  */
-
-  if (nHeight < FORK_HEIGHT_CARRYINGCAP || isCrownHolder)
+  if (!ForkInEffect (FORK_CARRYINGCAP, nHeight) || isCrownHolder)
     return -1;
 
-  return (isGeneral ? 100 : 50) * COIN;
+  return (isGeneral ? 50 : 25) * COIN;
 }
 
 } // namespace Game
@@ -957,7 +955,7 @@ GameState::CrownBonus (int64 nAmount)
 unsigned
 GameState::GetNumInitialCharacters () const
 {
-  return (nHeight < FORK_HEIGHT_POISON ? 3 : 1);
+  return (ForkInEffect (FORK_POISON, nHeight) ? 1 : 3);
 }
 
 int64
@@ -1130,7 +1128,7 @@ bool
 GameState::CheckForDisaster (RandomGenerator& rng) const
 {
   /* Before the hardfork, nothing should happen.  */
-  if (nHeight < FORK_HEIGHT_POISON)
+  if (!ForkInEffect (FORK_POISON, nHeight))
     return false;
 
   /* Enforce max/min times.  */
@@ -1167,7 +1165,7 @@ GameState::KillSpawnArea (StepResult& step)
                  the spawn-stay in any case.  We want to kill only
                  when the fork is not yet in effect, though.  */
               if (ch.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA
-                  && nHeight < FORK_HEIGHT_CARRYINGCAP)
+                  && !ForkInEffect (FORK_CARRYINGCAP, nHeight))
                 {
                   int64 nAmount = ch.loot.nAmount;
                   if (i == 0)

@@ -97,6 +97,22 @@ extern int fMinimizeToTray;
 extern int fMinimizeOnClose;
 extern int fUseUPnP;
 
+/* Handle fork heights.  The function checks whether a fork is in effect
+   at the given height -- and may use different heights for testnet
+   and mainnet, or for a "testing mode".  */
+enum Fork
+{
+  /* Poison disaster, increased general cost 1 HUC -> 10 HUC, just general
+     as initial character.  */
+  FORK_POISON,
+
+  /* Maximum carrying-capacity introduced, removed spawn death,
+     new-style name registration, stricter rule checks for transaction
+     version and auxpow (in parallel to Namecoin).  */
+  FORK_CARRYINGCAP,
+};
+bool ForkInEffect (Fork type, unsigned nHeight);
+
 
 extern CHooks* hooks;
 

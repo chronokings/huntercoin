@@ -990,7 +990,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
         if (params.size () >= 5)
           {
             /* TODO: Remove after hardfork.  */
-            if (nBestHeight < FORK_HEIGHT_CARRYINGCAP)
+            if (!ForkInEffect (FORK_CARRYINGCAP, nBestHeight))
               throw std::runtime_error ("tagging is not yet available");
 
             const std::string tagString = params[4].get_str ();
