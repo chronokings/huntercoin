@@ -20,7 +20,7 @@ class ConfigureNameDialog1 : public QDialog
 
 public:
 
-    explicit ConfigureNameDialog1(const QString &name_, const std::string &data, const QString &address_, QWidget *parent = 0);
+    explicit ConfigureNameDialog1(const QString &name_, const std::string &data, QWidget *parent = 0);
     ~ConfigureNameDialog1();
 
     void setModel(WalletModel *walletModel);
@@ -29,7 +29,6 @@ public:
 public slots:
     void accept();
     void reject();
-    void on_copyButton_clicked();
     void on_addressBookButton_clicked();
     void on_pasteButton_clicked();
     void colorButtonToggled(bool checked);
@@ -39,7 +38,7 @@ private:
     std::string returnData;
     Ui::ConfigureNameDialog1 *ui;
     WalletModel *walletModel;
-    QString name, address;
+    QString name;
 
     bool reward_set;
 

@@ -63,16 +63,6 @@ public:
         return Write(std::make_pair(std::string("address"), hash160), hash160, false);
     }
     
-#ifdef GUI
-    bool WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
-                              const uint256& hex,
-                              const uint64& rand,
-                              bool fPostponed,
-                              const std::vector<unsigned char>& vchData,
-                              const CWalletTx &wtx);
-    bool EraseNameFirstUpdate(const std::vector<unsigned char>& vchName);
-#endif
-
     bool WriteCryptedKey(const std::vector<unsigned char>& vchPubKey, const std::vector<unsigned char>& vchCryptedSecret, bool fEraseUnencryptedKey = true)
     {
         nWalletDBUpdated++;
