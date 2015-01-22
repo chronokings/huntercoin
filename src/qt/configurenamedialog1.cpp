@@ -22,10 +22,9 @@
 #include <QPushButton>
 #include <QClipboard>
 
-ConfigureNameDialog1::ConfigureNameDialog1(const QString &name_, const std::string &data, const QString &address_, QWidget *parent) :
+ConfigureNameDialog1::ConfigureNameDialog1(const QString &name_, const std::string &data, QWidget *parent) :
     QDialog(parent, Qt::WindowSystemMenuHint | Qt::WindowTitleHint),
     name(name_),
-    address(address_),
     ui(new Ui::ConfigureNameDialog1)
 {
     ui->setupUi(this);
@@ -37,8 +36,6 @@ ConfigureNameDialog1::ConfigureNameDialog1(const QString &name_, const std::stri
     GUIUtil::setupAddressWidget(ui->rewardAddr, this, true);
 
     ui->labelName->setText(GUIUtil::HtmlEscape(name));
-    ui->labelAddress->setText(GUIUtil::HtmlEscape(address));
-    ui->labelAddress->setFont(GUIUtil::bitcoinAddressFont());
 
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 
@@ -150,7 +147,7 @@ void ConfigureNameDialog1::accept()
     QString err_msg;
     try
     {
-        err_msg = walletModel->nameFirstUpdatePrepare(name, returnData, false);
+        err_msg = walletModel->nameRegister(name, returnData);
     }
     catch (std::exception& e) 
     {
@@ -187,11 +184,6 @@ void ConfigureNameDialog1::setModel(WalletModel *walletModel)
     }
     else
         ui->useRewardAddressForNewPlayers->setChecked(walletModel->getOptionsModel()->getDefaultRewardAddress() == ui->rewardAddr->text());
-}
-
-void ConfigureNameDialog1::on_copyButton_clicked()
-{
-    QApplication::clipboard()->setText(address);
 }
 
 void ConfigureNameDialog1::on_pasteButton_clicked()

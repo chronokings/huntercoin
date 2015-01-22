@@ -130,85 +130,16 @@
       </widget>
      </item>
      <item row="4" column="0">
-      <widget class="QLabel" name="labelCurrentAddress">
-       <property name="text">
-        <string>&amp;Address:</string>
-       </property>
-       <property name="buddy">
-        <cstring>copyButton</cstring>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <item>
-        <widget class="QLabel" name="labelAddress">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>16777215</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="toolTip">
-          <string>Huntercoin address to which the name is assigned</string>
-         </property>
-         <property name="text">
-          <string notr="true">HVguPy1tWgbu9cKy6YGYEJFJ6RD7z7F7MJ</string>
-         </property>
-         <property name="indent">
-          <number>3</number>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QToolButton" name="copyButton">
-         <property name="toolTip">
-          <string>Copy address to clipboard</string>
-         </property>
-         <property name="text">
-          <string/>
-         </property>
-         <property name="icon">
-          <iconset resource="../bitcoin.qrc">
-           <normaloff>:/icons/editcopy</normaloff>:/icons/editcopy</iconset>
-         </property>
-         <property name="shortcut">
-          <string>Alt+P</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacer">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>40</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </item>
-     <item row="5" column="0">
       <widget class="QLabel" name="labelRewardAddress">
        <property name="text">
         <string>&amp;Reward address:</string>
        </property>
        <property name="buddy">
-        <cstring>copyButton</cstring>
+        <cstring>rewardAddr</cstring>
        </property>
       </widget>
      </item>
-     <item row="5" column="1">
+     <item row="4" column="1">
       <layout class="QHBoxLayout" name="rewardAddrLayout">
        <property name="spacing">
         <number>0</number>
@@ -266,7 +197,7 @@ If empty, player's own address will be used.</string>
        </item>
       </layout>
      </item>
-     <item row="6" column="1">
+     <item row="5" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout_4">
        <item>
         <widget class="QLabel" name="label">

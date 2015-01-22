@@ -17,8 +17,6 @@
 
 #include <QTimer>
 
-extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
-
 struct NameTableEntryLessThan
 {
     bool operator()(const NameTableEntry &a, const NameTableEntry &b) const
@@ -88,17 +86,6 @@ public:
             if (!item.second.transferred)
               cachedNameTable.append (item.second);
           }
-
-        // Add pending names (name_new)
-        BOOST_FOREACH(const PAIRTYPE(std::vector<unsigned char>, PreparedNameFirstUpdate)& item, mapMyNameFirstUpdate)
-        {
-            std::string strAddress = "";
-            GetNameAddress(item.second.wtx, strAddress);
-            int nDummyHeight = NameTableEntry::NAME_NEW;
-            if (item.second.fPostponed)
-                nDummyHeight = NameTableEntry::NAME_NEW_POSTPONED;
-            cachedNameTable.append(NameTableEntry(stringFromVch(item.first), stringFromVch(item.second.vchData), strAddress, nDummyHeight));
-        }
 
         // qLowerBound() and qUpperBound() require our cachedNameTable list to be sorted in asc order
         qSort(cachedNameTable.begin(), cachedNameTable.end(), NameTableEntryLessThan());

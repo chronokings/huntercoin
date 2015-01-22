@@ -26,8 +26,6 @@
 #include "../json/json_spirit_utils.h"
 #include "../json/json_spirit_writer_template.h"
 
-extern std::map<std::vector<unsigned char>, PreparedNameFirstUpdate> mapMyNameFirstUpdate;
-
 class CharacterTableModel : public QAbstractTableModel
 {
     Q_OBJECT
@@ -478,35 +476,18 @@ void ManageNamesPage::on_newButton_clicked()
 
     try
     {
-        WalletModel::NameNewReturn res = walletModel->nameNew(name);
-
-        if (res.ok)
+        ConfigureNameDialog1 dlg(name, std::string(), this);
+        dlg.setModel(walletModel);
+        if (dlg.exec() == QDialog::Accepted)
         {
+            LOCK(cs_main);
             int newRowIndex;
-            // FIXME: CT_NEW may have been sent from nameNew (via transaction).
-            // Currently updateEntry is modified so it does not complain
-            model->updateEntry(name, "", res.address, NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
+            model->updateEntry(name, dlg.getReturnData(), "", NameTableEntry::NAME_NEW, CT_NEW, &newRowIndex);
             tabsNames->setCurrentIndex(newRowIndex);
             onSelectName(name);
-
-            ConfigureNameDialog1 dlg(name, std::string(), res.address, this);
-            dlg.setModel(walletModel);
-            if (dlg.exec() == QDialog::Accepted)
-            {
-                LOCK(cs_main);
-                if (mapMyNameFirstUpdate.count(vchFromString(name.toStdString())) != 0)
-                    model->updateEntry(name, dlg.getReturnData(), res.address, NameTableEntry::NAME_NEW, CT_UPDATED);
-                else
-                {
-                    // name_firstupdate could have been sent, while the user was editing the value
-                    // Do nothing
-                }
-            }
-
-            return;
         }
 
-        err_msg = res.err_msg;
+        return;
     }
     catch (std::exception& e) 
     {
@@ -928,50 +909,17 @@ void ManageNamesPage::on_configButton_clicked()
 
     std::vector<unsigned char> vchName = vchFromString(name.toStdString());
 
-    bool fOldPostponed;
-
     {
         LOCK(cs_main);
-        if (mapMyNameFirstUpdate.count(vchName) != 0)
+        ConfigureNameDialog2 dlg(name, address, rewardAddr, transferTo, this);
+        dlg.setModel(walletModel);
+        if (dlg.exec() == QDialog::Accepted)
         {
-            // Postpone the firstupdate, while the dialog is open
-            // If OK is pressed, fPostponed is always set to false
-            // If Cancel is pressed, we restore the old fPostponed value
-            fOldPostponed = mapMyNameFirstUpdate[vchName].fPostponed;
-            mapMyNameFirstUpdate[vchName].fPostponed = true;
+            rewardAddr = dlg.getRewardAddr();
+            rewardAddrChanged = true;
+            transferTo = dlg.getTransferTo();
+            QMessageBox::information(this, tr("Name configured"), tr("To apply changes, you need to press Go button"));
         }
-        else
-        {
-            ConfigureNameDialog2 dlg(name, address, rewardAddr, transferTo, this);
-            dlg.setModel(walletModel);
-            if (dlg.exec() == QDialog::Accepted)
-            {
-                rewardAddr = dlg.getRewardAddr();
-                rewardAddrChanged = true;
-                transferTo = dlg.getTransferTo();
-                QMessageBox::information(this, tr("Name configured"), tr("To apply changes, you need to press Go button"));
-            }
-            return;
-        }
-    }
-
-    ConfigureNameDialog1 dlg(name, value, address, this);
-    dlg.setModel(walletModel);
-    int dlgRes = dlg.exec();
-
-    if (dlgRes == QDialog::Accepted)
-    {
-        LOCK(cs_main);
-        // name_firstupdate could have been sent, while the user was editing the value
-        if (mapMyNameFirstUpdate.count(vchName) != 0)
-            model->updateEntry(name, dlg.getReturnData(), address, NameTableEntry::NAME_NEW, CT_UPDATED);
-    }
-    else
-    {
-        LOCK(cs_main);
-        // If cancel was pressed, restore the old fPostponed value
-        if (mapMyNameFirstUpdate.count(vchName) != 0)
-            mapMyNameFirstUpdate[vchName].fPostponed = fOldPostponed;
     }
 }
 

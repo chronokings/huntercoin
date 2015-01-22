@@ -233,16 +233,6 @@ public:
     // requires cs_mapAddressBook lock
     bool DelAddressBookName(const std::string& strAddress);
     
-#ifdef GUI
-    bool WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
-                              const uint256& hex,
-                              const uint64& rand,
-                              bool fPostponed,
-                              const std::vector<unsigned char>& vchData,
-                              const CWalletTx &wtx);
-    bool EraseNameFirstUpdate(const std::vector<unsigned char>& vchName);
-#endif
-
     void UpdatedTransaction(const uint256 &hashTx)
     {
 #ifdef GUI
@@ -797,16 +787,5 @@ public:
 };
 
 bool GetWalletFile(CWallet* pwallet, std::string &strWalletFileOut);
-
-#ifdef GUI
-// Editable transaction, which is not broadcasted immediately (only after 2 blocks)
-struct PreparedNameFirstUpdate
-{
-    uint64 rand;
-    std::vector<unsigned char> vchData;
-    CWalletTx wtx;
-    bool fPostponed;     // Do not send while Configure Name dialog is open
-};
-#endif
 
 #endif

@@ -1269,28 +1269,6 @@ bool CWallet::DelAddressBookName(const string& strAddress)
     return CWalletDB(strWalletFile).EraseName(strAddress);
 }
 
-#ifdef GUI
-bool CWallet::WriteNameFirstUpdate(const std::vector<unsigned char>& vchName,
-                                   const uint256& hex,
-                                   const uint64& rand,
-                                   bool fPostponed,
-                                   const std::vector<unsigned char>& vchData,
-                                   const CWalletTx &wtx)
-{
-    if (!fFileBacked)
-        return false;
-    return CWalletDB(strWalletFile).WriteNameFirstUpdate(vchName, hex, rand, fPostponed, vchData, wtx);
-}
-
-bool CWallet::EraseNameFirstUpdate(const std::vector<unsigned char>& vchName)
-{
-    if (!fFileBacked)
-        return false;
-    return CWalletDB(strWalletFile).EraseNameFirstUpdate(vchName);
-}
-#endif
-
-
 void CWallet::PrintWallet(const CBlock& block)
 {
     CRITICAL_BLOCK(cs_mapWallet)

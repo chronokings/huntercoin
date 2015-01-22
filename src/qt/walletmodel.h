@@ -85,28 +85,10 @@ public:
 
     bool nameAvailable(const QString &name);
 
-    struct NameNewReturn
-    {
-         bool ok;
-         QString err_msg;
-         QString address;
-         std::vector<unsigned char> vchName;
-         uint256 hex;   // Transaction hash in hex
-         uint64 rand;   // Secret number in hex
-         uint160 hash;  // Hash of rand+name
-    };
-
     // Register new name
     // Requires unlocked wallet; can throw exception instead of returning error
-    NameNewReturn nameNew(const QString &name);
+    QString nameRegister(const QString &name, const std::string &data);
 
-    // Create pending name update
-    // Requires unlocked wallet; can throw exception instead of returning error
-    QString nameFirstUpdatePrepare(const QString &name, const std::string &data, bool fPostponed = false);
-
-    // Send pending name updates, if they are 2 blocks old
-    void sendPendingNameFirstUpdates();
-    
     // Update name
     // Requires unlocked wallet; can throw exception instead of returning error
     QString nameUpdate(const QString &name, const std::string &data, const QString &transferToAddress);
@@ -164,14 +146,10 @@ private:
     int cachedNumBlocks;
 
     QTimer *pollTimer;
-    bool fSyncedAtLeastOnce;    // For sending automatic name_firstupdate
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
     void checkBalanceChanged();
-
-    std::string nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vector<unsigned char> &vchName, uint256 wtxInHash, uint64 rand, const std::vector<unsigned char> &vchValue, int64 *pnFeeRet = NULL);
-    std::string nameFirstUpdateCreateTx(CWalletTx &wtx, const std::vector<unsigned char> &vchName, CWalletTx &wtxIn, uint64 rand, const std::vector<unsigned char> &vchValue, int64 *pnFeeRet = NULL);
 
 signals:
     // Signal that balance in wallet changed
