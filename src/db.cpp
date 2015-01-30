@@ -1029,7 +1029,9 @@ CUtxoDB::RemoveUtxo (const CTransaction& tx)
   for (unsigned n = 0; n < tx.vout.size (); ++n)
     {
       COutPoint pos(hash, n);
-      if (!RemoveUtxo (pos))
+      if (tx.vout[n].IsUnspendable ())
+        assert (!Exists (GetKey (pos)));
+      else if (!RemoveUtxo (pos))
         return false;
     }
 
