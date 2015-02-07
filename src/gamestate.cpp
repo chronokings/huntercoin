@@ -1215,7 +1215,7 @@ GameState::KillSpawnArea (StepResult& step)
 }
 
 void
-GameState::ApplyPoison (RandomGenerator& rng)
+GameState::ApplyDisaster (RandomGenerator& rng)
 {
   /* Set random life expectations for every player on the map.  */
   BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState)& p, players)
@@ -1228,6 +1228,10 @@ GameState::ApplyPoison (RandomGenerator& rng)
 
       p.second.remainingLife = rng.GetIntRnd (POISON_MIN_LIFE, POISON_MAX_LIFE);
     }
+
+  /* Remove all hearts from the map.  */
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    hearts.clear ();
 
   /* Reset disaster counter.  */
   nDisasterHeight = nHeight;
@@ -1454,8 +1458,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     const bool isDisaster = outState.CheckForDisaster (rnd);
     if (isDisaster)
       {
-        printf ("POISON DISASTER @%d!\n", outState.nHeight);
-        outState.ApplyPoison (rnd);
+        printf ("DISASTER @%d!\n", outState.nHeight);
+        outState.ApplyDisaster (rnd);
         assert (outState.nHeight == outState.nDisasterHeight);
       }
 

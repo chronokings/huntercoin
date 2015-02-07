@@ -399,7 +399,7 @@ struct GameState
     void KillSpawnArea (StepResult& step);
 
     /* Apply poison disaster to the state.  */
-    void ApplyPoison (RandomGenerator& rng);
+    void ApplyDisaster (RandomGenerator& rng);
     /* Decrement poison life expectation and kill players whose has
        dropped to zero.  */
     void DecrementLife (StepResult& step);
