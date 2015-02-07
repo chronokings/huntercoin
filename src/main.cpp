@@ -94,6 +94,10 @@ ForkInEffect (Fork type, unsigned nHeight)
     case FORK_CARRYINGCAP:
       return nHeight >= (fTestNet ? 200000 : 500000);
 
+    case FORK_LESSHEARTS:
+      /* FIXME: Set actual heights.  */
+      return false;
+
     default:
       assert (false);
     }

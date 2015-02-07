@@ -14,11 +14,8 @@ namespace Game
 static const int NUM_TEAM_COLORS = 4;
 static const int MAX_WAYPOINTS = 100;                      // Maximum number of waypoints per character
 static const unsigned char MAX_STAY_IN_SPAWN_AREA = 30;
-static const int DESTRUCT_RADIUS = 1;
-static const int DESTRUCT_RADIUS_MAIN = 2;                 // Destruction radius for main character
 static const int MAX_CHARACTERS_PER_PLAYER = 20;           // Maximum number of characters per player at the same time
 static const int MAX_CHARACTERS_PER_PLAYER_TOTAL = 1000;   // Maximum number of characters per player in the lifetime
-static const int HEART_EVERY_NTH_BLOCK = 10;               // Spawn rate of hearts
 
 // Unique player name
 typedef std::string PlayerID;

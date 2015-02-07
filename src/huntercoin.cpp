@@ -233,7 +233,11 @@ GetNameCoinAmount (unsigned nHeight, bool frontEnd)
   if (frontEnd)
     nHeight += 10;
 
-  return ForkInEffect (FORK_POISON, nHeight) ? 10 * COIN : COIN;
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 200 * COIN;
+  if (ForkInEffect (FORK_POISON, nHeight))
+    return 10 * COIN;
+  return COIN;
 }
 
 bool

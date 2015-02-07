@@ -48,7 +48,29 @@ int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
   if (!ForkInEffect (FORK_CARRYINGCAP, nHeight) || isCrownHolder)
     return -1;
 
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 2000 * COIN;
+
   return (isGeneral ? 50 : 25) * COIN;
+}
+
+/* Get the destruct radius a hunter has at a certain block height.  This
+   may depend on whether or not it is a general.  */
+inline static
+int GetDestructRadius (int nHeight, bool isGeneral)
+{
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 1;
+
+  return isGeneral ? 2 : 1;
+}
+
+/* Check whether or not a heart should be dropped at the current height.  */
+inline static
+bool DropHeart (int nHeight)
+{
+  const int heartEvery = (ForkInEffect (FORK_LESSHEARTS, nHeight) ? 500 : 10);
+  return nHeight % heartEvery == 0;
 }
 
 } // namespace Game
@@ -1300,7 +1322,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                 continue;
             if (!charactersOnTile)
                 charactersOnTile = MapCharactersToTiles(inState.players);
-            int radius = i == 0 ? DESTRUCT_RADIUS_MAIN : DESTRUCT_RADIUS;
+            const int radius = GetDestructRadius (outState.nHeight, i == 0);
             Coord c = pl.characters.find(i)->second.coord;
             for (int y = c.y - radius; y <= c.y + radius; y++)
                 for (int x = c.x - radius; x <= c.x + radius; x++)
@@ -1480,7 +1502,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     outState.CrownBonus(nCrownBonus);
 
     // Drop heart onto the map (1 heart per 5 blocks)
-    if (outState.nHeight % HEART_EVERY_NTH_BLOCK == 0)
+    if (DropHeart (outState.nHeight))
     {
         Coord heart;
         do
