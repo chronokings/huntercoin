@@ -165,13 +165,17 @@ struct LootInfo
 
 struct CollectedLootInfo : public LootInfo
 {
-    // Time span over which the loot was collected
+    /* Time span over which the loot was collected.  If this is a
+       player refund bounty, collectedFirstBlock = -1 and collectedLastBlock
+       is set to the refunding block height.  */
     int collectedFirstBlock, collectedLastBlock;
     
     CollectedLootInfo() : LootInfo(), collectedFirstBlock(-1), collectedLastBlock(-1) { }
 
     void Collect(const LootInfo &loot, int nHeight)
     {
+        assert (!IsRefund ());
+
         if (loot.nAmount <= 0)
             return;
 
@@ -187,11 +191,40 @@ struct CollectedLootInfo : public LootInfo
         collectedLastBlock = nHeight;
     }
 
+    /* Set the loot info to a state that means "this is a player refunding tx".
+       They are used to give back coins if a player is killed for staying in
+       the spawn area, and encoded differently in the game transactions.
+       The block height is present to make the resulting tx unique.  */
+    inline void
+    SetRefund (int64 refundAmount, int nHeight)
+    {
+      assert (nAmount == 0);
+      assert (collectedFirstBlock == -1 && collectedLastBlock == -1);
+      nAmount = refundAmount;
+      collectedLastBlock = nHeight;
+    }
+
+    /* Check if this is a player refund tx.  */
+    inline bool
+    IsRefund () const
+    {
+      return (nAmount > 0 && collectedFirstBlock == -1);
+    }
+
+    /* When this is a refund, return the refund block height.  */
+    inline int
+    GetRefundHeight () const
+    {
+      assert (IsRefund ());
+      return collectedLastBlock;
+    }
+
     IMPLEMENT_SERIALIZE
     (
         READWRITE(*(LootInfo*)this);
         READWRITE(collectedFirstBlock);
         READWRITE(collectedLastBlock);
+        assert (!IsRefund ());
     )
 };
 

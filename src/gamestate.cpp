@@ -1181,33 +1181,51 @@ GameState::KillSpawnArea (StepResult& step)
           const int i = pc.first;
           CharacterState &ch = pc.second;
 
-          if (IsInSpawnArea(ch.coord))
+          if (!IsInSpawnArea (ch.coord))
             {
-              /* Note that the condition is constructed carefully to increment
-                 the spawn-stay in any case.  We want to kill only
-                 when the fork is not yet in effect, though.  */
-              if (ch.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA
-                  && !ForkInEffect (FORK_CARRYINGCAP, nHeight))
-                {
-                  int64 nAmount = ch.loot.nAmount;
-                  if (i == 0)
-                    {
-                      assert (p.second.coinAmount >= 0);
-                      nAmount += p.second.coinAmount;
-
-                      const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
-                      step.KillPlayer (p.first, killer);
-                    }
-                  if (nAmount > 0)
-                    AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-
-                  /* Cannot erase right now, because it will invalidate the
-                     iterator 'pc'.  */
-                  toErase.insert(i);
-                }
+              ch.stay_in_spawn_area = 0;
+              continue;
             }
-          else
-            ch.stay_in_spawn_area = 0;
+
+          /* Make sure to increment the counter in every case.  */
+          assert (IsInSpawnArea (ch.coord));
+          if (ch.stay_in_spawn_area++ < MAX_STAY_IN_SPAWN_AREA)
+            continue;
+
+          /* Between the two forks, spawn death was simply disabled.  */
+          if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
+                && !ForkInEffect (FORK_LESSHEARTS, nHeight))
+            continue;
+
+          /* Go kill the character.  */
+          int64 nAmount = ch.loot.nAmount;
+          if (i == 0)
+            {
+              assert (p.second.coinAmount >= 0);
+              nAmount += p.second.coinAmount;
+
+              const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
+              step.KillPlayer (p.first, killer);
+            }
+
+          /* Either drop the coins on the ground, or construct a refund
+             bounty if applicable.  */
+          if (nAmount > 0)
+            {
+              if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+                {
+                  CollectedLootInfo loot;
+                  loot.SetRefund (nAmount, nHeight);
+                  CollectedBounty b(p.first, i, loot, p.second.address);
+                  step.bounties.push_back (b);
+                }
+              else
+                AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
+            }
+
+          /* Cannot erase right now, because it will invalidate the
+             iterator 'pc'.  */
+          toErase.insert(i);
         }
       BOOST_FOREACH(int i, toErase)
         p.second.characters.erase(i);
