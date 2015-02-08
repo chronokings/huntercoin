@@ -713,7 +713,7 @@ Value name_list(const Array& params, bool fHelp)
 
 Value name_debug(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 0)
+    if (fHelp || params.size () != 0)
         throw runtime_error(
             "name_debug\n"
             "Dump pending transactions id in the debug file.\n");
@@ -2431,7 +2431,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
        a non-game transaction.  */
     assert (vTxoPrev.size () == tx.vin.size ());
 
-    int nInput;
     bool found = false;
 
     int prevHeight, prevOp;
@@ -2449,7 +2448,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (found)
                 return error("ConnectInputHook() : multiple previous name transactions");
             found = true;
-            nInput = i;
             vvchPrevArgs = vvchPrevArgsRead;
             prevCoinAmount = out.nValue;
             prevHeight = vTxoPrev[i].height;
