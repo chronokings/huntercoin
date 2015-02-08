@@ -1943,7 +1943,7 @@ analyseutxo (const Array& params, bool fHelp)
      money supply and can check it.  */
   const Game::GameState& state = GetCurrentGameState ();
   const int64 onMap = state.GetCoinsOnMap ();
-  const int64 lostCoins = state.lostCoins;
+  const int64 gameFund = state.gameFund;
   const int64 rewards = pindexBest->GetTotalRewards ();
 
   /* Construct the result.  */
@@ -1953,21 +1953,22 @@ analyseutxo (const Array& params, bool fHelp)
   res.push_back (Pair ("num_utxo", static_cast<int> (txoCnt)));
 
   Object subobj;
+  const int64_t supply = amount + onMap + gameFund;
   subobj.push_back (Pair ("utxo", ValueFromAmount (amount)));
   subobj.push_back (Pair ("map", ValueFromAmount (onMap)));
-  subobj.push_back (Pair ("total", ValueFromAmount (amount + onMap)));
+  subobj.push_back (Pair ("gameFund", ValueFromAmount (gameFund)));
+  subobj.push_back (Pair ("total", ValueFromAmount (supply)));
   res.push_back (Pair ("moneysupply", subobj));
 
   subobj.clear ();
-  const int64_t expected = rewards - lostCoins - dupCoinbase - unspendable;
+  const int64_t expected = rewards - dupCoinbase - unspendable;
   subobj.push_back (Pair ("rewards", ValueFromAmount (rewards)));
-  subobj.push_back (Pair ("lost", ValueFromAmount (lostCoins)));
   subobj.push_back (Pair ("dup_coinbase", ValueFromAmount (dupCoinbase)));
   subobj.push_back (Pair ("unspendable", ValueFromAmount (unspendable)));
   subobj.push_back (Pair ("total", ValueFromAmount (expected)));
   res.push_back (Pair ("expected", subobj));
 
-  res.push_back (Pair ("check", amount + onMap == expected));
+  res.push_back (Pair ("check", supply == expected));
 
   return res;
 }

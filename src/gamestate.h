@@ -354,8 +354,8 @@ struct GameState
     Coord crownPos;
     CharacterID crownHolder;
 
-    /* Amount of coins lost due to the crown being on the ground.  */
-    int64 lostCoins;
+    /* Amount of coins in the "game fund" pool.  */
+    int64 gameFund;
 
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
@@ -392,7 +392,7 @@ struct GameState
       READWRITE(crownHolder.player);
       if (!crownHolder.player.empty())
         READWRITE(crownHolder.index);
-      READWRITE(lostCoins);
+      READWRITE(gameFund);
 
       READWRITE(nHeight);
       READWRITE(nDisasterHeight);

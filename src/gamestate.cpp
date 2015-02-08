@@ -688,7 +688,7 @@ GameState::GameState()
 {
     crownPos.x = CROWN_START_X;
     crownPos.y = CROWN_START_Y;
-    lostCoins = 0;
+    gameFund = 0;
     nHeight = -1;
     nDisasterHeight = -1;
     hashBlock = 0;
@@ -757,7 +757,7 @@ json_spirit::Value GameState::ToJsonValue() const
     }
     obj.push_back(Pair("crown", subobj));
 
-    obj.push_back (Pair("lostCoins", ValueFromAmount (lostCoins)));
+    obj.push_back (Pair("gameFund", ValueFromAmount (gameFund)));
     obj.push_back (Pair("height", nHeight));
     obj.push_back (Pair("disasterHeight", nDisasterHeight));
     obj.push_back (Pair("hashBlock", hashBlock.ToString().c_str()));
@@ -965,13 +965,13 @@ GameState::CrownBonus (int64 nAmount)
                                              true);
       const int64 rem = ch.CollectLoot (loot, nHeight, cap);
 
-      /* We keep to the logic of "crown on the floor -> coins lost" and
+      /* We keep to the logic of "crown on the floor -> game fund" and
          don't distribute coins that can not be hold by the crown holder
          due to carrying capacity to the map.  */
-      lostCoins += rem;
+      gameFund += rem;
     }
   else
-    lostCoins += nAmount;
+    gameFund += nAmount;
 }
 
 unsigned
