@@ -1753,15 +1753,14 @@ bool CBlock::CheckProofOfWork(int nHeight) const
 
         if (auxpow.get() != NULL)
         {
-            /* Disallow auxpow parent blocks that have an auxpow themselves.  */
-            /* TODO: Can possibly be removed and the check made unconditional
-               after the fork is carried out.  */
-            if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
-                && (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW))
+            /* Disallow auxpow parent blocks that have an auxpow themselves.
+               While this was introduced with a fork, no such tx are present
+               in the chain before the fork point.  Thus it can be enforced
+               throughout the chain without checking for FORK_CARRYINGCAP.  */
+            if (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW)
               return error ("%s : auxpow parent block has auxpow version",
                             __func__);
-            assert (!ForkInEffect (FORK_CARRYINGCAP, nHeight)
-                    || !auxpow->parentBlock.auxpow);
+            assert (!auxpow->parentBlock.auxpow);
 
             if (auxpow->algo != algo)
                 return error("CheckProofOfWork() : AUX POW uses different algorithm");

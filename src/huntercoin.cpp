@@ -2457,9 +2457,8 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
     {
-        /* See if there are any name outputs.  If they are, disallow
-           for mempool or after the corresponding soft fork point.  Note
-           that we can't just use 'DecodeNameTx', since that would also
+        /* See if there are any name outputs.  If they are, disallow that.
+           Note that we can't just use 'DecodeNameTx', since that would also
            report "false" if we have *multiple* name outputs.  This should
            also be detected, though.  */
         bool foundOuts = false;
@@ -2474,12 +2473,11 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                 foundOuts = true;
         }
 
-        /* TODO: After the softfork, check if we can enforce this
-           check without height condition at all.  Possibly no conflicting
-           tx are in the chain?  */
+        /* While this was introduced with FORK_CARRYINGCAP, no offending
+           tx is in the chain before.  Thus we can enforce the check
+           unconditionally for simplicity.  */
         if (foundOuts)
-          if (!fBlock || ForkInEffect (FORK_CARRYINGCAP, pindexBlock->nHeight))
-            return error("ConnectInputHook: non-Namecoin tx has name outputs");
+          return error ("ConnectInputHook: non-Namecoin tx has name outputs");
 
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
