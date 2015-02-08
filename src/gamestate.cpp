@@ -1101,6 +1101,63 @@ PushCoordOutOfSpawnArea(const Coord &c)
 }
 
 void
+GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
+                             bool hasTax, bool canRefund, StepResult& step)
+{
+  const PlayerStateMap::const_iterator mip = players.find (pId);
+  assert (mip != players.end ());
+  const PlayerState& pc = mip->second;
+  const std::map<int, CharacterState>::const_iterator mic
+    = pc.characters.find (chInd);
+  assert (mic != pc.characters.end ());
+  const CharacterState& ch = mic->second;
+
+  /* Calculate loot.  If we kill a general, take the locked coin amount
+     into account, as well.  */
+  int64_t nAmount = ch.loot.nAmount;
+  if (chInd == 0)
+    {
+      assert (pc.coinAmount >= 0);
+      nAmount += pc.coinAmount;
+    }
+
+  /* Apply the miner tax: 4%.  */
+  if (hasTax)
+    {
+      const int64 nTax = nAmount / 25;
+      step.nTaxAmount += nTax;
+      nAmount -= nTax;
+    }
+
+  /* Return early if nothing is to drop.  */
+  if (nAmount == 0)
+    return;
+  assert (nAmount > 0);
+
+
+  /* If the player is poisoned, loot is not dropped (or refunded) but instead
+     added to the game fund.  */
+  if (pc.remainingLife >= 0 && ForkInEffect (FORK_LESSHEARTS, nHeight))
+    {
+      gameFund += nAmount;
+      return;
+    }
+
+  /* If refunding is possible, do that.  */
+  if (canRefund && ForkInEffect (FORK_LESSHEARTS, nHeight))
+    {
+      CollectedLootInfo loot;
+      loot.SetRefund (nAmount, nHeight);
+      CollectedBounty b(pId, chInd, loot, pc.address);
+      step.bounties.push_back (b);
+      return;
+    }
+
+  /* Just drop the loot.  Push the coordinate out of spawn if applicable.  */
+  AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
+}
+
+void
 GameState::FinaliseKills (StepResult& step)
 {
   const PlayerSet& killedPlayers = step.GetKilledPlayers ();
@@ -1119,26 +1176,7 @@ GameState::FinaliseKills (StepResult& step)
       /* Kill all alive characters of the player.  */
       BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
                     victimState.characters)
-        {
-          const int i = pc.first;
-          const CharacterState& ch = pc.second;
-
-          int64 nAmount = ch.loot.nAmount;
-          if (i == 0)
-            nAmount += victimState.coinAmount;
-          if (nAmount > 0)
-            {
-              if (apply_tax)
-                {
-                  // Tax from killing: 4%
-                  const int64 nTax = nAmount / 25;
-                  step.nTaxAmount += nTax;
-                  nAmount -= nTax;
-                }
-
-              AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
-            }
-        }
+        HandleKilledLoot (victim, pc.first, apply_tax, false, step);
     }
 
   /* Erase killed players from the state.  */
@@ -1197,30 +1235,12 @@ GameState::KillSpawnArea (StepResult& step)
                 && !ForkInEffect (FORK_LESSHEARTS, nHeight))
             continue;
 
-          /* Go kill the character.  */
-          int64 nAmount = ch.loot.nAmount;
+          /* Handle the character's loot and kill the player.  */
+          HandleKilledLoot (p.first, i, false, true, step);
           if (i == 0)
             {
-              assert (p.second.coinAmount >= 0);
-              nAmount += p.second.coinAmount;
-
               const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
               step.KillPlayer (p.first, killer);
-            }
-
-          /* Either drop the coins on the ground, or construct a refund
-             bounty if applicable.  */
-          if (nAmount > 0)
-            {
-              if (ForkInEffect (FORK_LESSHEARTS, nHeight))
-                {
-                  CollectedLootInfo loot;
-                  loot.SetRefund (nAmount, nHeight);
-                  CollectedBounty b(p.first, i, loot, p.second.address);
-                  step.bounties.push_back (b);
-                }
-              else
-                AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
             }
 
           /* Cannot erase right now, because it will invalidate the
@@ -1365,44 +1385,17 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                         }
                         if (victim.characters.count(a.index))
                         {
-                            const CharacterState& ch = victim.characters[a.index];
-                            // Drop loot
-                            int64 nAmount = ch.loot.nAmount;
-                            if (a.index == 0)
-                              {
-                                assert (victim.coinAmount >= 0);
-                                nAmount += victim.coinAmount;
-                              }
-                            if (nAmount > 0)
-                              {
-                                // Tax from killing: 4%
-                                int64 nTax = nAmount / 25;
-                                stepResult.nTaxAmount += nTax;
-                                nAmount -= nTax;
-                                outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-                              }
+                            outState.HandleKilledLoot (*a.name, a.index,
+                                                       true, false,
+                                                       stepResult);
                             victim.characters.erase(a.index);
                         }
                     }
                 }
             if (outState.players[m.player].characters.count(i))
             {
-                CharacterState &ch = outState.players[m.player].characters[i];
-                // Drop loot
-                int64 nAmount = pl.characters.find(i)->second.loot.nAmount;
-                if (i == 0)
-                  {
-                    assert (pl.coinAmount >= 0);
-                    nAmount += pl.coinAmount;
-                  }
-                if (nAmount > 0)
-                  {
-                    // Tax from killing: 4%
-                    int64 nTax = nAmount / 25;
-                    stepResult.nTaxAmount += nTax;
-                    nAmount -= nTax;
-                    outState.AddLoot(PushCoordOutOfSpawnArea(pl.characters.find(i)->second.coord), nAmount);
-                  }
+                outState.HandleKilledLoot (m.player, i, true, false,
+                                           stepResult);
                 outState.players[m.player].characters.erase(i);
             }
             if (i == 0)

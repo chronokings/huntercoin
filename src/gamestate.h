@@ -419,6 +419,12 @@ struct GameState
      */
     unsigned GetNumInitialCharacters () const;
 
+    /* Handle loot of a killed character.  Depending on the circumstances,
+       it may be dropped (with or without miner tax), refunded in a bounty
+       transaction or added to the game fund.  */
+    void HandleKilledLoot (const PlayerID& pId, int chInd,
+                           bool hasTax, bool canRefund, StepResult& step);
+
     /* For a given list of killed players, kill all their characters
        and collect the tax amount.  The killed players are removed from
        the state's list of players.  */
