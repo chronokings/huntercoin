@@ -257,12 +257,6 @@ CTxOut::IsStandard () const
   std::string tag;
   if (scriptPubKey.GetTag (tag))
     {
-      /* TODO: Remove after hardfork.  This is just here to prevent
-         such tx from being created before all nodes have logic to remove
-         them from the UTXO set.  */
-      if (!ForkInEffect (FORK_CARRYINGCAP, nBestHeight))
-        return error ("%s: tagging not yet available", __func__);
-
       if (tag.size () > OPRETURN_MAX_STRLEN)
         return error ("%s: too long tag string", __func__);
       if (nValue < OPRETURN_MIN_LOCKED)
