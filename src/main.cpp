@@ -95,8 +95,7 @@ ForkInEffect (Fork type, unsigned nHeight)
       return nHeight >= (fTestNet ? 200000 : 500000);
 
     case FORK_LESSHEARTS:
-      /* FIXME: Set actual heights.  */
-      return false;
+      return nHeight >= (fTestNet ? 240000 : 590000);
 
     default:
       assert (false);
