@@ -94,6 +94,9 @@ ForkInEffect (Fork type, unsigned nHeight)
     case FORK_CARRYINGCAP:
       return nHeight >= (fTestNet ? 200000 : 500000);
 
+    case FORK_LESSHEARTS:
+      return nHeight >= (fTestNet ? 240000 : 590000);
+
     default:
       assert (false);
     }
@@ -253,12 +256,6 @@ CTxOut::IsStandard () const
   std::string tag;
   if (scriptPubKey.GetTag (tag))
     {
-      /* TODO: Remove after hardfork.  This is just here to prevent
-         such tx from being created before all nodes have logic to remove
-         them from the UTXO set.  */
-      if (!ForkInEffect (FORK_CARRYINGCAP, nBestHeight))
-        return error ("%s: tagging not yet available", __func__);
-
       if (tag.size () > OPRETURN_MAX_STRLEN)
         return error ("%s: too long tag string", __func__);
       if (nValue < OPRETURN_MIN_LOCKED)
@@ -1755,15 +1752,14 @@ bool CBlock::CheckProofOfWork(int nHeight) const
 
         if (auxpow.get() != NULL)
         {
-            /* Disallow auxpow parent blocks that have an auxpow themselves.  */
-            /* TODO: Can possibly be removed and the check made unconditional
-               after the fork is carried out.  */
-            if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
-                && (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW))
+            /* Disallow auxpow parent blocks that have an auxpow themselves.
+               While this was introduced with a fork, no such tx are present
+               in the chain before the fork point.  Thus it can be enforced
+               throughout the chain without checking for FORK_CARRYINGCAP.  */
+            if (auxpow->parentBlock.nVersion & BLOCK_VERSION_AUXPOW)
               return error ("%s : auxpow parent block has auxpow version",
                             __func__);
-            assert (!ForkInEffect (FORK_CARRYINGCAP, nHeight)
-                    || !auxpow->parentBlock.auxpow);
+            assert (!auxpow->parentBlock.auxpow);
 
             if (auxpow->algo != algo)
                 return error("CheckProofOfWork() : AUX POW uses different algorithm");

@@ -14,11 +14,8 @@ namespace Game
 static const int NUM_TEAM_COLORS = 4;
 static const int MAX_WAYPOINTS = 100;                      // Maximum number of waypoints per character
 static const unsigned char MAX_STAY_IN_SPAWN_AREA = 30;
-static const int DESTRUCT_RADIUS = 1;
-static const int DESTRUCT_RADIUS_MAIN = 2;                 // Destruction radius for main character
 static const int MAX_CHARACTERS_PER_PLAYER = 20;           // Maximum number of characters per player at the same time
 static const int MAX_CHARACTERS_PER_PLAYER_TOTAL = 1000;   // Maximum number of characters per player in the lifetime
-static const int HEART_EVERY_NTH_BLOCK = 10;               // Spawn rate of hearts
 
 // Unique player name
 typedef std::string PlayerID;
@@ -168,13 +165,17 @@ struct LootInfo
 
 struct CollectedLootInfo : public LootInfo
 {
-    // Time span over which the loot was collected
+    /* Time span over which the loot was collected.  If this is a
+       player refund bounty, collectedFirstBlock = -1 and collectedLastBlock
+       is set to the refunding block height.  */
     int collectedFirstBlock, collectedLastBlock;
     
     CollectedLootInfo() : LootInfo(), collectedFirstBlock(-1), collectedLastBlock(-1) { }
 
     void Collect(const LootInfo &loot, int nHeight)
     {
+        assert (!IsRefund ());
+
         if (loot.nAmount <= 0)
             return;
 
@@ -190,11 +191,40 @@ struct CollectedLootInfo : public LootInfo
         collectedLastBlock = nHeight;
     }
 
+    /* Set the loot info to a state that means "this is a player refunding tx".
+       They are used to give back coins if a player is killed for staying in
+       the spawn area, and encoded differently in the game transactions.
+       The block height is present to make the resulting tx unique.  */
+    inline void
+    SetRefund (int64 refundAmount, int nHeight)
+    {
+      assert (nAmount == 0);
+      assert (collectedFirstBlock == -1 && collectedLastBlock == -1);
+      nAmount = refundAmount;
+      collectedLastBlock = nHeight;
+    }
+
+    /* Check if this is a player refund tx.  */
+    inline bool
+    IsRefund () const
+    {
+      return (nAmount > 0 && collectedFirstBlock == -1);
+    }
+
+    /* When this is a refund, return the refund block height.  */
+    inline int
+    GetRefundHeight () const
+    {
+      assert (IsRefund ());
+      return collectedLastBlock;
+    }
+
     IMPLEMENT_SERIALIZE
     (
         READWRITE(*(LootInfo*)this);
         READWRITE(collectedFirstBlock);
         READWRITE(collectedLastBlock);
+        assert (!IsRefund ());
     )
 };
 
@@ -324,8 +354,8 @@ struct GameState
     Coord crownPos;
     CharacterID crownHolder;
 
-    /* Amount of coins lost due to the crown being on the ground.  */
-    int64 lostCoins;
+    /* Amount of coins in the "game fund" pool.  */
+    int64 gameFund;
 
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
@@ -362,7 +392,7 @@ struct GameState
       READWRITE(crownHolder.player);
       if (!crownHolder.player.empty())
         READWRITE(crownHolder.index);
-      READWRITE(lostCoins);
+      READWRITE(gameFund);
 
       READWRITE(nHeight);
       READWRITE(nDisasterHeight);
@@ -389,6 +419,12 @@ struct GameState
      */
     unsigned GetNumInitialCharacters () const;
 
+    /* Handle loot of a killed character.  Depending on the circumstances,
+       it may be dropped (with or without miner tax), refunded in a bounty
+       transaction or added to the game fund.  */
+    void HandleKilledLoot (const PlayerID& pId, int chInd,
+                           bool hasTax, bool canRefund, StepResult& step);
+
     /* For a given list of killed players, kill all their characters
        and collect the tax amount.  The killed players are removed from
        the state's list of players.  */
@@ -402,7 +438,7 @@ struct GameState
     void KillSpawnArea (StepResult& step);
 
     /* Apply poison disaster to the state.  */
-    void ApplyPoison (RandomGenerator& rng);
+    void ApplyDisaster (RandomGenerator& rng);
     /* Decrement poison life expectation and kill players whose has
        dropped to zero.  */
     void DecrementLife (StepResult& step);

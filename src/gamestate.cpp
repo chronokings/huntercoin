@@ -48,7 +48,29 @@ int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
   if (!ForkInEffect (FORK_CARRYINGCAP, nHeight) || isCrownHolder)
     return -1;
 
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 2000 * COIN;
+
   return (isGeneral ? 50 : 25) * COIN;
+}
+
+/* Get the destruct radius a hunter has at a certain block height.  This
+   may depend on whether or not it is a general.  */
+inline static
+int GetDestructRadius (int nHeight, bool isGeneral)
+{
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 1;
+
+  return isGeneral ? 2 : 1;
+}
+
+/* Check whether or not a heart should be dropped at the current height.  */
+inline static
+bool DropHeart (int nHeight)
+{
+  const int heartEvery = (ForkInEffect (FORK_LESSHEARTS, nHeight) ? 500 : 10);
+  return nHeight % heartEvery == 0;
 }
 
 } // namespace Game
@@ -666,7 +688,7 @@ GameState::GameState()
 {
     crownPos.x = CROWN_START_X;
     crownPos.y = CROWN_START_Y;
-    lostCoins = 0;
+    gameFund = 0;
     nHeight = -1;
     nDisasterHeight = -1;
     hashBlock = 0;
@@ -735,7 +757,7 @@ json_spirit::Value GameState::ToJsonValue() const
     }
     obj.push_back(Pair("crown", subobj));
 
-    obj.push_back (Pair("lostCoins", ValueFromAmount (lostCoins)));
+    obj.push_back (Pair("gameFund", ValueFromAmount (gameFund)));
     obj.push_back (Pair("height", nHeight));
     obj.push_back (Pair("disasterHeight", nDisasterHeight));
     obj.push_back (Pair("hashBlock", hashBlock.ToString().c_str()));
@@ -943,13 +965,13 @@ GameState::CrownBonus (int64 nAmount)
                                              true);
       const int64 rem = ch.CollectLoot (loot, nHeight, cap);
 
-      /* We keep to the logic of "crown on the floor -> coins lost" and
+      /* We keep to the logic of "crown on the floor -> game fund" and
          don't distribute coins that can not be hold by the crown holder
          due to carrying capacity to the map.  */
-      lostCoins += rem;
+      gameFund += rem;
     }
   else
-    lostCoins += nAmount;
+    gameFund += nAmount;
 }
 
 unsigned
@@ -1079,6 +1101,63 @@ PushCoordOutOfSpawnArea(const Coord &c)
 }
 
 void
+GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
+                             bool hasTax, bool canRefund, StepResult& step)
+{
+  const PlayerStateMap::const_iterator mip = players.find (pId);
+  assert (mip != players.end ());
+  const PlayerState& pc = mip->second;
+  const std::map<int, CharacterState>::const_iterator mic
+    = pc.characters.find (chInd);
+  assert (mic != pc.characters.end ());
+  const CharacterState& ch = mic->second;
+
+  /* Calculate loot.  If we kill a general, take the locked coin amount
+     into account, as well.  */
+  int64_t nAmount = ch.loot.nAmount;
+  if (chInd == 0)
+    {
+      assert (pc.coinAmount >= 0);
+      nAmount += pc.coinAmount;
+    }
+
+  /* Apply the miner tax: 4%.  */
+  if (hasTax)
+    {
+      const int64 nTax = nAmount / 25;
+      step.nTaxAmount += nTax;
+      nAmount -= nTax;
+    }
+
+  /* Return early if nothing is to drop.  */
+  if (nAmount == 0)
+    return;
+  assert (nAmount > 0);
+
+
+  /* If the player is poisoned, loot is not dropped (or refunded) but instead
+     added to the game fund.  */
+  if (pc.remainingLife >= 0 && ForkInEffect (FORK_LESSHEARTS, nHeight))
+    {
+      gameFund += nAmount;
+      return;
+    }
+
+  /* If refunding is possible, do that.  */
+  if (canRefund && ForkInEffect (FORK_LESSHEARTS, nHeight))
+    {
+      CollectedLootInfo loot;
+      loot.SetRefund (nAmount, nHeight);
+      CollectedBounty b(pId, chInd, loot, pc.address);
+      step.bounties.push_back (b);
+      return;
+    }
+
+  /* Just drop the loot.  Push the coordinate out of spawn if applicable.  */
+  AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
+}
+
+void
 GameState::FinaliseKills (StepResult& step)
 {
   const PlayerSet& killedPlayers = step.GetKilledPlayers ();
@@ -1097,26 +1176,7 @@ GameState::FinaliseKills (StepResult& step)
       /* Kill all alive characters of the player.  */
       BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
                     victimState.characters)
-        {
-          const int i = pc.first;
-          const CharacterState& ch = pc.second;
-
-          int64 nAmount = ch.loot.nAmount;
-          if (i == 0)
-            nAmount += victimState.coinAmount;
-          if (nAmount > 0)
-            {
-              if (apply_tax)
-                {
-                  // Tax from killing: 4%
-                  const int64 nTax = nAmount / 25;
-                  step.nTaxAmount += nTax;
-                  nAmount -= nTax;
-                }
-
-              AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
-            }
-        }
+        HandleKilledLoot (victim, pc.first, apply_tax, false, step);
     }
 
   /* Erase killed players from the state.  */
@@ -1159,33 +1219,33 @@ GameState::KillSpawnArea (StepResult& step)
           const int i = pc.first;
           CharacterState &ch = pc.second;
 
-          if (IsInSpawnArea(ch.coord))
+          if (!IsInSpawnArea (ch.coord))
             {
-              /* Note that the condition is constructed carefully to increment
-                 the spawn-stay in any case.  We want to kill only
-                 when the fork is not yet in effect, though.  */
-              if (ch.stay_in_spawn_area++ >= MAX_STAY_IN_SPAWN_AREA
-                  && !ForkInEffect (FORK_CARRYINGCAP, nHeight))
-                {
-                  int64 nAmount = ch.loot.nAmount;
-                  if (i == 0)
-                    {
-                      assert (p.second.coinAmount >= 0);
-                      nAmount += p.second.coinAmount;
-
-                      const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
-                      step.KillPlayer (p.first, killer);
-                    }
-                  if (nAmount > 0)
-                    AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-
-                  /* Cannot erase right now, because it will invalidate the
-                     iterator 'pc'.  */
-                  toErase.insert(i);
-                }
+              ch.stay_in_spawn_area = 0;
+              continue;
             }
-          else
-            ch.stay_in_spawn_area = 0;
+
+          /* Make sure to increment the counter in every case.  */
+          assert (IsInSpawnArea (ch.coord));
+          if (ch.stay_in_spawn_area++ < MAX_STAY_IN_SPAWN_AREA)
+            continue;
+
+          /* Between the two forks, spawn death was simply disabled.  */
+          if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
+                && !ForkInEffect (FORK_LESSHEARTS, nHeight))
+            continue;
+
+          /* Handle the character's loot and kill the player.  */
+          HandleKilledLoot (p.first, i, false, true, step);
+          if (i == 0)
+            {
+              const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
+              step.KillPlayer (p.first, killer);
+            }
+
+          /* Cannot erase right now, because it will invalidate the
+             iterator 'pc'.  */
+          toErase.insert(i);
         }
       BOOST_FOREACH(int i, toErase)
         p.second.characters.erase(i);
@@ -1193,7 +1253,7 @@ GameState::KillSpawnArea (StepResult& step)
 }
 
 void
-GameState::ApplyPoison (RandomGenerator& rng)
+GameState::ApplyDisaster (RandomGenerator& rng)
 {
   /* Set random life expectations for every player on the map.  */
   BOOST_FOREACH(PAIRTYPE(const PlayerID, PlayerState)& p, players)
@@ -1206,6 +1266,10 @@ GameState::ApplyPoison (RandomGenerator& rng)
 
       p.second.remainingLife = rng.GetIntRnd (POISON_MIN_LIFE, POISON_MAX_LIFE);
     }
+
+  /* Remove all hearts from the map.  */
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    hearts.clear ();
 
   /* Reset disaster counter.  */
   nDisasterHeight = nHeight;
@@ -1300,7 +1364,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                 continue;
             if (!charactersOnTile)
                 charactersOnTile = MapCharactersToTiles(inState.players);
-            int radius = i == 0 ? DESTRUCT_RADIUS_MAIN : DESTRUCT_RADIUS;
+            const int radius = GetDestructRadius (outState.nHeight, i == 0);
             Coord c = pl.characters.find(i)->second.coord;
             for (int y = c.y - radius; y <= c.y + radius; y++)
                 for (int x = c.x - radius; x <= c.x + radius; x++)
@@ -1321,44 +1385,17 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
                         }
                         if (victim.characters.count(a.index))
                         {
-                            const CharacterState& ch = victim.characters[a.index];
-                            // Drop loot
-                            int64 nAmount = ch.loot.nAmount;
-                            if (a.index == 0)
-                              {
-                                assert (victim.coinAmount >= 0);
-                                nAmount += victim.coinAmount;
-                              }
-                            if (nAmount > 0)
-                              {
-                                // Tax from killing: 4%
-                                int64 nTax = nAmount / 25;
-                                stepResult.nTaxAmount += nTax;
-                                nAmount -= nTax;
-                                outState.AddLoot(PushCoordOutOfSpawnArea(ch.coord), nAmount);
-                              }
+                            outState.HandleKilledLoot (*a.name, a.index,
+                                                       true, false,
+                                                       stepResult);
                             victim.characters.erase(a.index);
                         }
                     }
                 }
             if (outState.players[m.player].characters.count(i))
             {
-                CharacterState &ch = outState.players[m.player].characters[i];
-                // Drop loot
-                int64 nAmount = pl.characters.find(i)->second.loot.nAmount;
-                if (i == 0)
-                  {
-                    assert (pl.coinAmount >= 0);
-                    nAmount += pl.coinAmount;
-                  }
-                if (nAmount > 0)
-                  {
-                    // Tax from killing: 4%
-                    int64 nTax = nAmount / 25;
-                    stepResult.nTaxAmount += nTax;
-                    nAmount -= nTax;
-                    outState.AddLoot(PushCoordOutOfSpawnArea(pl.characters.find(i)->second.coord), nAmount);
-                  }
+                outState.HandleKilledLoot (m.player, i, true, false,
+                                           stepResult);
                 outState.players[m.player].characters.erase(i);
             }
             if (i == 0)
@@ -1432,8 +1469,8 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     const bool isDisaster = outState.CheckForDisaster (rnd);
     if (isDisaster)
       {
-        printf ("POISON DISASTER @%d!\n", outState.nHeight);
-        outState.ApplyPoison (rnd);
+        printf ("DISASTER @%d!\n", outState.nHeight);
+        outState.ApplyDisaster (rnd);
         assert (outState.nHeight == outState.nDisasterHeight);
       }
 
@@ -1480,7 +1517,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     outState.CrownBonus(nCrownBonus);
 
     // Drop heart onto the map (1 heart per 5 blocks)
-    if (outState.nHeight % HEART_EVERY_NTH_BLOCK == 0)
+    if (DropHeart (outState.nHeight))
     {
         Coord heart;
         do

@@ -102,6 +102,7 @@ extern int fUseUPnP;
    and mainnet, or for a "testing mode".  */
 enum Fork
 {
+
   /* Poison disaster, increased general cost 1 HUC -> 10 HUC, just general
      as initial character.  */
   FORK_POISON,
@@ -110,6 +111,12 @@ enum Fork
      new-style name registration, stricter rule checks for transaction
      version and auxpow (in parallel to Namecoin).  */
   FORK_CARRYINGCAP,
+
+  /* Update parameters (general 10 HUC -> 200 HUC, carrying capacity increased
+     to 2000 HUC, heart spawn rate reduced to 1/500, general explosion
+     radius only 1).  */
+  FORK_LESSHEARTS,
+
 };
 bool ForkInEffect (Fork type, unsigned nHeight);
 

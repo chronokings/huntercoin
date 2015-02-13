@@ -13,6 +13,7 @@ using namespace Game;
 // followed by OP_DROPs.
 enum
 {
+
     // Syntax (scriptSig):
     //     victim GAMEOP_KILLED_BY killer1 killer2 ... killerN
     // Player can be killed simultaneously by multiple other players.
@@ -31,6 +32,14 @@ enum
     //     victim GAMEOP_KILLED_POISON
     // Player was killed due to poisoning
     GAMEOP_KILLED_POISON = 3,
+
+    // Syntax (scriptSig):
+    //     player GAMEOP_REFUND characterIndex height
+    // This is a tx to refund a player's coins after staying long
+    // in the spawn area.  characterIndex is usually 0, but keep it
+    // here for future extensibility.
+    GAMEOP_REFUND = 4,
+
 };
 
 bool
@@ -163,13 +172,18 @@ CreateGameTransactions (CNameDB& nameDb, const GameState& gameState,
       txNew.vout.push_back (txout);
 
       CTxIn txin;
-      txin.scriptSig
-        << vchName << GAMEOP_COLLECTED_BOUNTY
-        << bounty.character.index
-        << bounty.loot.firstBlock
-        << bounty.loot.lastBlock
-        << bounty.loot.collectedFirstBlock
-        << bounty.loot.collectedLastBlock;
+      if (bounty.loot.IsRefund ())
+        txin.scriptSig
+          << vchName << GAMEOP_REFUND
+          << bounty.character.index << bounty.loot.GetRefundHeight ();
+      else
+        txin.scriptSig
+          << vchName << GAMEOP_COLLECTED_BOUNTY
+          << bounty.character.index
+          << bounty.loot.firstBlock
+          << bounty.loot.lastBlock
+          << bounty.loot.collectedFirstBlock
+          << bounty.loot.collectedLastBlock;
       txNew.vin.push_back (txin);
     }
   if (!txNew.IsNull ())
@@ -284,6 +298,14 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
                 strRet += strprintf(".%d", int(opcode - OP_1 + 1));
             strRet += " ";
             strRet += _("collected bounty");
+            break;
+
+        case GAMEOP_REFUND:
+            scriptSig.GetOp(pc, opcode, vch);
+            if (opcode >= OP_1)
+                strRet += strprintf(".%d", int(opcode - OP_1 + 1));
+            strRet += " ";
+            strRet += _("refunded on spawn death");
             break;
 
         default:

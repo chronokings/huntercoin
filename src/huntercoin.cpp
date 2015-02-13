@@ -233,7 +233,11 @@ GetNameCoinAmount (unsigned nHeight, bool frontEnd)
   if (frontEnd)
     nHeight += 10;
 
-  return ForkInEffect (FORK_POISON, nHeight) ? 10 * COIN : COIN;
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 200 * COIN;
+  if (ForkInEffect (FORK_POISON, nHeight))
+    return 10 * COIN;
+  return COIN;
 }
 
 bool
@@ -709,7 +713,7 @@ Value name_list(const Array& params, bool fHelp)
 
 Value name_debug(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 0)
+    if (fHelp || params.size () != 0)
         throw runtime_error(
             "name_debug\n"
             "Dump pending transactions id in the debug file.\n");
@@ -1939,7 +1943,7 @@ analyseutxo (const Array& params, bool fHelp)
      money supply and can check it.  */
   const Game::GameState& state = GetCurrentGameState ();
   const int64 onMap = state.GetCoinsOnMap ();
-  const int64 lostCoins = state.lostCoins;
+  const int64 gameFund = state.gameFund;
   const int64 rewards = pindexBest->GetTotalRewards ();
 
   /* Construct the result.  */
@@ -1949,21 +1953,22 @@ analyseutxo (const Array& params, bool fHelp)
   res.push_back (Pair ("num_utxo", static_cast<int> (txoCnt)));
 
   Object subobj;
+  const int64_t supply = amount + onMap + gameFund;
   subobj.push_back (Pair ("utxo", ValueFromAmount (amount)));
   subobj.push_back (Pair ("map", ValueFromAmount (onMap)));
-  subobj.push_back (Pair ("total", ValueFromAmount (amount + onMap)));
+  subobj.push_back (Pair ("gameFund", ValueFromAmount (gameFund)));
+  subobj.push_back (Pair ("total", ValueFromAmount (supply)));
   res.push_back (Pair ("moneysupply", subobj));
 
   subobj.clear ();
-  const int64_t expected = rewards - lostCoins - dupCoinbase - unspendable;
+  const int64_t expected = rewards - dupCoinbase - unspendable;
   subobj.push_back (Pair ("rewards", ValueFromAmount (rewards)));
-  subobj.push_back (Pair ("lost", ValueFromAmount (lostCoins)));
   subobj.push_back (Pair ("dup_coinbase", ValueFromAmount (dupCoinbase)));
   subobj.push_back (Pair ("unspendable", ValueFromAmount (unspendable)));
   subobj.push_back (Pair ("total", ValueFromAmount (expected)));
   res.push_back (Pair ("expected", subobj));
 
-  res.push_back (Pair ("check", amount + onMap == expected));
+  res.push_back (Pair ("check", supply == expected));
 
   return res;
 }
@@ -2426,7 +2431,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
        a non-game transaction.  */
     assert (vTxoPrev.size () == tx.vin.size ());
 
-    int nInput;
     bool found = false;
 
     int prevHeight, prevOp;
@@ -2444,7 +2448,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             if (found)
                 return error("ConnectInputHook() : multiple previous name transactions");
             found = true;
-            nInput = i;
             vvchPrevArgs = vvchPrevArgsRead;
             prevCoinAmount = out.nValue;
             prevHeight = vTxoPrev[i].height;
@@ -2454,9 +2457,8 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
     {
-        /* See if there are any name outputs.  If they are, disallow
-           for mempool or after the corresponding soft fork point.  Note
-           that we can't just use 'DecodeNameTx', since that would also
+        /* See if there are any name outputs.  If they are, disallow that.
+           Note that we can't just use 'DecodeNameTx', since that would also
            report "false" if we have *multiple* name outputs.  This should
            also be detected, though.  */
         bool foundOuts = false;
@@ -2471,12 +2473,11 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                 foundOuts = true;
         }
 
-        /* TODO: After the softfork, check if we can enforce this
-           check without height condition at all.  Possibly no conflicting
-           tx are in the chain?  */
+        /* While this was introduced with FORK_CARRYINGCAP, no offending
+           tx is in the chain before.  Thus we can enforce the check
+           unconditionally for simplicity.  */
         if (foundOuts)
-          if (!fBlock || ForkInEffect (FORK_CARRYINGCAP, pindexBlock->nHeight))
-            return error("ConnectInputHook: non-Namecoin tx has name outputs");
+          return error ("ConnectInputHook: non-Namecoin tx has name outputs");
 
         // Make sure name-op outputs are not spent by a regular transaction, or the name
         // would be lost
