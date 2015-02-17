@@ -10,5 +10,5 @@ Alternatively, provide paths to these libraries when running qmake. An example f
 
  boost_1_50_0
  openssl-1.0.1e
- db-4.7.25.NC
+ db-4.8.30.NC
  miniupnpc-1.8.20130211
