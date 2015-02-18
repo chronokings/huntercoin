@@ -48,6 +48,7 @@ bool OpenNetworkConnection(const CAddress& addrConnect);
 bool fClient = false;
 bool fAllowDNS = false;
 uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
+static CNode* pnodeSync = NULL;
 CAddress addrLocalHost("0.0.0.0", 0, false, nLocalServices);
 CNode* pnodeLocalHost = NULL;
 uint64 nLocalHostNonce = 0;
@@ -702,6 +703,15 @@ void CNode::CloseSocketDisconnect()
         closesocket(hSocket);
         hSocket = INVALID_SOCKET;
     }
+
+    // in case this fails, we'll empty the recv buffer when the CNode is deleted
+    TRY_CRITICAL_BLOCK(cs_vRecv)
+    {
+        vRecv.clear();
+    }
+    // if this was the sync node, we'll need a new one
+    if (this == pnodeSync)
+       pnodeSync = NULL;
 }
 
 void CNode::Cleanup()
@@ -1426,12 +1436,37 @@ bool OpenNetworkConnection(const CAddress& addrConnect)
     return true;
 }
 
+// for now, use a very simple selection metric: the node from which we received
+// most recently
+double static NodeSyncScore(const CNode *pnode) {
+   return -pnode->nLastRecv;
+}
 
+void static StartSync(const vector<CNode*> &vNodes) {
+    CNode *pnodeNewSync = NULL;
+    double dBestScore = 0;
 
-
-
-
-
+    // Iterate over all nodes
+    BOOST_FOREACH(CNode* pnode, vNodes) {
+        // check preconditions for allowing a sync
+        if (!pnode->fClient &&
+            !pnode->fDisconnect && pnode->fSuccessfullyConnected &&
+            (pnode->nStartingHeight > (nBestHeight - 1440)) &&
+            (pnode->nVersion >= BLKS_VERSION)) {
+                // if ok, compare node's score with the best so far
+                double dScore = NodeSyncScore(pnode);
+                if (pnodeNewSync == NULL || dScore > dBestScore) {
+                    pnodeNewSync = pnode;
+                    dBestScore = dScore;
+                }
+         }
+    }
+    // if a new sync candidate was found, start sync!
+    if (pnodeNewSync) {
+        pnodeNewSync->fStartSync = true;
+        pnodeSync = pnodeNewSync;
+    }
+}
 
 void ThreadMessageHandler(void* parg)
 {
@@ -1458,13 +1493,20 @@ void ThreadMessageHandler2(void* parg)
     SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
     while (!fShutdown)
     {
+        bool fHaveSyncNode = false;
         vector<CNode*> vNodesCopy;
         CRITICAL_BLOCK(cs_vNodes)
         {
             vNodesCopy = vNodes;
-            BOOST_FOREACH(CNode* pnode, vNodesCopy)
+            BOOST_FOREACH(CNode* pnode, vNodesCopy){
                 pnode->AddRef();
+                if (pnode == pnodeSync)
+                    fHaveSyncNode = true;
+            }
         }
+
+        if (!fHaveSyncNode)
+            StartSync(vNodesCopy);
 
         // Poll the connected nodes for messages
         CNode* pnodeTrickle = NULL;

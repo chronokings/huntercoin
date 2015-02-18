@@ -13,6 +13,9 @@
 #include <arpa/inet.h>
 #endif
 
+// only request blocks from nodes >= BLK_VERSION
+static const int BLKS_VERSION = 1020000;
+
 class CMessageHeader;
 class CAddress;
 class CInv;
@@ -531,6 +534,7 @@ public:
     CBlockIndex* pindexLastGetBlocksBegin;
     uint256 hashLastGetBlocksEnd;
     int nStartingHeight;
+    bool fStartSync;
 
     // flood relay
     std::vector<CAddress> vAddrToSend;
@@ -576,6 +580,7 @@ public:
         pindexLastGetBlocksBegin = 0;
         hashLastGetBlocksEnd = 0;
         nStartingHeight = -1;
+        fStartSync = false;
         fGetAddr = false;
         vfSubscribe.assign(256, false);
 
