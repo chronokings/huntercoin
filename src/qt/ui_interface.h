@@ -8,8 +8,10 @@
 #include <string>
 #include "../util.h" // for int64
 #include "../base58.h" // for IsValidBitcoinAddress
+#ifndef Q_MOC_RUN
 #include <boost/signals2/signal.hpp>
 #include <boost/signals2/last_value.hpp>
+#endif
 
 #define LOCK(cs) CCriticalBlock criticalblock(cs)
 #define LOCK2(cs1,cs2) CCriticalBlock criticalblock1(cs1),criticalblock2(cs2) 

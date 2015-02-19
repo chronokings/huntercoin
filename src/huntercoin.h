@@ -1,7 +1,10 @@
 #ifndef HUNTERCOIN_H
 #define HUNTERCOIN_H
 
+#ifndef Q_MOC_RUN
 #include <boost/thread/thread.hpp>
+#endif
+
 #include "json/json_spirit.h"
 
 // We can make name_new cheaper, if we want, separately from name_(first)update

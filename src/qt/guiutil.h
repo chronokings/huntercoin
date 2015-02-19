@@ -5,7 +5,9 @@
 #include <QObject>
 #include <QMessageBox>
 
+#ifndef Q_MOC_RUN
 #include <boost/filesystem.hpp>
+#endif
 
 class SendCoinsRecipient;
 

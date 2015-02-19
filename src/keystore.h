@@ -4,8 +4,10 @@
 #ifndef BITCOIN_KEYSTORE_H
 #define BITCOIN_KEYSTORE_H
 
+#ifndef Q_MOC_RUN
 #include <boost/signals2/signal.hpp>
 #include <boost/signals2/last_value.hpp>
+#endif
 #include "crypter.h"
 
 // Currently CPrivKey is just std::vector<unsigned char> (with secure_allocator)

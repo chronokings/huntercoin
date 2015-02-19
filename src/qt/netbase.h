@@ -15,7 +15,7 @@
 
 #ifdef WIN32
 
-#include <Ws2tcpip.h>
+#include <ws2tcpip.h>
 
 // In MSVC, this is defined as a macro, undefine it to prevent a compile and link error
 #undef SetPort

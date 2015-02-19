@@ -51,7 +51,9 @@
 #include <deque>
 #include <map>
 
+#ifndef Q_MOC_RUN
 #include <boost/foreach.hpp>
+#endif
 
 #ifdef __WXMSW__
 #include <windows.h>

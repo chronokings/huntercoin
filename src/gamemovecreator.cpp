@@ -3,9 +3,11 @@
 
 #include <deque>
 
+#ifndef Q_MOC_RUN
 #include <boost/graph/astar_search.hpp>
 #include <boost/graph/grid_graph.hpp>
 #include <boost/unordered_map.hpp>
+#endif
 
 using namespace Game;
 

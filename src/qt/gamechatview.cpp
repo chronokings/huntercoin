@@ -11,7 +11,9 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSimpleTextItem>
 
+#ifndef Q_MOC_RUN
 #include <boost/foreach.hpp>
+#endif
 
 using namespace Game;
 

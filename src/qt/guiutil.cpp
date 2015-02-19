@@ -22,8 +22,10 @@
 #include <QDesktopServices>
 #include <QThread>
 
+#ifndef Q_MOC_RUN
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#endif
 
 #ifdef WIN32
 #ifdef _WIN32_WINNT
@@ -474,4 +476,4 @@ boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate)
     printf("SHGetSpecialFolderPathA() failed, could not obtain requested path.\n");
     return fs::path("");
 }
-#endif  
+#endif

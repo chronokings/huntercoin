@@ -2,8 +2,10 @@
 #define GAMESTATE_H
 
 #include <string>
+#ifndef Q_MOC_RUN
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
+#endif
 #include "json/json_spirit_value.h"
 #include "uint256.h"
 #include "serialize.h"
