@@ -678,59 +678,25 @@ inline uint160 Hash160(const std::vector<unsigned char>& vch)
 std::vector<unsigned char> DecodeBase64(const char* p, bool* pfInvalid = NULL);
 std::string EncodeBase64(const unsigned char* pch, size_t len);
 
-
-
-
-
-
-
-// Note: It turns out we might have been able to use boost::thread
-// by using TerminateThread(boost::thread.native_handle(), 0);
-#ifdef __WXMSW__
-typedef HANDLE pthread_t;
-
-inline pthread_t CreateThread(void(*pfn)(void*), void* parg, bool fWantHandle=false)
+inline bool CreateThread(void(*pfn)(void*), void* parg)
 {
-    DWORD nUnused = 0;
-    HANDLE hthread =
-        CreateThread(
-            NULL,                        // default security
-            0,                           // inherit stack size from parent
-            (LPTHREAD_START_ROUTINE)pfn, // function pointer
-            parg,                        // argument
-            0,                           // creation option, start immediately
-            &nUnused);                   // thread identifier
-    if (hthread == NULL)
+    try
     {
-        printf("Error: CreateThread() returned %d\n", GetLastError());
-        return (pthread_t)0;
+        boost::thread(pfn, parg); // thread detaches when out of scope
+    } catch(boost::thread_resource_error &e) {
+        printf("Error creating thread: %s\n", e.what());
+        return false;
     }
-    if (!fWantHandle)
-    {
-        CloseHandle(hthread);
-        return (pthread_t)-1;
-    }
-    return hthread;
+    return true;
 }
+
+#ifdef __WXMSW__
 
 inline void SetThreadPriority(int nPriority)
 {
     SetThreadPriority(GetCurrentThread(), nPriority);
 }
 #else
-inline pthread_t CreateThread(void(*pfn)(void*), void* parg, bool fWantHandle=false)
-{
-    pthread_t hthread = 0;
-    int ret = pthread_create(&hthread, NULL, (void*(*)(void*))pfn, parg);
-    if (ret != 0)
-    {
-        printf("Error: pthread_create() returned %d\n", ret);
-        return (pthread_t)0;
-    }
-    if (!fWantHandle)
-        return (pthread_t)-1;
-    return hthread;
-}
 
 #define THREAD_PRIORITY_LOWEST          PRIO_MAX
 #define THREAD_PRIORITY_BELOW_NORMAL    2
