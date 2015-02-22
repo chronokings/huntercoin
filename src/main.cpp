@@ -1250,9 +1250,16 @@ CTransaction::ConnectInputs (DatabaseSet& dbset, CTestPool& testPool,
                                     " at depth %d", heightDiff);
                   }
 
-                // Verify signature
-                if (!VerifySignature (txo.txo, *this, i))
-                    return error("ConnectInputs() : %s VerifySignature failed", GetHash().ToString().substr(0,10).c_str());
+                // Skip ECDSA signature verification when connecting blocks (fBlock=true)
+                // before the last blockchain checkpoint. This is safe because block merkle hashes are
+                // still computed and checked, and any change will be caught at the next checkpoint.
+                bool fScriptChecks = !(fBlock && GetTotalBlocksEstimate() >= nBestHeight);
+                if (fScriptChecks)
+                {
+                    // Verify signature
+                    if (!VerifySignature (txo.txo, *this, i))
+                        return error("ConnectInputs() : %s VerifySignature failed", GetHash().ToString().substr(0,10).c_str());
+                }
 
                 // Check for negative or overflow input values
                 nValueIn += txo.txo.nValue;

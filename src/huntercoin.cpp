@@ -21,6 +21,7 @@
 #include "json/json_spirit_writer_template.h"
 #include "json/json_spirit_utils.h"
 #include <boost/xpressive/xpressive_dynamic.hpp>
+#include <boost/assign/list_of.hpp> // for 'map_list_of()'
 
 using namespace std;
 using namespace json_spirit;
@@ -64,7 +65,16 @@ extern Value sendtoaddress(const Array& params, bool fHelp);
 uint256 hashHuntercoinGenesisBlock[2] = {
         uint256("00000000db7eb7a9e1a06cf995363dcdc4c28e8ae04827a961942657db9a1631"),    // Main net
         uint256("000000492c361a01ce7558a3bfb198ea3ff2f86f8b0c2e00d26135c53f4acbf7")     // Test net
-    };
+    };           
+
+typedef std::map<int, uint256> MapCheckpoints;
+
+static MapCheckpoints mapCheckpoints =
+    boost::assign::map_list_of
+                         
+    ( 582770, uint256("ce88bb9538fae7ecbe406c3b8bde8c38b83617b31245df45dda7ad5b5070e6eb"))
+    ;
+
 
 class CHuntercoinHooks : public CHooks
 {
@@ -2910,12 +2920,18 @@ bool CHuntercoinHooks::GenesisBlock(CBlock& block)
 
 int CHuntercoinHooks::LockinHeight()
 {
-        return 0;
+    if (fTestNet) return 0; // Testnet has no checkpoints
+
+    return mapCheckpoints.rbegin()->first;
 }
 
 bool CHuntercoinHooks::Lockin(int nHeight, uint256 hash)
 {
-    return true;
+    if (fTestNet) return true; // Testnet has no checkpoints
+
+    MapCheckpoints::const_iterator i = mapCheckpoints.find(nHeight);
+    if (i == mapCheckpoints.end()) return true;
+        return hash == i->second;
 }
 
 string CHuntercoinHooks::IrcPrefix()
@@ -2945,3 +2961,4 @@ string GetDefaultDataDirSuffix() {
 }
 
 unsigned char GetAddressVersion() { return ((unsigned char)(fTestNet ? 100 : 40)); }
+
