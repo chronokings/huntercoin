@@ -103,6 +103,12 @@ void WalletModel::checkBalanceChanged()
 
 void WalletModel::updateTransaction(const QString &hash, int status)
 {
+    if(transactionTableModel)
+        transactionTableModel->updateTransaction(hash, status);
+
+    if (nameTableModel)
+        nameTableModel->updateTransaction(hash, status);
+
     // Balance and number of transactions might have changed
     checkBalanceChanged();
 
@@ -111,12 +117,6 @@ void WalletModel::updateTransaction(const QString &hash, int status)
     {
         cachedNumTransactions = newNumTransactions;
         emit numTransactionsChanged(newNumTransactions);
-
-        if(transactionTableModel)
-            transactionTableModel->updateTransaction(hash, status);
-
-        if (nameTableModel)
-            nameTableModel->updateTransaction(hash, status);
     }
 }
 
