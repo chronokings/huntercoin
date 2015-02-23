@@ -30,6 +30,7 @@ public:
         DisplayAddresses,     // bool
         Language,             // QString
         DefaultRewardAddress, // QString
+        DetachDatabases, // bool
         OptionIDRowCount,
     };
 

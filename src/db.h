@@ -29,7 +29,7 @@ class CBlockLocator;
 
 extern unsigned int nWalletDBUpdated;
 extern DbEnv dbenv;
-
+extern bool fDetachDB;
 
 extern void DBFlush(bool fShutdown);
 void ThreadFlushWalletDB(void* parg);
