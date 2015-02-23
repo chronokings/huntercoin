@@ -233,16 +233,7 @@ public:
     // requires cs_mapAddressBook lock
     bool DelAddressBookName(const std::string& strAddress);
     
-    void UpdatedTransaction(const uint256 &hashTx)
-    {
-#ifdef GUI
-        CRITICAL_BLOCK(cs_mapWallet)
-        {
-            //vWalletUpdated.push_back(hashTx);
-            NotifyTransactionChanged(this, hashTx, CT_UPDATED);
-        }
-#endif
-    }
+    void UpdatedTransaction(const uint256 &hashTx);
 
     void PrintWallet(const CBlock& block);
 

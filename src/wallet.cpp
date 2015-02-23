@@ -8,6 +8,7 @@
 #include "crypter.h"
 
 #include "huntercoin.h"    // For DecodeNameScript in GetAmounts to correctly compute credit/debit
+#include "wallet.h"
 
 using namespace std;
 
@@ -81,6 +82,21 @@ void CWallet::WalletUpdateSpent(const CTransaction &tx)
             }
         }
     }
+}
+
+void CWallet::UpdatedTransaction(const uint256 &hashTx)
+{
+#ifdef GUI
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+        // Only notify UI if this transaction is in this wallet
+        if (mapWallet.find(hashTx) != mapWallet.end())
+        {
+            //vWalletUpdated.push_back(hashTx);
+            NotifyTransactionChanged(this, hashTx, CT_UPDATED);
+        }
+    }
+#endif
 }
 
 void CWallet::MarkDirty()
