@@ -2943,8 +2943,20 @@ unsigned short GetDefaultPort()
 {
     return fTestNet ? 18398 : 8398;
 }
-
-unsigned int pnSeed[] = { 0 };
+/*
+To calculate the decimal address from a IP, perform the following calculation =
+(first octet * 256³) + (second octet * 256²) + (third octet * 256) + (fourth octet) =
+(first octet * 16777216) + (second octet * 65536) + (third octet * 256) + (fourth octet) =
+the decimal address.
+Example:
+IP address = 67.225.171.185
+First Octet: 	67
+Second Octet: 	225
+Third Octet: 	171
+Fourth Octet: 	185
+(67 * 16777216) + (225 * 65536) + (171 * 256) + (185) = 1138863033
+*/
+unsigned int pnSeed[] = {2990412266, 1138863033 };
 const char *strDNSSeed[] = { NULL };
 
 string GetDefaultDataDirSuffix() {
