@@ -948,6 +948,36 @@ string GetDataDir()
     return pszDir;
 }
 
+string randomStrGen(int length) 
+{
+    static string charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+    string result;
+    result.resize(length);
+    for (int i = 0; i < length; i++)
+        result[i] = charset[rand() % charset.length()];
+
+    return result;
+}
+
+void createConf()
+{
+    srand(time(NULL));
+
+    ofstream pConf;
+    pConf.open(GetConfigFile().c_str());
+    pConf << "rpcuser=user\nrpcpassword="
+    + randomStrGen(15)
+    + "\nrpcport=8399"
+    + "\nport=8398"
+    + "\n#(0=off, 1=on) daemon - run in the background as a daemon and accept commands"
+    + "\ndaemon=0"
+    + "\n#(0=off, 1=on) server - accept command line and JSON-RPC commands"
+    + "\nserver=1"
+    + "\nrpcallowip=127.0.0.1"
+    + "\ntestnet=0";
+    pConf.close();
+}
+
 string GetConfigFile(string confFile)
 {
     namespace fs = boost::filesystem;
@@ -970,7 +1000,12 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
 
     fs::ifstream streamConfig(GetConfigFile());
     if (!streamConfig.good())
-        return;
+    {
+        createConf();
+        new(&streamConfig) boost::filesystem::ifstream(GetConfigFile());
+        if(!streamConfig.good())
+            return;
+    }
 
     set<string> setOptions;
     setOptions.insert("*");
