@@ -213,7 +213,7 @@ bool AppInit2(int argc, char* argv[])
     }
 
     fDebug = GetBoolArg("-debug");
-    fDetachDB = GetBoolArg("-detachdb", false);
+    fDetachDB = GetBoolArg("-detachdb", true);
     fAllowDNS = GetBoolArg("-dns");
     std::string strAlgo = GetArg("-algo", "sha256d");
     boost::to_lower(strAlgo);
