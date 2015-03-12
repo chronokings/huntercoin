@@ -13,12 +13,14 @@
 
 #undef printf
 
+#ifndef Q_MOC_RUN
 #include <boost/asio.hpp>
 #include <boost/iostreams/concepts.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/assign/list_of.hpp>
 #include <boost/thread/thread.hpp>
+#endif
 
 #include <memory>
 #include <list>

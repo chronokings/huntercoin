@@ -7,7 +7,9 @@
 #ifdef GUI
 
 #include <string>
+#ifndef Q_MOC_RUN
 #include <boost/function.hpp>
+#endif
 #include "wallet.h"
 #include "qt/ui_interface.h"
 

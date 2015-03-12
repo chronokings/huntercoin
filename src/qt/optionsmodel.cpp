@@ -71,6 +71,8 @@ void OptionsModel::Init()
         SoftSetArg("-socks", settings.value("nSocksVersion").toString().toStdString());
     if (!language.isEmpty())
         SoftSetArg("-lang", language.toStdString());
+    if (settings.contains("detachDB"))
+        SoftSetBoolArg("-detachdb", settings.value("detachDB").toBool());
 }
 
 void OptionsModel::Reset()
@@ -166,6 +168,8 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
         {
         case StartAtStartup:
             return QVariant(GUIUtil::GetStartOnSystemStartup());
+        case DetachDatabases:
+            return QVariant(fDetachDB);
         case MinimizeToTray:
             return QVariant(fMinimizeToTray);
         case MapPortUPnP:
@@ -228,6 +232,10 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
         {
         case StartAtStartup:
             successful = GUIUtil::SetStartOnSystemStartup(value.toBool());
+            break;
+        case DetachDatabases:
+            fDetachDB = value.toBool();
+            settings.setValue("detachDB", fDetachDB);
             break;
         case MinimizeToTray:
             fMinimizeToTray = value.toBool();

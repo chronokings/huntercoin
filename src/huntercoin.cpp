@@ -2927,8 +2927,14 @@ unsigned short GetDefaultPort()
 {
     return fTestNet ? 18398 : 8398;
 }
+/*
+To calculate the decimal address from a IP, perform the following calculation =
+(first octet * 256³) + (second octet * 256²) + (third octet * 256) + (fourth octet)
+*/
+#define CONVERT_IP4(a, b, c, d) \
+(((a) << 24) + ((b) << 16) + ((c) << 8) + (d))
 
-unsigned int pnSeed[] = { 0 };
+unsigned int pnSeed[] = {CONVERT_IP4(178,62,17,234), CONVERT_IP4(67,225,171,185), CONVERT_IP4(192,99,247,234) };
 const char *strDNSSeed[] = { NULL };
 
 string GetDefaultDataDirSuffix() {

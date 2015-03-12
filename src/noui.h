@@ -5,7 +5,9 @@
 #define BITCOIN_NOUI_H
 
 #include <string>
+#ifndef Q_MOC_RUN
 #include <boost/function.hpp>
+#endif
 #include "wallet.h"
 
 typedef void wxWindow;

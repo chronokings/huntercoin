@@ -13,7 +13,9 @@
 #include "scrypt.h"
 
 #include <list>
+#ifndef Q_MOC_RUN
 #include <boost/shared_ptr.hpp>
+#endif
 
 #ifdef __WXMSW__
 #include <io.h> /* for _commit */

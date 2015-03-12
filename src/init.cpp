@@ -213,6 +213,7 @@ bool AppInit2(int argc, char* argv[])
     }
 
     fDebug = GetBoolArg("-debug");
+    fDetachDB = GetBoolArg("-detachdb", true);
     fAllowDNS = GetBoolArg("-dns");
     std::string strAlgo = GetArg("-algo", "sha256d");
     boost::to_lower(strAlgo);
@@ -641,6 +642,7 @@ bool AppInit2(int argc, char* argv[])
 std::string HelpMessage()
 {
     std::string strUsage = std::string(_("Options:\n")) +
+        " -detachdb \t            " + _("Detach block and address databases. Increases shutdown time (default: 0)") + "\n" +
         "  -conf=<file>     \t\t  " + _("Specify configuration file (default: huntercoin.conf)\n") +
         "  -pid=<file>      \t\t  " + _("Specify pid file (default: huntercoind.pid)\n") +
         "  -walletpath=<file> \t  " + _("Specify the wallet filename (default: wallet.dat)") + "\n" +

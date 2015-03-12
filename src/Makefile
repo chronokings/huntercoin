@@ -34,7 +34,7 @@ LIBS= \
 huntercoind: USE_UPNP:=0
 	ifdef USE_UPNP
 		LIBS += -l miniupnpc
-		DEFS += -DUSE_UPNP=$(USE_UPNP)
+		DEFS += -DUSE_UPNP=$(USE_UPNP) -DMINIUPNP_STATICLIB -DSTATICLIB
 		INCLUDEPATHS+=-I../libs/miniupnpc-1.8.20130211
 		LIBPATHS+=-I../libs/miniupnpc-1.8.20130211
 	endif
