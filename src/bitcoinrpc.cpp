@@ -10,6 +10,7 @@
 #include "init.h"
 #include "main.h"
 #include "auxpow.h"
+#include "gametx.h"
 
 #undef printf
 
@@ -2984,30 +2985,40 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         }
         else
         {
-            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
-            in.push_back(Pair("vout", (boost::int64_t)txin.prevout.n));
             Object o;
             o.push_back(Pair("asm", txin.scriptSig.ToString()));
             o.push_back(Pair("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
             in.push_back(Pair("scriptSig", o));
 
-            /* Try to retrieve previous transaction output to find
-               its value in order to calculate transaction fees.  */
-            CTransaction prevTx;
-            uint256 prevHashBlock = 0;
-            if (GetTransaction(txin.prevout.hash, prevTx, prevHashBlock))
+            if (tx.IsGameTx())
             {
-                if (prevTx.vout.size () > txin.prevout.n)
+                Object gametx;
+                GameInputToJSON (txin.scriptSig, gametx);
+                in.push_back(Pair("gametx", gametx));
+            }
+            else
+            {
+                in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
+                in.push_back(Pair("vout", (boost::int64_t)txin.prevout.n));
+
+                /* Try to retrieve previous transaction output to find
+                   its value in order to calculate transaction fees.  */
+                CTransaction prevTx;
+                uint256 prevHashBlock = 0;
+                if (GetTransaction(txin.prevout.hash, prevTx, prevHashBlock))
                 {
-                    const int64 val = prevTx.vout[txin.prevout.n].nValue;
-                    nValueIn += val;
-                    in.push_back(Pair("value", ValueFromAmount(val)));
+                    if (prevTx.vout.size () > txin.prevout.n)
+                    {
+                        const int64 val = prevTx.vout[txin.prevout.n].nValue;
+                        nValueIn += val;
+                        in.push_back(Pair("value", ValueFromAmount(val)));
+                    }
+                    else
+                        fullValueIn = false;
                 }
                 else
                     fullValueIn = false;
             }
-            else
-                fullValueIn = false;
         }
         in.push_back(Pair("sequence", (boost::int64_t)txin.nSequence));
         vin.push_back(in);
