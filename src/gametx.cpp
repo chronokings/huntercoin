@@ -219,6 +219,25 @@ IsPlayerDeathInput (const CTxIn& in, vchType& name)
     }
 }
 
+/* Decode an integer (not could be encoded as OP_x or a bignum)
+   from the script.  Returns -1 in case of error.  */
+static int
+GetScriptUint (const CScript& script, CScript::const_iterator& pc)
+{
+  opcodetype opcode;
+  vchType vch;
+  if (!script.GetOp (pc, opcode, vch))
+    return -1;
+
+  if (opcode >= OP_1 && opcode <= OP_16)
+    return opcode - OP_1 + 1;
+
+  CBigNum bn;
+  bn.setvch (vch);
+
+  return bn.getuint ();
+}
+
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
                                  const char *nameStartTag /* = ""*/, const char *nameEndTag /* = ""*/,
                                  bool fUseColon /* = true*/)
@@ -293,20 +312,24 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             break;
 
         case GAMEOP_COLLECTED_BOUNTY:
-            scriptSig.GetOp(pc, opcode, vch);
-            if (opcode >= OP_1)
-                strRet += strprintf(".%d", int(opcode - OP_1 + 1));
+          {
+            const int index = GetScriptUint (scriptSig, pc);
+            if (index > 0)
+                strRet += strprintf(".%d", index);
             strRet += " ";
             strRet += _("collected bounty");
             break;
+          }
 
         case GAMEOP_REFUND:
-            scriptSig.GetOp(pc, opcode, vch);
-            if (opcode >= OP_1)
-                strRet += strprintf(".%d", int(opcode - OP_1 + 1));
+          {
+            const int index = GetScriptUint (scriptSig, pc);
+            if (index > 0)
+                strRet += strprintf(".%d", index);
             strRet += " ";
             strRet += _("refunded on spawn death");
             break;
+          }
 
         default:
             strRet += " ";
@@ -314,4 +337,69 @@ std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief,
             break;
     }
     return strRet;
+}
+
+void
+GameInputToJSON (const CScript& scriptSig, json_spirit::Object& o)
+{
+  CScript::const_iterator pc = scriptSig.begin ();
+  opcodetype opcode;
+  vchType vch;
+  if (!scriptSig.GetOp (pc, opcode, vch))
+    goto error;
+  o.push_back (json_spirit::Pair ("player", stringFromVch (vch)));
+
+  if (!scriptSig.GetOp (pc, opcode))
+    goto error;
+
+  switch (opcode - OP_1 + 1)
+    {
+    case GAMEOP_KILLED_BY:
+      {
+        json_spirit::Array killers;
+        while (scriptSig.GetOp (pc, opcode, vch))
+          killers.push_back (stringFromVch (vch));
+
+        if (killers.empty ())
+          o.push_back (json_spirit::Pair ("op", "spawn_death"));
+        else
+          {
+            o.push_back (json_spirit::Pair ("op", "killed_by"));
+            o.push_back (json_spirit::Pair ("killers", killers));
+          }
+
+        break;
+      }
+
+    case GAMEOP_KILLED_POISON:
+      o.push_back (json_spirit::Pair ("op", "poison_death"));
+      break;
+
+    case GAMEOP_COLLECTED_BOUNTY:
+      o.push_back (json_spirit::Pair ("op", "banking"));
+      o.push_back (json_spirit::Pair ("index", GetScriptUint (scriptSig, pc)));
+      o.push_back (json_spirit::Pair ("first_block",
+                                      GetScriptUint (scriptSig, pc)));
+      o.push_back (json_spirit::Pair ("last_block",
+                                      GetScriptUint (scriptSig, pc)));
+      o.push_back (json_spirit::Pair ("first_collected",
+                                      GetScriptUint (scriptSig, pc)));
+      o.push_back (json_spirit::Pair ("last_collected",
+                                      GetScriptUint (scriptSig, pc)));
+      break;
+
+    case GAMEOP_REFUND:
+      o.push_back (json_spirit::Pair ("op", "refund"));
+      o.push_back (json_spirit::Pair ("index", GetScriptUint (scriptSig, pc)));
+      o.push_back (json_spirit::Pair ("height", GetScriptUint (scriptSig, pc)));
+      break;
+
+    default:
+      goto error;
+    }
+
+  return;
+
+error:
+  o.push_back (json_spirit::Pair ("error", "could not decode game tx"));
 }

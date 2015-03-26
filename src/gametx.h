@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 
+#include "json/json_spirit.h"
+
 // This module manages transactions for in-game events (e.g. player rewards):
 // - creates transactions for StepResult
 // - parses these transactions and creates string representation (to show in the transaction list)
@@ -33,5 +35,8 @@ bool IsPlayerDeathInput (const CTxIn& in, std::vector<unsigned char>& name);
 // By providing nameStart/EndTag you can make player names bold in HTML.
 // In brief mode details are omitted and fUseColon is ignored
 std::string GetGameTxDescription(const CScript &scriptSig, bool fBrief, const char *nameStartTag = "", const char *nameEndTag = "", bool fUseColon = true);
+
+/* Decode a game tx scriptsig into a JSON object.  */
+void GameInputToJSON (const CScript& scriptSig, json_spirit::Object& o);
 
 #endif // GAMETX_H
