@@ -1307,37 +1307,15 @@ public:
     /* GetBlockHeader is never actually used in the code, thus disable
        it since it can't reliably be tested.  It can be re-enabled
        when necessary later.  */
-#if 0
     CBlock GetBlockHeader() const
     {
         CBlock block;
-
-        /* If this block has auxpow but it is not yet loaded, do this
-           now and keep it in memory.  */
-        if (hasAuxpow && !auxpow)
-          {
-            printf ("GetBlockHeader(): reading auxpow from disk");
-            if (!block.ReadFromDisk (nFile, nBlockPos, false))
-              throw std::runtime_error ("CBlock::ReadFromDisk failed while"
-                                        " retrieving auxpow");
-            auxpow = block.auxpow;
-            return block;
-          }
-
-        block.nVersion       = nVersion;
-        if (pprev)
-            block.hashPrevBlock = pprev->GetBlockHash();
-        block.hashMerkleRoot = hashMerkleRoot;
-        block.hashGameMerkleRoot = hashGameMerkleRoot;
-        block.nTime          = nTime;
-        block.nBits          = nBits;
-        block.nNonce         = nNonce;
-        block.auxpow         = auxpow;
-        assert ((hasAuxpow && block.auxpow) || (!hasAuxpow && !block.auxpow));
+        if (!block.ReadFromDisk (nFile, nBlockPos, false))
+          throw std::runtime_error ("CBlock::ReadFromDisk failed while"
+                                    " retrieving auxpow");
 
         return block;
     }
-#endif
     
     // 0 - SHA-256d
     // 1 - scrypt
