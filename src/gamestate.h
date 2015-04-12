@@ -107,6 +107,9 @@ struct Move
 {
     PlayerID player;
 
+    // New amount of locked coins (equals name output of move tx).
+    int64_t newLocked;
+
     // Updates to the player state
     boost::optional<std::string> message;
     boost::optional<std::string> address;
@@ -114,13 +117,12 @@ struct Move
 
     /* For spawning moves.  */
     unsigned char color;
-    int64 coinAmount;
 
     std::map<int, WaypointVector> waypoints;
     std::set<int> destruct;
 
     Move ()
-      : color(0xFF), coinAmount(-1)
+      : newLocked(-1), color(0xFF)
     {}
 
     std::string AddressOperationPermission(const GameState &state) const;
@@ -137,6 +139,14 @@ struct Move
 
     // Returns true if move is initialized (i.e. was parsed successfully)
     operator bool() { return !player.empty(); }
+
+    /**
+     * Return the minimum required "game fee" for this move.  The block height
+     * must be passed because it is used to decide about hardfork states.
+     * @param nHeight Block height at which this move is.
+     * @return Minimum required game fee payment.
+     */
+    int64_t MinimumGameFee (unsigned nHeight) const;
 };
 
 // Do not use for user-provided coordinates, as abs can overflow on INT_MIN.
@@ -289,10 +299,15 @@ struct PlayerState
 {
     /* Colour represents player team.  */
     unsigned char color;
-    /* Value locked by the general's name.  This is the amount that will
-       be placed back onto the map when the player dies, and it should
-       match the actual coin value.  */
-    int64 coinAmount;
+
+    /* Value locked in the general's name on the blockchain.  This is the
+       initial cost plus all "game fees" paid in the mean time.  It is compared
+       to the new output value given by a move tx in order to compute
+       the game fee as difference.  In that sense, it is a "cache" for
+       the prevout.  */
+    int64_t lockedCoins;
+    /* Actual value of the general in the game state.  */
+    int64_t value;
 
     std::map<int, CharacterState> characters;   // Characters owned by the player (0 is the main character)
     int next_character_index;                   // Index of the next spawned character
@@ -323,11 +338,18 @@ struct PlayerState
         READWRITE(address);
         READWRITE(addressLock);
 
-        READWRITE(coinAmount);
+        READWRITE(lockedCoins);
+        if (nVersion < 1030000)
+          {
+            assert (fRead);
+            const_cast<PlayerState*> (this)->value = lockedCoins;
+          }
+        else
+          READWRITE(value);
     )
 
     PlayerState ()
-      : color(0xFF), coinAmount(-1),
+      : color(0xFF), lockedCoins(0), value(-1),
         next_character_index(0), remainingLife(-1), message_block(0)
     {}
 
@@ -446,9 +468,8 @@ struct GameState
     void DecrementLife (StepResult& step);
 
     /* Return total amount of coins on the map (in loot and hold by players,
-       excluding coins locked by generals since they appear in the UTXO set
-       already).  */
-    int64 GetCoinsOnMap () const;
+       including also general values).  */
+    int64_t GetCoinsOnMap () const;
 
 };
 

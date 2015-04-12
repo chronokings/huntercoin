@@ -130,10 +130,31 @@ bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit
 
 bool Move::IsValid(const GameState &state) const
 {
-    if (IsSpawn())
-        return state.players.count(player) == 0;
-    else
-        return state.players.count(player) != 0;
+  PlayerStateMap::const_iterator mi = state.players.find (player);
+
+  int64_t oldLocked;
+  if (mi == state.players.end ())
+    {
+      if (!IsSpawn ())
+        return false;
+      oldLocked = 0;
+    }
+  else
+    {
+      if (IsSpawn ())
+        return false;
+      oldLocked = mi->second.lockedCoins;
+    }
+
+  assert (oldLocked >= 0 && newLocked >= 0);
+  const int64_t gameFee = newLocked - oldLocked;
+  const int64_t required = MinimumGameFee (state.nHeight + 1);
+  assert (required >= 0);
+  if (gameFee < required)
+    return error ("%s: too little game fee attached, got %lld, required %lld",
+                  __func__, gameFee, required);
+
+  return true;
 }
 
 bool ParseWaypoints(json_spirit::Object &obj, std::vector<Coord> &result, bool &bWaypoints)
@@ -315,17 +336,23 @@ std::string Move::AddressOperationPermission(const GameState &state) const
 void
 Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 {
-  PlayerState &pl = state.players[player];
-  if (pl.next_character_index == 0)
-  {
-    pl.color = color;
-    assert (pl.coinAmount == -1 && coinAmount >= 0);
-    pl.coinAmount = coinAmount;
+  assert (state.players.count (player) == 0);
 
-    const unsigned limit = state.GetNumInitialCharacters ();
-    for (unsigned i = 0; i < limit; i++)
-      pl.SpawnCharacter (rnd);
-  }
+  PlayerState pl;
+  assert (pl.next_character_index == 0);
+  pl.color = color;
+
+  /* This is a fresh player and name, set its value as well as total locked
+     amount to the current name output.  */
+  assert (pl.lockedCoins == 0 && pl.value == -1 && newLocked >= 0);
+  pl.lockedCoins = newLocked;
+  pl.value = newLocked;
+
+  const unsigned limit = state.GetNumInitialCharacters ();
+  for (unsigned i = 0; i < limit; i++)
+    pl.SpawnCharacter (rnd);
+
+  state.players.insert (std::make_pair (player, pl));
 }
 
 void Move::ApplyWaypoints(GameState &state) const
@@ -348,6 +375,18 @@ void Move::ApplyWaypoints(GameState &state) const
             ch.from = ch.coord;
         ch.waypoints = wp;
     }
+}
+
+int64_t
+Move::MinimumGameFee (unsigned nHeight) const
+{
+  if (IsSpawn ())
+    return GetNameCoinAmount (nHeight);
+
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 0;
+
+  return 5 * COIN * destruct.size ();
 }
 
 // Returns direction from c1 to c2 as a number from 1 to 9 (as on the numeric keypad)
@@ -617,7 +656,7 @@ json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = fals
 
     Object obj;
     obj.push_back(Pair("color", (int)color));
-    obj.push_back(Pair("coinAmount", ValueFromAmount(coinAmount)));
+    obj.push_back(Pair("value", ValueFromAmount(value)));
 
     /* If the character is poisoned, write that out.  Otherwise just
        leave the field off.  */
@@ -980,15 +1019,19 @@ GameState::GetNumInitialCharacters () const
   return (ForkInEffect (FORK_POISON, nHeight) ? 1 : 3);
 }
 
-int64
+int64_t
 GameState::GetCoinsOnMap () const
 {
   int64 onMap = 0;
   BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo)& l, loot)
     onMap += l.second.nAmount;
   BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState)& p, players)
-    BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc, p.second.characters)
-      onMap += pc.second.loot.nAmount;
+    {
+      onMap += p.second.value;
+      BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
+                    p.second.characters)
+        onMap += pc.second.loot.nAmount;
+    }
 
   return onMap;
 }
@@ -1117,8 +1160,8 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
   int64_t nAmount = ch.loot.nAmount;
   if (chInd == 0)
     {
-      assert (pc.coinAmount >= 0);
-      nAmount += pc.coinAmount;
+      assert (pc.value >= 0);
+      nAmount += pc.value;
     }
 
   /* Apply the miner tax: 4%.  */
@@ -1347,6 +1390,17 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     outState.dead_players_chat.clear();
 
     stepResult = StepResult();
+
+    // Pay out game fees (except for spawns) to the game fund.
+    BOOST_FOREACH(const Move& m, stepData.vMoves)
+      if (!m.IsSpawn ())
+        {
+          const PlayerStateMap::iterator mi = outState.players.find (m.player);
+          assert (mi != outState.players.end ());
+          assert (m.newLocked >= mi->second.lockedCoins);
+          outState.gameFund += m.newLocked - mi->second.lockedCoins;
+          mi->second.lockedCoins = m.newLocked;
+        }
 
     // Apply attacks
     std::multimap<Coord, AttackableCharacter> *charactersOnTile = NULL;   // Delayed creation - only if at least one attack happened

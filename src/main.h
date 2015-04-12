@@ -119,6 +119,9 @@ enum Fork
      radius only 1).  */
   FORK_LESSHEARTS,
 
+  /* Implement "life steal".  */
+  FORK_LIFESTEAL,
+
 };
 bool ForkInEffect (Fork type, unsigned nHeight);
 

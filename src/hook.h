@@ -33,7 +33,7 @@ public:
     virtual int LockinHeight() = 0;
     virtual std::string IrcPrefix() = 0;
     virtual void MessageStart(char* pchMessageStart) = 0;
-    virtual void AcceptToMemoryPool(DatabaseSet& dbset,
+    virtual bool AcceptToMemoryPool(DatabaseSet& dbset,
                                     const CTransaction& tx) = 0;
     virtual void RemoveFromMemoryPool(const CTransaction& tx) = 0;
 

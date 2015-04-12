@@ -93,7 +93,7 @@ public:
     virtual bool Lockin(int nHeight, uint256 hash);
     virtual int LockinHeight();
     virtual string IrcPrefix();
-    virtual void AcceptToMemoryPool (DatabaseSet& dbset,
+    virtual bool AcceptToMemoryPool (DatabaseSet& dbset,
                                      const CTransaction& tx);
     virtual void RemoveFromMemoryPool (const CTransaction& tx);
 
@@ -221,18 +221,10 @@ string stringFromVch(const vector<unsigned char> &vch) {
 
 /* Return the minimum necessary amount of locked coins.  This replaces the
    old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
-   change it with hard forks.  If the frontEnd flag is set, return the
-   amount advised for the front-ends and not the protocol-enforced one.
-   This allows to increase the amount for front-ends earlier than when
-   it is enforced in the protocol, so that a prepared name_firstupdate
-   won't get stuck.  */
-int64
-GetNameCoinAmount (unsigned nHeight, bool frontEnd)
+   change it with hard forks.  */
+int64_t
+GetNameCoinAmount (unsigned nHeight)
 {
-  /* For front-ends, increase the amount a little earlier.  */
-  if (frontEnd)
-    nHeight += 10;
-
   if (ForkInEffect (FORK_LESSHEARTS, nHeight))
     return 200 * COIN;
   if (ForkInEffect (FORK_POISON, nHeight))
@@ -1029,6 +1021,18 @@ Value name_scan(const Array& params, bool fHelp)
     return oRes;
 }
 
+/* Compute game fee required for a move.  */
+int64_t
+GetRequiredGameFee (const vchType& vchName, const vchType& vchValue)
+{
+  Game::Move m;
+  m.Parse (stringFromVch (vchName), stringFromVch (vchValue));
+  if (!m)
+    throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid move");
+
+  return m.MinimumGameFee (pindexBest->nHeight + 1);
+}
+
 Value name_firstupdate(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 3 || params.size() > 5)
@@ -1149,8 +1153,7 @@ Value name_firstupdate(const Array& params, bool fHelp)
             throw runtime_error("previous tx used a different random value");
         }
 
-        const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
-
+        const int64_t nCoinAmount = GetRequiredGameFee (vchName, vchValue);
         std::string strError;
         strError = SendMoneyWithInputTx (scriptPubKey, nCoinAmount,
                                          wtxIn, wtx, false);
@@ -1232,9 +1235,10 @@ Value name_update(const Array& params, bool fHelp)
           }
         scriptPubKey += scriptPubKeyOrig;
 
-        /* Find amount locked in this name.  */
+        /* Find amount locked in this name and add required game fee.  */
         const int nTxOut = IndexOfNameOutput (tx);
-        const int64 nCoinAmount = tx.vout[nTxOut].nValue;
+        int64_t nCoinAmount = tx.vout[nTxOut].nValue;
+        nCoinAmount += GetRequiredGameFee (vchName, vchValue);
 
         CWalletTx& wtxIn = pwalletMain->mapWallet[wtxInHash];
         string strError;
@@ -1285,10 +1289,9 @@ Value name_new(const Array& params, bool fHelp)
     {
         EnsureWalletIsUnlocked();
 
-        /* We could send NAMENEW_COIN_AMOUNT instead and let name_firstupdate
-           add the missing funds, but this will lead to problems while all
-           clients update and older ones expect an exact amount.  */
-        const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+        /* Send NAMENEW_COIN_AMOUNT for now and up the value
+           to the precise general cost later with name_firstupdate.  */
+        const int64_t nCoinAmount = NAMENEW_COIN_AMOUNT;
 
         string strError = pwalletMain->SendMoney (scriptPubKey, nCoinAmount,
                                                   wtx, false);
@@ -1373,7 +1376,7 @@ name_register (const Array& params, bool fHelp)
     {
       EnsureWalletIsUnlocked ();
 
-      const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+      const int64_t nCoinAmount = GetRequiredGameFee (vchName, vchValue);
       string strError = pwalletMain->SendMoney (scriptPubKey, nCoinAmount,
                                                 wtx, false);
       if (strError != "")
@@ -1904,12 +1907,13 @@ analyseutxo (const Array& params, bool fHelp)
 
   /* Read UTXO database.  */
   unsigned txoCnt;
-  int64_t amount;
-  if (!dbset.utxo ().Analyse (txoCnt, amount))
+  int64_t amount, inNames;
+  if (!dbset.utxo ().Analyse (txoCnt, amount, inNames))
     throw std::runtime_error ("failed to read UTXO database");
 
   /* Find duplicate coinbase transactions and unspendable scripts
-     in the blockchain.  */
+     in the blockchain.  We also keep track of coins locked in name
+     outputs, since they are present also on the map as general values.  */
   int64_t dupCoinbase = 0;
   int64_t unspendable = 0;
   std::set<uint256> seenHashes;
@@ -1953,8 +1957,9 @@ analyseutxo (const Array& params, bool fHelp)
   res.push_back (Pair ("num_utxo", static_cast<int> (txoCnt)));
 
   Object subobj;
-  const int64_t supply = amount + onMap + gameFund;
+  const int64_t supply = amount + onMap + gameFund - inNames;
   subobj.push_back (Pair ("utxo", ValueFromAmount (amount)));
+  subobj.push_back (Pair ("inNames", ValueFromAmount (inNames)));
   subobj.push_back (Pair ("map", ValueFromAmount (onMap)));
   subobj.push_back (Pair ("gameFund", ValueFromAmount (gameFund)));
   subobj.push_back (Pair ("total", ValueFromAmount (supply)));
@@ -2255,37 +2260,30 @@ bool CHuntercoinHooks::IsMine(const CTransaction& tx, const CTxOut& txout, bool 
     return false;
 }
 
-void
+bool
 CHuntercoinHooks::AcceptToMemoryPool (DatabaseSet& dbset,
                                       const CTransaction& tx)
 {
-    if (tx.nVersion != NAMECOIN_TX_VERSION)
-        return;
+  if (tx.nVersion != NAMECOIN_TX_VERSION)
+    return true;
 
-    if (tx.vout.size() < 1)
-    {
-        error("AcceptToMemoryPool() : no output in name tx %s\n", tx.ToString().c_str());
-        return;
-    }
+  if (tx.vout.size() < 1)
+    return error("%s: no output in name tx %s",
+                 __func__, tx.ToString().c_str());
 
-    vector<vchType> vvch;
+  if (!IsMoveValid (GetCurrentGameState(), tx))
+    return error("%s: invalid game move", __func__);
 
-    int op;
-    int nOut;
+  int op, nOut;
+  std::vector<vchType> vvch;
+  if (!DecodeNameTx (tx, op, nOut, vvch))
+    return error("%s: could not decode name tx", __func__);
 
-    bool good = DecodeNameTx(tx, op, nOut, vvch);
+  if (op != OP_NAME_NEW)
+    CRITICAL_BLOCK(cs_main)
+      mapNamePending[vvch[0]].insert(tx.GetHash());
 
-    if (!good)
-    {
-        error("AcceptToMemoryPool() : no output out script in name tx %s", tx.ToString().c_str());
-        return;
-    }
-
-    if (op != OP_NAME_NEW)
-    {
-        CRITICAL_BLOCK(cs_main)
-            mapNamePending[vvch[0]].insert(tx.GetHash());
-    }
+  return true;
 }
 
 void CHuntercoinHooks::RemoveFromMemoryPool(const CTransaction& tx)
@@ -2434,7 +2432,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
     bool found = false;
 
     int prevHeight, prevOp;
-    int64 prevCoinAmount = -1;
+    int64_t prevCoinAmount = -1;
     std::vector<vchType> vvchPrevArgs;
 
     for (int i = 0 ; i < tx.vin.size(); i++)
@@ -2454,6 +2452,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
             prevOp = op;
         }
     }
+    assert (!found || prevCoinAmount >= 0);
 
     if (tx.nVersion != NAMECOIN_TX_VERSION)
     {
@@ -2537,9 +2536,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
                    name_firstupdate.  */
               }
 
-            if (tx.vout[nOut].nValue < GetNameCoinAmount (pindexBlock->nHeight))
-                return error ("ConnectInputsHook: name_firstupdate tx:"
-                              " insufficient amount of the locked coin");
             if (!NameAvailable (dbset, vvchArgs[0]))
                 return error("ConnectInputsHook() : name_firstupdate on an existing name");
 
@@ -2581,10 +2577,25 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
               return error ("ConnectInputsHook: multiple name_update operations"
                             " on the same name");
 
-            /* Check amount of locked coin.  */
-            if (tx.vout[nOut].nValue != prevCoinAmount)
+            /* Before the life-stealing fork, enforce that the coin
+               amount matches exactly.  Afterwards, we only require that
+               it is increasing over time (which is checked above).  */
+            /* FIXME: Remove check after the fork has passed.  */
+            if (!ForkInEffect (FORK_LIFESTEAL, pindexBlock->nHeight)
+                  && tx.vout[nOut].nValue != prevCoinAmount)
               return error ("ConnectInputsHook: name_update tx:"
                             " incorrect amount of the locked coin");
+
+            /* Check that the locked amount is increasing over time.  The
+               actual check for minimum fees is done by the move validation
+               logic.  This is just an additional "safety net".  Note that
+               we can only do it for name_update, since the old name_new
+               and name_firstupdate logic with prepared transactions *did*
+               decrease the amount by the tx fee.  */
+            if (tx.vout[nOut].nValue < prevCoinAmount)
+              return error ("%s: name coin amount decreased in tx '%s'",
+                            __func__, tx.GetHash ().GetHex ().c_str ());
+
             break;
 
         default:

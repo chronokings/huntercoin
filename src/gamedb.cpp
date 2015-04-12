@@ -138,20 +138,18 @@ public:
         dup.insert(sName);
 
         Move m;
+        m.newLocked = tx.vout[nOut].nValue;
+
         m.Parse(sName, sValue);
         if (!m)
             return error("GameStepValidator: cannot parse move %s for player %s", sValue.c_str(), sName.c_str());
         if (!m.IsValid(*pstate))
             return error("GameStepValidator: invalid move for the game state: move %s for player %s", sValue.c_str(), sName.c_str());
 
-        /* If this is a spawn move, find out the coin's value and set
-           the spawned player's value to it.  */
         if (m.IsSpawn ())
           {
             if (op != OP_NAME_FIRSTUPDATE)
               return error ("GameStepValidator: spawn is not firstupdate");
-
-            m.coinAmount = tx.vout[nOut].nValue;
           }
         else if (op != OP_NAME_UPDATE)
           return error ("GameStepValidator: name_firstupdate is not spawn");
@@ -203,9 +201,16 @@ public:
     }
 };
 
+bool
+IsMoveValid (const GameState& state, const CTransaction& tx)
+{
+  GameStepValidator validator(&state);
+  return validator.IsValid (tx);
+}
+
 static void InitStepData(StepData &stepData, const GameState &state)
 {
-    int64 nSubsidy = GetBlockValue(state.nHeight + 1, 0);
+    const int64_t nSubsidy = GetBlockValue(state.nHeight + 1, 0);
     // Miner subsidy is 10%, thus game treasure is 9 times the subsidy
     stepData.nTreasureAmount = nSubsidy * 9;
 }
@@ -762,7 +767,7 @@ bool UpgradeGameDB()
       }
 
     /* Upgrade the game state format in-place if this is possible.  */
-    if (nGameDbVersion < 1001100)
+    if (nGameDbVersion < 1030000)
     {
         printf("Updating GameDB...\n");
 

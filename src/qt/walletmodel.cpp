@@ -288,7 +288,7 @@ QString WalletModel::nameRegister(const QString &name, const std::string &data)
 
   CRITICAL_BLOCK(cs_main)
     {
-      const int64 nCoinAmount = GetNameCoinAmount (pindexBest->nHeight, true);
+      const int64_t nCoinAmount = GetRequiredGameFee (vchName, vchValue);
       std::string strError = wallet->SendMoney (scriptPubKey, nCoinAmount,
                                                 wtx, false);
       if (strError != "")
@@ -363,9 +363,10 @@ QString WalletModel::nameUpdate(const QString &name, const std::string &data, co
           }
         scriptPubKey += scriptPubKeyOrig;
 
-        /* Find amount locked in this name.  */
+        /* Find amount locked in this name and add required game fee.  */
         const int nTxOut = IndexOfNameOutput (tx);
-        const int64 nCoinAmount = tx.vout[nTxOut].nValue;
+        int64_t nCoinAmount = tx.vout[nTxOut].nValue;
+        nCoinAmount += GetRequiredGameFee (vchName, vchValue);
 
         /* Don't ask for fee confirmation here since name_update includes
            a mandatory minimum fee.  */

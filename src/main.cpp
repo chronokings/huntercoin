@@ -97,6 +97,10 @@ ForkInEffect (Fork type, unsigned nHeight)
     case FORK_LESSHEARTS:
       return nHeight >= (fTestNet ? 240000 : 590000);
 
+    /* FIXME: Decide about height!  */
+    case FORK_LIFESTEAL:
+      return nHeight >= (fTestNet ? 1000000 : 1000000);
+
     default:
       assert (false);
     }
@@ -580,6 +584,9 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         }
     }
 
+    if (!hooks->AcceptToMemoryPool (dbset, *this))
+        return error("%s: hook failed", __func__);
+
     // Store transaction in memory
     CRITICAL_BLOCK(cs_mapTransactions)
     {
@@ -594,8 +601,6 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         }
         AddToMemoryPoolUnchecked();
     }
-
-    hooks->AcceptToMemoryPool (dbset, *this);
 
     ///// are we sure this is ok when loading transactions or restoring block txes
     // If updated, erase old tx from wallet

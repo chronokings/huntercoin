@@ -1265,10 +1265,11 @@ CUtxoDB::Verify ()
 }
 
 bool
-CUtxoDB::Analyse (unsigned& nUtxo, int64_t& amount)
+CUtxoDB::Analyse (unsigned& nUtxo, int64_t& amount, int64_t& inNames)
 {
   nUtxo = 0;
   amount = 0;
+  inNames = 0;
 
   Dbc* pcursor = GetCursor ();
   if (!pcursor)
@@ -1301,6 +1302,14 @@ CUtxoDB::Analyse (unsigned& nUtxo, int64_t& amount)
 
       ++nUtxo;
       amount += obj.txo.nValue;
+
+      int op;
+      std::vector<vchType> vvchArgs;
+      if (DecodeNameScript (obj.txo.scriptPubKey, op, vvchArgs))
+        {
+          if (op != OP_NAME_NEW)
+            inNames += obj.txo.nValue;
+        }
     }
   pcursor->close ();
 

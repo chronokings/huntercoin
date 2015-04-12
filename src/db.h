@@ -513,7 +513,7 @@ public:
 
     /* Read all entries to analyse the total money supply as well as
        the number of entries.  */
-    bool Analyse (unsigned& nUtxo, int64_t& amount);
+    bool Analyse (unsigned& nUtxo, int64_t& amount, int64_t& inNames);
 };
 
 
