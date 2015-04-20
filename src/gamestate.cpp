@@ -342,11 +342,15 @@ Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
   assert (pl.next_character_index == 0);
   pl.color = color;
 
-  /* This is a fresh player and name, set its value as well as total locked
-     amount to the current name output.  */
-  assert (pl.lockedCoins == 0 && pl.value == -1 && newLocked >= 0);
-  pl.lockedCoins = newLocked;
-  pl.value = newLocked;
+  /* This is a fresh player and name.  Set its value to the height's
+     name coin amount and put the remainder in the game fee.  This prevents
+     people from "overpaying" on purpose in order to get beefed-up players.  */
+  const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
+  assert (pl.lockedCoins == 0 && pl.value == -1);
+  assert (newLocked >= coinAmount);
+  pl.lockedCoins = coinAmount;
+  pl.value = coinAmount;
+  state.gameFund += newLocked - coinAmount;
 
   const unsigned limit = state.GetNumInitialCharacters ();
   for (unsigned i = 0; i < limit; i++)
