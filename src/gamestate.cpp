@@ -114,7 +114,12 @@ private:
 
 const CBigNum RandomGenerator::MIN_STATE = CBigNum().SetCompact(0x097FFFFFu);
 
-bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit::Value &v)
+/* ************************************************************************** */
+/* Move.  */
+
+static bool
+ExtractField (json_spirit::Object& obj, const std::string field,
+              json_spirit::Value& v)
 {
     for (std::vector<json_spirit::Pair>::iterator i = obj.begin(); i != obj.end(); ++i)
     {
@@ -393,29 +398,138 @@ Move::MinimumGameFee (unsigned nHeight) const
   return 5 * COIN * destruct.size ();
 }
 
-// Returns direction from c1 to c2 as a number from 1 to 9 (as on the numeric keypad)
-unsigned char GetDirection(const Coord &c1, const Coord &c2)
-{
-    int dx = c2.x - c1.x;
-    int dy = c2.y - c1.y;
-    if (dx < -1)
-        dx = -1;
-    else if (dx > 1)
-        dx = 1;
-    if (dy < -1)
-        dy = -1;
-    else if (dy > 1)
-        dy = 1;
-
-    return (1 - dy) * 3 + dx + 2;
-}
-
 std::string CharacterID::ToString() const
 {
     if (!index)
         return player;
     return player + strprintf(".%d", int(index));
 }
+
+/* ************************************************************************** */
+/* AttackableCharacter and CharactersOnTiles.  */
+
+void
+AttackableCharacter::AttackBy (const CharacterID& attackChid,
+                               const PlayerState& pl)
+{
+  /* Do not attack same colour.  */
+  if (color == pl.color)
+    return;
+
+  assert (attackers.count (attackChid) == 0);
+  attackers.insert (attackChid);
+}
+
+void
+AttackableCharacter::AttackSelf (const GameState& state)
+{
+  // FIXME: Enable condition when life steal is actually implemented.
+  //if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight))
+    {
+      assert (attackers.count (chid) == 0);
+      attackers.insert (chid);
+    }
+}
+
+void
+CharactersOnTiles::EnsureIsBuilt (const GameState& state)
+{
+  if (built)
+    return;
+  assert (tiles.empty ());
+
+  BOOST_FOREACH (const PAIRTYPE(PlayerID, PlayerState)& p, state.players)
+    BOOST_FOREACH (const PAIRTYPE(int, CharacterState)& pc, p.second.characters)
+      {
+        AttackableCharacter a;
+        a.chid = CharacterID (p.first, pc.first);
+        a.color = p.second.color;
+        a.value = p.second.value;
+
+        tiles.insert (std::make_pair (pc.second.coord, a));
+      }
+  built = true;
+}
+
+void
+CharactersOnTiles::ApplyAttacks (const GameState& state,
+                                 const std::vector<Move>& moves)
+{
+  BOOST_FOREACH(const Move& m, moves)
+    {
+      if (m.destruct.empty ())
+        continue;
+
+      const PlayerStateMap::const_iterator miPl = state.players.find (m.player);
+      assert (miPl != state.players.end ());
+      const PlayerState& pl = miPl->second;
+      BOOST_FOREACH(int i, m.destruct)
+        {
+          const std::map<int, CharacterState>::const_iterator miCh
+            = pl.characters.find (i);
+          if (miCh == pl.characters.end ())
+            continue;
+          const CharacterID chid(m.player, i);
+          if (state.crownHolder == chid)
+            continue;
+
+          EnsureIsBuilt (state);
+
+          const int radius = GetDestructRadius (state.nHeight, i == 0);
+          const CharacterState& ch = miCh->second;
+          const Coord& c = ch.coord;
+          for (int y = c.y - radius; y <= c.y + radius; y++)
+            for (int x = c.x - radius; x <= c.x + radius; x++)
+              {
+                const std::pair<Map::iterator, Map::iterator> iters
+                  = tiles.equal_range (Coord (x, y));
+                for (Map::iterator it = iters.first; it != iters.second; ++it)
+                  {
+                    AttackableCharacter& a = it->second;
+                    if (a.chid == chid)
+                      a.AttackSelf (state);
+                    else
+                      a.AttackBy (chid, pl);
+                  }
+              }
+        }
+    }
+}
+
+void
+CharactersOnTiles::Finalise (GameState& state, StepResult& result) const
+{
+  if (!built)
+    return;
+
+  BOOST_FOREACH (const PAIRTYPE(Coord, AttackableCharacter)& tile, tiles)
+    {
+      const AttackableCharacter& a = tile.second;
+      if (a.attackers.empty ())
+        continue;
+
+      if (a.chid.index == 0)
+        for (std::set<CharacterID>::const_iterator at = a.attackers.begin ();
+             at != a.attackers.end (); ++at)
+          {
+            const KilledByInfo killer(*at);
+            result.KillPlayer (a.chid.player, killer);
+          }
+
+      PlayerStateMap::iterator vit = state.players.find (a.chid.player);
+      assert (vit != state.players.end ());
+      PlayerState& victim = vit->second;
+      if (victim.characters.count (a.chid.index) > 0)
+        {
+          state.HandleKilledLoot (a.chid.player, a.chid.index,
+                                  true, false, result);
+          victim.characters.erase (a.chid.index);
+        }
+    }
+}
+
+/* ************************************************************************** */
+/* CharacterState and PlayerState.  */
 
 void CharacterState::Spawn(int color, RandomGenerator &rnd)
 {
@@ -465,6 +579,24 @@ void CharacterState::Spawn(int color, RandomGenerator &rnd)
         dir = 8;
 
     StopMoving();
+}
+
+// Returns direction from c1 to c2 as a number from 1 to 9 (as on the numeric keypad)
+static unsigned char
+GetDirection (const Coord& c1, const Coord& c2)
+{
+    int dx = c2.x - c1.x;
+    int dy = c2.y - c1.y;
+    if (dx < -1)
+        dx = -1;
+    else if (dx > 1)
+        dx = 1;
+    if (dy < -1)
+        dy = -1;
+    else if (dy > 1)
+        dy = 1;
+
+    return (1 - dy) * 3 + dx + 2;
 }
 
 // Simple straight-line motion
@@ -726,6 +858,9 @@ json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
 
     return obj;
 }
+
+/* ************************************************************************** */
+/* GameState.  */
 
 GameState::GameState()
 {
@@ -1341,6 +1476,8 @@ GameState::DecrementLife (StepResult& step)
     }
 }
 
+/* ************************************************************************** */
+
 void
 CollectedBounty::UpdateAddress (const GameState& state)
 {
@@ -1350,31 +1487,6 @@ CollectedBounty::UpdateAddress (const GameState& state)
     return;
 
   address = i->second.address;
-}
-
-struct AttackableCharacter
-{
-    const std::string *name;
-    int index;
-    unsigned char color;
-};
-
-std::multimap<Coord, AttackableCharacter> *MapCharactersToTiles(const std::map<PlayerID, PlayerState> &players)
-{
-    std::multimap<Coord, AttackableCharacter> *m = new std::multimap<Coord, AttackableCharacter>();
-    for (std::map<PlayerID, PlayerState>::const_iterator p = players.begin(); p != players.end(); p++)
-        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, p->second.characters)
-        {
-            int i = pc.first;
-            const CharacterState &ch = pc.second;
-
-            AttackableCharacter a;
-            a.name = &p->first;
-            a.index = i;
-            a.color = p->second.color;
-            m->insert(std::pair<Coord, AttackableCharacter>(ch.coord, a));
-        }
-    return m;
 }
 
 bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameState &outState, StepResult &stepResult)
@@ -1407,64 +1519,9 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         }
 
     // Apply attacks
-    std::multimap<Coord, AttackableCharacter> *charactersOnTile = NULL;   // Delayed creation - only if at least one attack happened
-    BOOST_FOREACH(const Move &m, stepData.vMoves)
-    {
-        if (m.destruct.empty())
-            continue;
-        const PlayerState &pl = inState.players.find(m.player)->second;
-        BOOST_FOREACH(int i, m.destruct)
-        {
-            if (!pl.characters.count(i))
-                continue;
-            CharacterID chid(m.player, i);
-            if (inState.crownHolder == chid)
-                continue;
-            if (!charactersOnTile)
-                charactersOnTile = MapCharactersToTiles(inState.players);
-            const int radius = GetDestructRadius (outState.nHeight, i == 0);
-            Coord c = pl.characters.find(i)->second.coord;
-            for (int y = c.y - radius; y <= c.y + radius; y++)
-                for (int x = c.x - radius; x <= c.x + radius; x++)
-                {
-                    std::pair<std::multimap<Coord, AttackableCharacter>::const_iterator, std::multimap<Coord, AttackableCharacter>::const_iterator> its =
-                                    charactersOnTile->equal_range(Coord(x, y));
-                    for (std::multimap<Coord, AttackableCharacter>::const_iterator it = its.first; it != its.second; it++)
-                    {
-                        const AttackableCharacter &a = it->second;
-                        PlayerState& victim = outState.players[*a.name];
-
-                        if (a.color == pl.color)
-                            continue;  // Do not kill same color
-                        if (a.index == 0)
-                        {
-                            const KilledByInfo killer(chid);
-                            stepResult.KillPlayer (*a.name, killer);
-                        }
-                        if (victim.characters.count(a.index))
-                        {
-                            outState.HandleKilledLoot (*a.name, a.index,
-                                                       true, false,
-                                                       stepResult);
-                            victim.characters.erase(a.index);
-                        }
-                    }
-                }
-            if (outState.players[m.player].characters.count(i))
-            {
-                outState.HandleKilledLoot (m.player, i, true, false,
-                                           stepResult);
-                outState.players[m.player].characters.erase(i);
-            }
-            if (i == 0)
-            {
-                const KilledByInfo killer(CharacterID(m.player, i));
-                stepResult.KillPlayer (m.player, killer);
-            }
-        }
-    }
-
-    delete charactersOnTile;
+    CharactersOnTiles attackedTiles;
+    attackedTiles.ApplyAttacks (outState, stepData.vMoves);
+    attackedTiles.Finalise (outState, stepResult);
 
     // Kill players who stay too long in the spawn area
     outState.KillSpawnArea (stepResult);

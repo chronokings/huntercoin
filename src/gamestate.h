@@ -1,7 +1,6 @@
 #ifndef GAMESTATE_H
 #define GAMESTATE_H
 
-#include <string>
 #ifndef Q_MOC_RUN
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
@@ -9,6 +8,9 @@
 #include "json/json_spirit_value.h"
 #include "uint256.h"
 #include "serialize.h"
+
+#include <map>
+#include <string>
 
 namespace Game
 {
@@ -56,9 +58,9 @@ struct CharacterID
 };
 
 class GameState;
-class RandomGenerator;
-class PlayerState;
 class KilledByInfo;
+class PlayerState;
+class RandomGenerator;
 class StepResult;
 
 // Define STL types used for killed player identification later on.
@@ -147,6 +149,86 @@ struct Move
      * @return Minimum required game fee payment.
      */
     int64_t MinimumGameFee (unsigned nHeight) const;
+};
+
+/**
+ * A character on the map that stores information while processing attacks.
+ * Keep track of all attackers, so that we can both construct the killing gametx
+ * and also handle life-stealing.
+ */
+struct AttackableCharacter
+{
+
+  /** The character this represents.  */
+  CharacterID chid;
+
+  /** The character's colour.  */
+  unsigned char color;
+
+  /** The initial (before all attacks in the current step) value.  */
+  int64_t value;
+
+  /** All attackers that hit it.  */
+  std::set<CharacterID> attackers;
+
+  /**
+   * Perform an attack by the given character.  Its ID and state must
+   * correspond to the same attacker.
+   */
+  void AttackBy (const CharacterID& attackChid, const PlayerState& pl);
+
+  /**
+   * Handle self-effect of destruct.  The game state's height is used
+   * to determine whether or not this has an effect (before the life-steal
+   * fork).
+   */
+  void AttackSelf (const GameState& state);
+
+};
+
+/**
+ * Hold the map from tiles to attackable characters.  This is built lazily
+ * when attacks are done, so that we can save the processing time if not.
+ */
+struct CharactersOnTiles
+{
+
+  /** The map type used.  */
+  typedef std::multimap<Coord, AttackableCharacter> Map;
+
+  /** The actual map.  */
+  Map tiles;
+
+  /** Whether it is already built.  */
+  bool built;
+
+  /**
+   * Construct an empty object.
+   */
+  inline CharactersOnTiles ()
+    : tiles(), built(false)
+  {}
+
+  /**
+   * Build it from the game state if not yet built.
+   * @param state The game state from which to extract characters.
+   */
+  void EnsureIsBuilt (const GameState& state);
+
+  /**
+   * Perform all attacks in the moves.
+   * @param state The current game state to build it if necessary.
+   * @param moves All moves in the step.
+   */
+  void ApplyAttacks (const GameState& state, const std::vector<Move>& moves);
+
+  /**
+   * Update the state for the applied attacks.
+   * @param state The game state, will be modified.
+   * @param result The step result object to fill in.
+   */
+  void Finalise (GameState& state, StepResult& result) const;
+
 };
 
 // Do not use for user-provided coordinates, as abs can overflow on INT_MIN.
