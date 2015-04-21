@@ -529,7 +529,7 @@ struct GameState
        it may be dropped (with or without miner tax), refunded in a bounty
        transaction or added to the game fund.  */
     void HandleKilledLoot (const PlayerID& pId, int chInd,
-                           bool hasTax, bool canRefund, StepResult& step);
+                           const KilledByInfo& info, StepResult& step);
 
     /* For a given list of killed players, kill all their characters
        and collect the tax amount.  The killed players are removed from
@@ -548,6 +548,10 @@ struct GameState
     /* Decrement poison life expectation and kill players whose has
        dropped to zero.  */
     void DecrementLife (StepResult& step);
+
+    /* Special action at the life-steal fork height:  Remove all hearts
+       on the map and kill all hearted players.  */
+    void RemoveHeartedCharacters (StepResult& step);
 
     /* Return total amount of coins on the map (in loot and hold by players,
        including also general values).  */
@@ -616,11 +620,16 @@ struct KilledByInfo
   {}
 
   /* See if this killing reason pays out miner tax or not.  */
-  inline bool
-  HasDeathTax () const
-  {
-    return reason != KILLED_SPAWN;
-  }
+  bool HasDeathTax () const;
+
+  /* See if this killing should drop the coins.  Otherwise (e. g., for poison)
+     the coins are added to the game fund.  */
+  bool DropCoins (unsigned nHeight) const;
+
+  /* See if this killing allows a refund of the general cost to the player.
+     This depends on the height, since poison death refunds only after
+     the life-steal fork.  */
+  bool CanRefund (unsigned nHeight) const;
 
   /* Comparison necessary for STL containers.  */
 

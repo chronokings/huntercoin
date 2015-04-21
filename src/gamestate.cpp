@@ -42,8 +42,8 @@ inline bool IsWalkable(const Coord &c)
    It depends on the block height (taking forks changing it into account)
    and possibly properties of the player.  Returns -1 if the capacity
    is unlimited.  */
-inline static
-int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
+static int64_t
+GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
 {
   if (!ForkInEffect (FORK_CARRYINGCAP, nHeight) || isCrownHolder)
     return -1;
@@ -56,8 +56,8 @@ int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
 
 /* Get the destruct radius a hunter has at a certain block height.  This
    may depend on whether or not it is a general.  */
-inline static
-int GetDestructRadius (int nHeight, bool isGeneral)
+static int
+GetDestructRadius (int nHeight, bool isGeneral)
 {
   if (ForkInEffect (FORK_LESSHEARTS, nHeight))
     return 1;
@@ -66,9 +66,12 @@ int GetDestructRadius (int nHeight, bool isGeneral)
 }
 
 /* Check whether or not a heart should be dropped at the current height.  */
-inline static
-bool DropHeart (int nHeight)
+static bool
+DropHeart (int nHeight)
 {
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return false;
+
   const int heartEvery = (ForkInEffect (FORK_LESSHEARTS, nHeight) ? 500 : 10);
   return nHeight % heartEvery == 0;
 }
@@ -113,6 +116,45 @@ private:
 };
 
 const CBigNum RandomGenerator::MIN_STATE = CBigNum().SetCompact(0x097FFFFFu);
+
+/* ************************************************************************** */
+/* KilledByInfo.  */
+
+bool
+KilledByInfo::HasDeathTax () const
+{
+  return reason != KILLED_SPAWN;
+}
+
+bool
+KilledByInfo::DropCoins (unsigned nHeight) const
+{
+  if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return true;
+
+  return reason != KILLED_POISON;
+}
+
+bool
+KilledByInfo::CanRefund (unsigned nHeight) const
+{
+  if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return false;
+
+  switch (reason)
+    {
+    case KILLED_SPAWN:
+      return true;
+
+    case KILLED_POISON:
+      return ForkInEffect (FORK_LIFESTEAL, nHeight);
+
+    default:
+      return false;
+    }
+
+  assert (false);
+}
 
 /* ************************************************************************** */
 /* Move.  */
@@ -521,8 +563,9 @@ CharactersOnTiles::Finalise (GameState& state, StepResult& result) const
       PlayerState& victim = vit->second;
       if (victim.characters.count (a.chid.index) > 0)
         {
-          state.HandleKilledLoot (a.chid.player, a.chid.index,
-                                  true, false, result);
+          assert (a.attackers.begin () != a.attackers.end ());
+          const KilledByInfo& info(*a.attackers.begin ());
+          state.HandleKilledLoot (a.chid.player, a.chid.index, info, result);
           victim.characters.erase (a.chid.index);
         }
     }
@@ -1284,54 +1327,48 @@ PushCoordOutOfSpawnArea(const Coord &c)
 
 void
 GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
-                             bool hasTax, bool canRefund, StepResult& step)
+                             const KilledByInfo& info, StepResult& step)
 {
   const PlayerStateMap::const_iterator mip = players.find (pId);
   assert (mip != players.end ());
   const PlayerState& pc = mip->second;
+  assert (pc.value > 0);
   const std::map<int, CharacterState>::const_iterator mic
     = pc.characters.find (chInd);
   assert (mic != pc.characters.end ());
   const CharacterState& ch = mic->second;
 
+  /* If refunding is possible, do this for the locked amount right now.
+     Later on, exclude the amount from further considerations.  */
+  bool refunded = false;
+  if (chInd == 0 && info.CanRefund (nHeight))
+    {
+      CollectedLootInfo loot;
+      loot.SetRefund (pc.value, nHeight);
+      CollectedBounty b(pId, chInd, loot, pc.address);
+      step.bounties.push_back (b);
+      refunded = true;
+    }
+
   /* Calculate loot.  If we kill a general, take the locked coin amount
      into account, as well.  */
   int64_t nAmount = ch.loot.nAmount;
-  if (chInd == 0)
-    {
-      assert (pc.value >= 0);
-      nAmount += pc.value;
-    }
+  if (chInd == 0 && !refunded)
+    nAmount += pc.value;
 
   /* Apply the miner tax: 4%.  */
-  if (hasTax)
+  if (info.HasDeathTax ())
     {
       const int64 nTax = nAmount / 25;
       step.nTaxAmount += nTax;
       nAmount -= nTax;
     }
 
-  /* Return early if nothing is to drop.  */
-  if (nAmount == 0)
-    return;
-  assert (nAmount > 0);
-
-
-  /* If the player is poisoned, loot is not dropped (or refunded) but instead
-     added to the game fund.  */
-  if (pc.remainingLife >= 0 && ForkInEffect (FORK_LESSHEARTS, nHeight))
+  /* If requested (and the corresponding fork is in effect), add the coins
+     to the game fund instead of dropping them.  */
+  if (!info.DropCoins (nHeight))
     {
       gameFund += nAmount;
-      return;
-    }
-
-  /* If refunding is possible, do that.  */
-  if (canRefund && ForkInEffect (FORK_LESSHEARTS, nHeight))
-    {
-      CollectedLootInfo loot;
-      loot.SetRefund (nAmount, nHeight);
-      CollectedBounty b(pId, chInd, loot, pc.address);
-      step.bounties.push_back (b);
       return;
     }
 
@@ -1350,15 +1387,16 @@ GameState::FinaliseKills (StepResult& step)
     {
       const PlayerState& victimState = players.find (victim)->second;
 
-      /* If killed by the game for staying in the spawn area, then no tax.  */
+      /* Take a look at the killed info to determine flags for handling
+         the player loot.  */
       const KilledByMap::const_iterator iter = killedBy.find (victim);
       assert (iter != killedBy.end ());
-      const bool apply_tax = iter->second.HasDeathTax ();
+      const KilledByInfo& info = iter->second;
 
       /* Kill all alive characters of the player.  */
       BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
                     victimState.characters)
-        HandleKilledLoot (victim, pc.first, apply_tax, false, step);
+        HandleKilledLoot (victim, pc.first, info, step);
     }
 
   /* Erase killed players from the state.  */
@@ -1418,12 +1456,10 @@ GameState::KillSpawnArea (StepResult& step)
             continue;
 
           /* Handle the character's loot and kill the player.  */
-          HandleKilledLoot (p.first, i, false, true, step);
+          const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
+          HandleKilledLoot (p.first, i, killer, step);
           if (i == 0)
-            {
-              const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
-              step.KillPlayer (p.first, killer);
-            }
+            step.KillPlayer (p.first, killer);
 
           /* Cannot erase right now, because it will invalidate the
              iterator 'pc'.  */
@@ -1473,6 +1509,37 @@ GameState::DecrementLife (StepResult& step)
           const KilledByInfo killer(KilledByInfo::KILLED_POISON);
           step.KillPlayer (p.first, killer);
         }
+    }
+}
+
+void
+GameState::RemoveHeartedCharacters (StepResult& step)
+{
+  assert (IsForkHeight (FORK_LIFESTEAL, nHeight));
+
+  /* Get rid of all hearts on the map.  */
+  hearts.clear ();
+
+  /* Immediately kill all hearted characters.  */
+  BOOST_FOREACH (PAIRTYPE(const PlayerID, PlayerState)& p, players)
+    {
+      std::set<int> toErase;
+      BOOST_FOREACH (PAIRTYPE(const int, CharacterState)& pc,
+                     p.second.characters)
+        {
+          const int i = pc.first;
+          if (i == 0)
+            continue;
+
+          const KilledByInfo info(KilledByInfo::KILLED_POISON);
+          HandleKilledLoot (p.first, i, info, step);
+
+          /* Cannot erase right now, because it will invalidate the
+             iterator 'pc'.  */
+          toErase.insert (i);
+        }
+      BOOST_FOREACH (int i, toErase)
+        p.second.characters.erase (i);
     }
 }
 
@@ -1532,6 +1599,13 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     /* Finalise the kills.  */
     outState.FinaliseKills (stepResult);
+
+    /* Special rule for the life-steal fork:  When it takes effect,
+       remove all hearted characters from the map.  Also heart creation
+       is disabled, so no hearted characters will ever be present
+       afterwards.  */
+    if (IsForkHeight (FORK_LIFESTEAL, outState.nHeight))
+      outState.RemoveHeartedCharacters (stepResult);
 
     /* Apply updates to target coordinate.  This ignores already
        killed players.  */
@@ -1631,7 +1705,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     outState.DivideLootAmongPlayers();
     outState.CrownBonus(nCrownBonus);
 
-    // Drop heart onto the map (1 heart per 5 blocks)
+    // Drop heart onto the map.
     if (DropHeart (outState.nHeight))
     {
         Coord heart;

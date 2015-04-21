@@ -106,6 +106,15 @@ ForkInEffect (Fork type, unsigned nHeight)
     }
 }
 
+bool
+IsForkHeight (Fork type, unsigned nHeight)
+{
+  if (nHeight == 0)
+    return false;
+
+  return ForkInEffect (type, nHeight) && !ForkInEffect (type, nHeight - 1);
+}
+
 
 
 
