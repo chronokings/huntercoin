@@ -1,0 +1,12 @@
+Life-Steal Fork:
+----------------
+
+* New game fee of 5 HUC for destruct.
+
+* Hearts never spawn.
+
+* At the fork, all hearts are removed and all hearted characters
+  killed immediately.  Coins are handled as per disaster death.
+
+* Death by disaster now refunds the general cost.  The collected coins
+  are added to the game fund (minus miner tax).
