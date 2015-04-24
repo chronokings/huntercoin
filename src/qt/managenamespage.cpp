@@ -156,7 +156,7 @@ public:
                       return "";
 
                     if (state.remainingLife == -1)
-                      return "";
+                      return QString::fromStdString(FormatMoney(state.value));
 
                     assert (state.remainingLife > 0);
                     return QString("%1").arg (state.remainingLife);
@@ -204,7 +204,7 @@ public:
                     case Time:
                         return tr("Time until destination is reached (in blocks)");
                     case Life:
-                        return tr("Remaining life in blocks");
+                        return tr("Remaining life while poisoned or health value if not poisoned");
                 }
             }
         }
