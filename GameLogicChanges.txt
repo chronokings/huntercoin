@@ -10,3 +10,7 @@ Life-Steal Fork:
 
 * Death by disaster now refunds the general cost.  The collected coins
   are added to the game fund (minus miner tax).
+
+* Destructing is not lethal for the hunter itself.
+
+* Waypoints and destruct can be set at once in a valid move.
