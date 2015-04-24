@@ -179,6 +179,16 @@ bool Move::IsValid(const GameState &state) const
 {
   PlayerStateMap::const_iterator mi = state.players.find (player);
 
+  /* Before the life-steal fork, check that the move does not contain
+     destruct and waypoints together.  This needs the height for its
+     decision, thus it is not done in Parse (as before).  */
+  /* FIXME: Remove check once the fork is passed.  */
+  if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight + 1))
+    for (std::map<int, WaypointVector>::const_iterator i = waypoints.begin ();
+         i != waypoints.end (); ++i)
+      if (destruct.count (i->first) > 0)
+        return error ("%s: destruct and waypoints together", __func__);
+
   int64_t oldLocked;
   if (mi == state.players.end ())
     {
@@ -325,13 +335,9 @@ bool Move::Parse(const PlayerID &player, const std::string &json)
             return false;
 
         if (bDestruct)
-        {
-            if (bWaypoints)
-                return false;     // Cannot combine destruct and waypoints
             destruct.insert(i);
-        }
-        else if (bWaypoints)
-            waypoints[i] = wp;
+        if (bWaypoints)
+            waypoints.insert(std::make_pair(i, wp));
 
         if (!subobj.empty())      // Extra fields are not allowed in JSON string
             return false;
@@ -465,8 +471,7 @@ AttackableCharacter::AttackBy (const CharacterID& attackChid,
 void
 AttackableCharacter::AttackSelf (const GameState& state)
 {
-  // FIXME: Enable condition when life steal is actually implemented.
-  //if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight))
+  if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight))
     {
       assert (attackers.count (chid) == 0);
       attackers.insert (chid);
@@ -539,7 +544,7 @@ CharactersOnTiles::ApplyAttacks (const GameState& state,
 }
 
 void
-CharactersOnTiles::Finalise (GameState& state, StepResult& result) const
+CharactersOnTiles::FinaliseOld (GameState& state, StepResult& result) const
 {
   if (!built)
     return;
@@ -1588,7 +1593,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     // Apply attacks
     CharactersOnTiles attackedTiles;
     attackedTiles.ApplyAttacks (outState, stepData.vMoves);
-    attackedTiles.Finalise (outState, stepResult);
+    attackedTiles.FinaliseOld (outState, stepResult);
 
     // Kill players who stay too long in the spawn area
     outState.KillSpawnArea (stepResult);

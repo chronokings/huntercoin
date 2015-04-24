@@ -223,11 +223,11 @@ struct CharactersOnTiles
   void ApplyAttacks (const GameState& state, const std::vector<Move>& moves);
 
   /**
-   * Update the state for the applied attacks.
+   * Update the state for the applied attacks with the logic before life-steal.
    * @param state The game state, will be modified.
    * @param result The step result object to fill in.
    */
-  void Finalise (GameState& state, StepResult& result) const;
+  void FinaliseOld (GameState& state, StepResult& result) const;
 
 };
 
