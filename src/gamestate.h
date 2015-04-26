@@ -223,11 +223,26 @@ struct CharactersOnTiles
   void ApplyAttacks (const GameState& state, const std::vector<Move>& moves);
 
   /**
-   * Update the state for the applied attacks with the logic before life-steal.
+   * Kill characters with too many attackers.  This handles both the
+   * pre- and post-life-steal logic.
    * @param state The game state, will be modified.
    * @param result The step result object to fill in.
    */
-  void FinaliseOld (GameState& state, StepResult& result) const;
+  void KillAttacked (GameState& state, StepResult& result) const;
+
+  /**
+   * Remove mutual attacks from the attacker arrays.
+   * @param state The state to look up players.
+   */
+  void DefendMutualAttacks (const GameState& state);
+
+  /**
+   * Transfer life from victim to attackers.  If there are more attackers than
+   * available coins, distribute randomly.
+   * @param rnd The RNG to use.
+   * @param state The state to update.
+   */
+  void TransferLife (RandomGenerator& rnd, GameState& state) const;
 
 };
 

@@ -14,3 +14,15 @@ Life-Steal Fork:
 * Destructing is not lethal for the hunter itself.
 
 * Waypoints and destruct can be set at once in a valid move.
+
+* Use life-steal to handle destructs.  In particular:
+  1) Mutual attacks of a pair of hunters are considered "void" and not
+     processed at all.  Kind of like a "defense".
+  2) Hunters with at least as many attackers as their current value
+     die.  Their coins are dropped on the floor as before (including miner
+     tax).  Their value is not part of that.
+  3) Each attacker that is still alive gets life from each victim.  If the
+     victim has not enough for all alive attackers, this is done randomly.
+     If the victim has less than 200 HUC value, this is added to the game fund
+     instead.  The same is true if the "rightful owner" (attacker) has died
+     itself.
