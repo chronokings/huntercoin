@@ -1464,8 +1464,8 @@ name_pending (const Array& params, bool fHelp)
 
   Array res;
 
-  CRITICAL_BLOCK (cs_mapTransactions)
   CRITICAL_BLOCK (cs_main)
+  CRITICAL_BLOCK (cs_mapTransactions)
     {
       std::map<vchType, std::set<uint256> >::const_iterator i;
       for (i = mapNamePending.begin (); i != mapNamePending.end (); ++i)
