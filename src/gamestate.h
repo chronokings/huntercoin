@@ -365,7 +365,7 @@ struct CharacterState
         READWRITE(stay_in_spawn_area);
     )
 
-    void Spawn(int color, RandomGenerator &rnd);
+    void Spawn(unsigned nHeight, int color, RandomGenerator &rnd);
 
     void StopMoving()
     {
@@ -450,7 +450,7 @@ struct PlayerState
         next_character_index(0), remainingLife(-1), message_block(0)
     {}
 
-    void SpawnCharacter(RandomGenerator &rnd);
+    void SpawnCharacter(unsigned nHeight, RandomGenerator &rnd);
     bool CanSpawnCharacter()
     {
         return characters.size() < MAX_CHARACTERS_PER_PLAYER && next_character_index < MAX_CHARACTERS_PER_PLAYER_TOTAL;

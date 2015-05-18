@@ -26,3 +26,6 @@ Life-Steal Fork:
      If the victim has less than 200 HUC value, this is added to the game fund
      instead.  The same is true if the "rightful owner" (attacker) has died
      itself.
+
+*) Spawning of characters (and their initial direction) is now random
+   among all walkable tiles.

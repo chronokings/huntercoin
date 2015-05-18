@@ -38,6 +38,17 @@ inline bool IsWalkable(const Coord &c)
     return IsWalkable(c.x, c.y);
 }
 
+/**
+ * Keep a set of walkable tiles.  This is used for random selection of
+ * one of them for spawning / dynamic bank purposes.  Note that it is
+ * important how they are ordered (according to Coord::operator<) in order
+ * to reach consensus on the game state.
+ *
+ * This is filled in from IsWalkable() whenever it is empty (on startup).  It
+ * does not ever change.
+ */
+static std::vector<Coord> walkableTiles;
+
 /* Calculate carrying capacity.  This is where it is basically defined.
    It depends on the block height (taking forks changing it into account)
    and possibly properties of the player.  Returns -1 if the capacity
@@ -74,6 +85,24 @@ DropHeart (int nHeight)
 
   const int heartEvery = (ForkInEffect (FORK_LESSHEARTS, nHeight) ? 500 : 10);
   return nHeight % heartEvery == 0;
+} 
+
+/* Ensure that walkableTiles is filled.  */
+static void
+FillWalkableTiles ()
+{
+  if (!walkableTiles.empty ())
+    return;
+
+  for (int x = 0; x < MAP_WIDTH; ++x)
+    for (int y = 0; y < MAP_HEIGHT; ++y)
+      if (IsWalkable (x, y))
+        walkableTiles.push_back (Coord (x, y));
+
+  /* Do not forget to sort in the order defined by operator<!  */
+  std::sort (walkableTiles.begin (), walkableTiles.end ());
+
+  assert (!walkableTiles.empty ());
 }
 
 } // namespace Game
@@ -407,7 +436,7 @@ Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 
   const unsigned limit = state.GetNumInitialCharacters ();
   for (unsigned i = 0; i < limit; i++)
-    pl.SpawnCharacter (rnd);
+    pl.SpawnCharacter (state.nHeight, rnd);
 
   state.players.insert (std::make_pair (player, pl));
 }
@@ -740,54 +769,73 @@ CharactersOnTiles::TransferLife (RandomGenerator& rnd, GameState& state) const
 /* ************************************************************************** */
 /* CharacterState and PlayerState.  */
 
-void CharacterState::Spawn(int color, RandomGenerator &rnd)
+void
+CharacterState::Spawn (unsigned nHeight, int color, RandomGenerator &rnd)
 {
-    int pos = rnd.GetIntRnd(2 * SPAWN_AREA_LENGTH - 1);
-    int x = pos < SPAWN_AREA_LENGTH ? pos : 0;
-    int y = pos < SPAWN_AREA_LENGTH ? 0 : pos - SPAWN_AREA_LENGTH;
-    switch (color)
+  /* Pick a random walkable spawn location after the life-steal fork.  */
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
     {
+      FillWalkableTiles ();
+
+      const int pos = rnd.GetIntRnd (walkableTiles.size ());
+      coord = walkableTiles[pos];
+
+      dir = rnd.GetIntRnd (1, 8);
+      if (dir >= 5)
+        ++dir;
+      assert (dir >= 1 && dir <= 9 && dir != 5);
+    }
+
+  /* Use old logic with fixed spawns in the corners before the fork.  */
+  else
+    {
+      const int pos = rnd.GetIntRnd(2 * SPAWN_AREA_LENGTH - 1);
+      const int x = pos < SPAWN_AREA_LENGTH ? pos : 0;
+      const int y = pos < SPAWN_AREA_LENGTH ? 0 : pos - SPAWN_AREA_LENGTH;
+      switch (color)
+        {
         case 0: // Yellow (top-left)
-            coord = Coord(x, y);
-            break;
+          coord = Coord(x, y);
+          break;
         case 1: // Red (top-right)
-            coord = Coord(MAP_WIDTH - 1 - x, y);
-            break;
+          coord = Coord(MAP_WIDTH - 1 - x, y);
+          break;
         case 2: // Green (bottom-right)
-            coord = Coord(MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
-            break;
+          coord = Coord(MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
+          break;
         case 3: // Blue (bottom-left)
-            coord = Coord(x, MAP_HEIGHT - 1 - y);
-            break;
+          coord = Coord(x, MAP_HEIGHT - 1 - y);
+          break;
         default:
-            throw std::runtime_error("CharacterState::Spawn: incorrect color");
-    }
+          throw std::runtime_error("CharacterState::Spawn: incorrect color");
+        }
 
-    // Set look-direction for the sprite
-    if (coord.x == 0)
-    {
-        if (coord.y == 0)
+      // Set look-direction for the sprite
+      if (coord.x == 0)
+        {
+          if (coord.y == 0)
             dir = 3;
-        else if (coord.y == MAP_HEIGHT - 1)
+          else if (coord.y == MAP_HEIGHT - 1)
             dir = 9;
-        else
+          else
             dir = 6;
-    }
-    else if (coord.x == MAP_WIDTH - 1)
-    {
-        if (coord.y == 0)
+        }
+      else if (coord.x == MAP_WIDTH - 1)
+        {
+          if (coord.y == 0)
             dir = 1;
-        else if (coord.y == MAP_HEIGHT - 1)
+          else if (coord.y == MAP_HEIGHT - 1)
             dir = 7;
-        else
+          else
             dir = 4;
-    }
-    else if (coord.y == 0)
+        }
+      else if (coord.y == 0)
         dir = 2;
-    else if (coord.y == MAP_HEIGHT - 1)
+      else if (coord.y == MAP_HEIGHT - 1)
         dir = 8;
+    }
 
-    StopMoving();
+  StopMoving();
 }
 
 // Returns direction from c1 to c2 as a number from 1 to 9 (as on the numeric keypad)
@@ -990,9 +1038,10 @@ CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
   return remaining;
 }
 
-void PlayerState::SpawnCharacter(RandomGenerator &rnd)
+void
+PlayerState::SpawnCharacter (unsigned nHeight, RandomGenerator &rnd)
 {
-    characters[next_character_index++].Spawn(color, rnd);
+  characters[next_character_index++].Spawn (nHeight, color, rnd);
 }
 
 json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = false*/) const
@@ -1421,7 +1470,7 @@ void GameState::CollectHearts(RandomGenerator &rnd)
         }
         if (i >= 0)
         {
-            v[i]->SpawnCharacter(rnd);
+            v[i]->SpawnCharacter(nHeight, rnd);
             hearts.erase(c);
         }
     }

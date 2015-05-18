@@ -120,7 +120,8 @@ enum Fork
   FORK_LESSHEARTS,
 
   /* Implement "life steal".  This adds a game fee for destructs (5 HUC),
-     completely disables hearts and removes all "hearted" hunters.  */
+     completely disables hearts and removes all "hearted" hunters.  It also
+     randomises spawn and banking locations.  */
   FORK_LIFESTEAL,
 
 };
