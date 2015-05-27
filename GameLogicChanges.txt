@@ -1,7 +1,7 @@
 Life-Steal Fork:
 ----------------
 
-* New game fee of 5 HUC for destruct.
+* New game fee of 20 HUC for destruct.
 
 * Carrying capacity lowered to 100 HUC (crown holder is still exempt).
 

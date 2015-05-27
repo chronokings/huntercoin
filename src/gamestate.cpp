@@ -475,7 +475,7 @@ Move::MinimumGameFee (unsigned nHeight) const
   if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
     return 0;
 
-  return 5 * COIN * destruct.size ();
+  return 20 * COIN * destruct.size ();
 }
 
 std::string CharacterID::ToString() const
