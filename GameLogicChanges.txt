@@ -31,3 +31,7 @@ Life-Steal Fork:
 
 *) Spawning of characters (and their initial direction) is now random
    among all walkable tiles.
+
+*) Banks are no longer at the corners, but instead randomly placed.
+   In particular, after the fork at each block height divisible by 50,
+   a random subset of 50 walkable tiles is chosen as the new banks.

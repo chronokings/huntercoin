@@ -45,7 +45,7 @@ inline bool IsWalkable(int x, int y)
     return ObstacleMap[y][x] == 0;
 }
 
-inline bool IsInSpawnArea(int x, int y)
+inline bool IsOriginalSpawnArea(int x, int y)
 {
     return ((x == 0 || x == MAP_WIDTH - 1) && (y < SPAWN_AREA_LENGTH || y >= MAP_HEIGHT - SPAWN_AREA_LENGTH))
         || ((y == 0 || y == MAP_HEIGHT - 1) && (x < SPAWN_AREA_LENGTH || x >= MAP_WIDTH - SPAWN_AREA_LENGTH));

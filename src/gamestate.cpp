@@ -28,9 +28,9 @@ static const unsigned POISON_MAX_LIFE = 50;
 namespace Game
 {
 
-inline bool IsInSpawnArea(const Coord &c)
+inline bool IsOriginalSpawnArea(const Coord &c)
 {
-    return IsInSpawnArea(c.x, c.y);
+    return IsOriginalSpawnArea(c.x, c.y);
 }
 
 inline bool IsWalkable(const Coord &c)
@@ -1123,6 +1123,27 @@ json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
 /* ************************************************************************** */
 /* GameState.  */
 
+static void
+SetOriginalBanks (std::set<Coord>& banks)
+{
+  assert (banks.empty ());
+  for (int d = 0; d < SPAWN_AREA_LENGTH; ++d)
+    {
+      banks.insert (Coord (0, d));
+      banks.insert (Coord (d, 0));
+      banks.insert (Coord (MAP_WIDTH - 1, d));
+      banks.insert (Coord (d, MAP_HEIGHT - 1));
+      banks.insert (Coord (0, MAP_HEIGHT - d - 1));
+      banks.insert (Coord (MAP_WIDTH - d - 1, 0));
+      banks.insert (Coord (MAP_WIDTH - 1, MAP_HEIGHT - d - 1));
+      banks.insert (Coord (MAP_WIDTH - d - 1, MAP_HEIGHT - 1));
+    }
+
+  assert (banks.size () == 4 * (2 * SPAWN_AREA_LENGTH - 1));
+  BOOST_FOREACH (const Coord& c, banks)
+    assert (IsOriginalSpawnArea (c));
+}
+
 GameState::GameState()
 {
     crownPos.x = CROWN_START_X;
@@ -1131,6 +1152,7 @@ GameState::GameState()
     nHeight = -1;
     nDisasterHeight = -1;
     hashBlock = 0;
+    SetOriginalBanks (banks);
 }
 
 void
@@ -1140,7 +1162,35 @@ GameState::UpdateVersion(int oldVersion)
      is fully reconstructed.  */
   assert (oldVersion >= 1001100);
 
-  /* No upgrades to game state are necessary since this change.  */
+  /* If necessary, initialise the banks array to the original spawn area.
+     Make sure that we are not yet at the fork height!  Otherwise this
+     is completely wrong.  */
+  if (oldVersion < 1030000)
+    {
+      if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+        {
+          error ("game DB version upgrade while the life-steal fork is"
+                 " already active");
+          assert (false);
+        }
+
+      SetOriginalBanks (banks);
+    }
+}
+
+static json_spirit::Array
+GetJsonCoordinateSet (const std::set<Coord>& coords)
+{
+  json_spirit::Array arr;
+  BOOST_FOREACH (const Coord& c, coords)
+    {
+      json_spirit::Object subobj;
+      subobj.push_back (json_spirit::Pair ("x", c.x));
+      subobj.push_back (json_spirit::Pair ("y", c.y));
+      arr.push_back (subobj);
+    }
+
+  return arr;
 }
 
 json_spirit::Value GameState::ToJsonValue() const
@@ -1176,15 +1226,9 @@ json_spirit::Value GameState::ToJsonValue() const
         arr.push_back(subobj);
     }
     obj.push_back(Pair("loot", arr));
-    arr.resize(0);
-    BOOST_FOREACH(const Coord &c, hearts)
-    {
-        Object subobj;
-        subobj.push_back(Pair("x", c.x));
-        subobj.push_back(Pair("y", c.y));
-        arr.push_back(subobj);
-    }
-    obj.push_back(Pair("hearts", arr));
+
+    obj.push_back(Pair("hearts", GetJsonCoordinateSet(hearts)));
+    obj.push_back(Pair("banks", GetJsonCoordinateSet(banks)));
 
     subobj.clear();
     subobj.push_back(Pair("x", crownPos.x));
@@ -1378,7 +1422,7 @@ void GameState::UpdateCrownState(bool &respawn_crown)
         return;
     }
 
-    if (IsInSpawnArea(mi2->second.coord))
+    if (IsBank (mi2->second.coord))
     {
         // Character entered spawn area, drop the crown
         crownHolder = CharacterID();
@@ -1417,6 +1461,13 @@ unsigned
 GameState::GetNumInitialCharacters () const
 {
   return (ForkInEffect (FORK_POISON, nHeight) ? 1 : 3);
+}
+
+bool
+GameState::IsBank (const Coord& c) const
+{
+  assert (!banks.empty ());
+  return banks.count (c) > 0;
 }
 
 int64_t
@@ -1515,7 +1566,7 @@ void GameState::CollectCrown(RandomGenerator &rnd, bool respawn_crown)
 static Coord
 PushCoordOutOfSpawnArea(const Coord &c)
 {
-    if (!IsInSpawnArea(c))
+    if (!IsOriginalSpawnArea(c))
         return c;
     if (c.x == 0)
     {
@@ -1591,8 +1642,12 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
       return;
     }
 
-  /* Just drop the loot.  Push the coordinate out of spawn if applicable.  */
-  AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
+  /* Just drop the loot.  Push the coordinate out of spawn if applicable.
+     After the life-steal fork with dynamic banks, we no longer push.  */
+  Coord lootPos = ch.coord;
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
+    lootPos = PushCoordOutOfSpawnArea (lootPos);
+  AddLoot (lootPos, nAmount);
 }
 
 void
@@ -1658,14 +1713,14 @@ GameState::KillSpawnArea (StepResult& step)
           const int i = pc.first;
           CharacterState &ch = pc.second;
 
-          if (!IsInSpawnArea (ch.coord))
+          if (!IsBank (ch.coord))
             {
               ch.stay_in_spawn_area = 0;
               continue;
             }
 
           /* Make sure to increment the counter in every case.  */
-          assert (IsInSpawnArea (ch.coord));
+          assert (IsBank (ch.coord));
           if (ch.stay_in_spawn_area++ < MAX_STAY_IN_SPAWN_AREA)
             continue;
 
@@ -1762,6 +1817,35 @@ GameState::RemoveHeartedCharacters (StepResult& step)
     }
 }
 
+void
+GameState::UpdateBanks (RandomGenerator& rng)
+{
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight) || nHeight % 50 != 0)
+    return;
+
+  banks.clear ();
+
+  FillWalkableTiles ();
+  std::vector<Coord> options(walkableTiles);
+
+  const unsigned num = 50;
+  for (unsigned cnt = 0; cnt < num; ++cnt)
+    {
+      const int ind = rng.GetIntRnd (options.size ());
+      const Coord& c = options[ind];
+
+      assert (banks.count (c) == 0);
+      banks.insert (c);
+
+      /* Do not use a silly trick like swapping in the last element.  We want
+         to keep the array ordered at all times.  The order is important
+         with respect to consensus, and this makes the consensus protocol
+         "clearer" to describe.  */
+      options.erase (options.begin () + ind);
+    }
+  assert (banks.size () == num);
+}
+
 /* ************************************************************************** */
 
 void
@@ -1852,7 +1936,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             int i = pc.first;
             CharacterState &ch = pc.second;
 
-            if (ch.loot.nAmount > 0 && IsInSpawnArea(ch.coord))
+            if (ch.loot.nAmount > 0 && outState.IsBank (ch.coord))
             {
                 // Tax from banking: 10%
                 int64 nTax = ch.loot.nAmount / 10;
@@ -1932,15 +2016,22 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     outState.DivideLootAmongPlayers();
     outState.CrownBonus(nCrownBonus);
 
-    // Drop heart onto the map.
+    /* Update the banks.  */
+    outState.UpdateBanks (rnd);
+
+    /* Drop heart onto the map.  They are not dropped onto the original
+       spawn area for historical reasons.  After the life-steal fork,
+       we simply remove this check (there are no hearts anyway).  */
     if (DropHeart (outState.nHeight))
     {
+        assert (!ForkInEffect (FORK_LIFESTEAL, outState.nHeight));
+
         Coord heart;
         do
         {
             heart.x = rnd.GetIntRnd(MAP_WIDTH);
             heart.y = rnd.GetIntRnd(MAP_HEIGHT);
-        } while (!IsWalkable(heart) || IsInSpawnArea(heart));
+        } while (!IsWalkable(heart) || IsOriginalSpawnArea (heart));
         outState.hearts.insert(heart);
     }
 

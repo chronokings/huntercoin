@@ -472,6 +472,7 @@ struct GameState
 
     std::map<Coord, LootInfo> loot;
     std::set<Coord> hearts;
+    std::set<Coord> banks;
     Coord crownPos;
     CharacterID crownHolder;
 
@@ -501,14 +502,23 @@ struct GameState
       /* Should be only ever written to disk.  */
       assert (nType & SER_DISK);
 
-      /* Last version change is beyond the last version where the game db
-         is fully reconstructed.  */
+      /* This is the version at which we last do a full reconstruction
+         of the game DB.  No need to support older versions here.  */
       assert (nVersion >= 1001100);
 
       READWRITE(players);
       READWRITE(dead_players_chat);
       READWRITE(loot);
       READWRITE(hearts);
+      if (nVersion >= 1030000)
+        READWRITE(banks);
+      else
+        {
+          /* Simply clear the banks here.  UpdateVersion takes care of
+             setting them to the correct values for old states.  */
+          assert (fRead);
+          const_cast<GameState*> (this)->banks.clear ();
+        }
       READWRITE(crownPos);
       READWRITE(crownHolder.player);
       if (!crownHolder.player.empty())
@@ -540,6 +550,13 @@ struct GameState
      */
     unsigned GetNumInitialCharacters () const;
 
+    /**
+     * Check if a given location is a banking spot.
+     * @param c The coordinate to check.
+     * @return True iff it is a banking spot.
+     */
+    bool IsBank (const Coord& c) const;
+
     /* Handle loot of a killed character.  Depending on the circumstances,
        it may be dropped (with or without miner tax), refunded in a bounty
        transaction or added to the game fund.  */
@@ -567,6 +584,9 @@ struct GameState
     /* Special action at the life-steal fork height:  Remove all hearts
        on the map and kill all hearted players.  */
     void RemoveHeartedCharacters (StepResult& step);
+
+    /* Update the banks randomly (eventually).  */
+    void UpdateBanks (RandomGenerator& rng);
 
     /* Return total amount of coins on the map (in loot and hold by players,
        including also general values).  */
