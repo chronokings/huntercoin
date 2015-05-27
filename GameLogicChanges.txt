@@ -3,6 +3,8 @@ Life-Steal Fork:
 
 * New game fee of 5 HUC for destruct.
 
+* Carrying capacity lowered to 100 HUC (crown holder is still exempt).
+
 * Hearts never spawn.
 
 * At the fork, all hearts are removed and all hearted characters

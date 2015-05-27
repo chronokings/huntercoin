@@ -59,6 +59,9 @@ GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
   if (!ForkInEffect (FORK_CARRYINGCAP, nHeight) || isCrownHolder)
     return -1;
 
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 100 * COIN;
+
   if (ForkInEffect (FORK_LESSHEARTS, nHeight))
     return 2000 * COIN;
 
