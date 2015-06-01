@@ -84,6 +84,22 @@ GetDestructRadius (int nHeight, bool isGeneral)
   return isGeneral ? 2 : 1;
 }
 
+/* Get maximum allowed stay on a bank.  */
+static int
+MaxStayOnBank (int nHeight)
+{
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 2;
+
+  /* Between those two forks, spawn death was disabled.  */
+  if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
+        && !ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return -1;
+
+  /* Return original value.  */
+  return 30;
+}
+
 /* Check whether or not a heart should be dropped at the current height.  */
 static bool
 DropHeart (int nHeight)
@@ -1734,12 +1750,8 @@ GameState::KillSpawnArea (StepResult& step)
 
           /* Make sure to increment the counter in every case.  */
           assert (IsBank (ch.coord));
-          if (ch.stay_in_spawn_area++ < MAX_STAY_IN_SPAWN_AREA)
-            continue;
-
-          /* Between the two forks, spawn death was simply disabled.  */
-          if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
-                && !ForkInEffect (FORK_LESSHEARTS, nHeight))
+          const int maxStay = MaxStayOnBank (nHeight);
+          if (ch.stay_in_spawn_area++ < maxStay || maxStay == -1)
             continue;
 
           /* Handle the character's loot and kill the player.  */

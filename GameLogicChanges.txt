@@ -5,6 +5,8 @@ Life-Steal Fork:
 
 * Carrying capacity lowered to 100 HUC (crown holder is still exempt).
 
+* Death on a bank happens now after 2 blocks, not 30 as before.
+
 * Hearts never spawn.
 
 * At the fork, all hearts are removed and all hearted characters
