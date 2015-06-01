@@ -25,6 +25,11 @@ static const unsigned PDISASTER_PROBABILITY = 10000;
 static const unsigned POISON_MIN_LIFE = 1;
 static const unsigned POISON_MAX_LIFE = 50;
 
+/* Parameters for dynamic banks after the life-steal fork.  */
+static const unsigned DYNBANKS_NUM_BANKS = 50;
+static const unsigned DYNBANKS_MIN_LIFE = 25;
+static const unsigned DYNBANKS_MAX_LIFE = 100;
+
 namespace Game
 {
 
@@ -1124,24 +1129,29 @@ json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
 /* GameState.  */
 
 static void
-SetOriginalBanks (std::set<Coord>& banks)
+SetOriginalBanks (std::map<Coord, unsigned>& banks)
 {
   assert (banks.empty ());
   for (int d = 0; d < SPAWN_AREA_LENGTH; ++d)
     {
-      banks.insert (Coord (0, d));
-      banks.insert (Coord (d, 0));
-      banks.insert (Coord (MAP_WIDTH - 1, d));
-      banks.insert (Coord (d, MAP_HEIGHT - 1));
-      banks.insert (Coord (0, MAP_HEIGHT - d - 1));
-      banks.insert (Coord (MAP_WIDTH - d - 1, 0));
-      banks.insert (Coord (MAP_WIDTH - 1, MAP_HEIGHT - d - 1));
-      banks.insert (Coord (MAP_WIDTH - d - 1, MAP_HEIGHT - 1));
+      banks.insert (std::make_pair (Coord (0, d), 0));
+      banks.insert (std::make_pair (Coord (d, 0), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - 1, d), 0));
+      banks.insert (std::make_pair (Coord (d, MAP_HEIGHT - 1), 0));
+      banks.insert (std::make_pair (Coord (0, MAP_HEIGHT - d - 1), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - d - 1, 0), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - 1,
+                                           MAP_HEIGHT - d - 1), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - d - 1,
+                                           MAP_HEIGHT - 1), 0));
     }
 
   assert (banks.size () == 4 * (2 * SPAWN_AREA_LENGTH - 1));
-  BOOST_FOREACH (const Coord& c, banks)
-    assert (IsOriginalSpawnArea (c));
+  BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
+    {
+      assert (IsOriginalSpawnArea (b.first));
+      assert (b.second == 0);
+    }
 }
 
 GameState::GameState()
@@ -1178,21 +1188,6 @@ GameState::UpdateVersion(int oldVersion)
     }
 }
 
-static json_spirit::Array
-GetJsonCoordinateSet (const std::set<Coord>& coords)
-{
-  json_spirit::Array arr;
-  BOOST_FOREACH (const Coord& c, coords)
-    {
-      json_spirit::Object subobj;
-      subobj.push_back (json_spirit::Pair ("x", c.x));
-      subobj.push_back (json_spirit::Pair ("y", c.y));
-      arr.push_back (subobj);
-    }
-
-  return arr;
-}
-
 json_spirit::Value GameState::ToJsonValue() const
 {
     using namespace json_spirit;
@@ -1227,8 +1222,26 @@ json_spirit::Value GameState::ToJsonValue() const
     }
     obj.push_back(Pair("loot", arr));
 
-    obj.push_back(Pair("hearts", GetJsonCoordinateSet(hearts)));
-    obj.push_back(Pair("banks", GetJsonCoordinateSet(banks)));
+    arr.clear ();
+    BOOST_FOREACH (const Coord& c, hearts)
+      {
+        subobj.clear ();
+        subobj.push_back (Pair ("x", c.x));
+        subobj.push_back (Pair ("y", c.y));
+        arr.push_back (subobj);
+      }
+    obj.push_back (Pair ("hearts", arr));
+
+    arr.clear ();
+    BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
+      {
+        subobj.clear ();
+        subobj.push_back (Pair ("x", b.first.x));
+        subobj.push_back (Pair ("y", b.first.y));
+        subobj.push_back (Pair ("life", static_cast<int> (b.second)));
+        arr.push_back (subobj);
+      }
+    obj.push_back (Pair ("banks", arr));
 
     subobj.clear();
     subobj.push_back(Pair("x", crownPos.x));
@@ -1820,30 +1833,66 @@ GameState::RemoveHeartedCharacters (StepResult& step)
 void
 GameState::UpdateBanks (RandomGenerator& rng)
 {
-  if (!ForkInEffect (FORK_LIFESTEAL, nHeight) || nHeight % 50 != 0)
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
     return;
 
-  banks.clear ();
+  std::map<Coord, unsigned> newBanks;
+
+  /* Create initial set of banks at the fork itself.  */
+  if (IsForkHeight (FORK_LIFESTEAL, nHeight))
+    assert (newBanks.empty ());
+
+  /* Decrement life of existing banks and remove the ones that
+     have run out.  */
+  else
+    {
+      assert (banks.size () == DYNBANKS_NUM_BANKS);
+      assert (newBanks.empty ());
+
+      BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
+        {
+          assert (b.second >= 1);
+
+          /* Banks with life=1 run out now.  Since banking is done before
+             updating the banks in PerformStep, this means that banks that have
+             life=1 and are reached in the next turn are still available.  */
+          if (b.second > 1)
+            newBanks.insert (std::make_pair (b.first, b.second - 1));
+        }
+    }
+
+  /* Re-create banks that are missing now.  */
+
+  assert (newBanks.size () <= DYNBANKS_NUM_BANKS);
 
   FillWalkableTiles ();
-  std::vector<Coord> options(walkableTiles);
+  std::set<Coord> optionsSet(walkableTiles.begin (), walkableTiles.end ());
+  BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, newBanks)
+    {
+      assert (optionsSet.count (b.first) == 1);
+      optionsSet.erase (b.first);
+    }
+  assert (optionsSet.size () + newBanks.size () == walkableTiles.size ());
 
-  const unsigned num = 50;
-  for (unsigned cnt = 0; cnt < num; ++cnt)
+  std::vector<Coord> options(optionsSet.begin (), optionsSet.end ());
+  for (unsigned cnt = newBanks.size (); cnt < DYNBANKS_NUM_BANKS; ++cnt)
     {
       const int ind = rng.GetIntRnd (options.size ());
+      const int life = rng.GetIntRnd (DYNBANKS_MIN_LIFE, DYNBANKS_MAX_LIFE);
       const Coord& c = options[ind];
 
-      assert (banks.count (c) == 0);
-      banks.insert (c);
+      assert (newBanks.count (c) == 0);
+      newBanks.insert (std::make_pair (c, life));
 
-      /* Do not use a silly trick like swapping in the last element.  We want
-         to keep the array ordered at all times.  The order is important
-         with respect to consensus, and this makes the consensus protocol
-         "clearer" to describe.  */
+      /* Do not use a silly trick like swapping in the last element.
+         We want to keep the array ordered at all times.  The order is
+         important with respect to consensus, and this makes the consensus
+         protocol "clearer" to describe.  */
       options.erase (options.begin () + ind);
     }
-  assert (banks.size () == num);
+
+  banks.swap (newBanks);
+  assert (banks.size () == DYNBANKS_NUM_BANKS);
 }
 
 /* ************************************************************************** */

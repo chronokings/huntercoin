@@ -472,7 +472,10 @@ struct GameState
 
     std::map<Coord, LootInfo> loot;
     std::set<Coord> hearts;
-    std::set<Coord> banks;
+
+    /* Store banks together with their remaining life time.  */
+    std::map<Coord, unsigned> banks;
+
     Coord crownPos;
     CharacterID crownHolder;
 

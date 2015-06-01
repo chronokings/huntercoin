@@ -466,10 +466,10 @@ void GameMapView::updateGameMap(const GameState &gameState)
         delete b;
       }
     banks.clear ();
-    BOOST_FOREACH (const Coord& c, gameState.banks)
+    BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, gameState.banks)
       {
         QGraphicsRectItem* r
-          = scene->addRect (TILE_SIZE * c.x, TILE_SIZE * c.y,
+          = scene->addRect (TILE_SIZE * b.first.x, TILE_SIZE * b.first.y,
                             TILE_SIZE, TILE_SIZE,
                             Qt::NoPen, QColor (255, 255, 255, bankOpacity));
         banks.push_back (r);

@@ -33,5 +33,7 @@ Life-Steal Fork:
    among all walkable tiles.
 
 *) Banks are no longer at the corners, but instead randomly placed.
-   In particular, after the fork at each block height divisible by 50,
-   a random subset of 50 walkable tiles is chosen as the new banks.
+   At the fork height, 50 banks are placed with a random life time
+   between 25 and 100 blocks.  Whenever the life time of a bank
+   runs out, it is randomly re-created on a fresh walkable tile
+   and with a fresh life time.
