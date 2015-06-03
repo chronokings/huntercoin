@@ -73,6 +73,19 @@ GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
   return (isGeneral ? 50 : 25) * COIN;
 }
 
+/* Return the minimum necessary amount of locked coins.  This replaces the
+   old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
+   change it with hard forks.  */
+static int64_t
+GetNameCoinAmount (unsigned nHeight)
+{
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 200 * COIN;
+  if (ForkInEffect (FORK_POISON, nHeight))
+    return 10 * COIN;
+  return COIN;
+}
+
 /* Get the destruct radius a hunter has at a certain block height.  This
    may depend on whether or not it is a general.  */
 static int
@@ -454,8 +467,8 @@ Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
   const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
   assert (pl.lockedCoins == 0 && pl.value == -1);
   assert (newLocked >= coinAmount);
-  pl.lockedCoins = coinAmount;
   pl.value = coinAmount;
+  pl.lockedCoins = newLocked;
   state.gameFund += newLocked - coinAmount;
 
   const unsigned limit = state.GetNumInitialCharacters ();
@@ -491,7 +504,14 @@ int64_t
 Move::MinimumGameFee (unsigned nHeight) const
 {
   if (IsSpawn ())
-    return GetNameCoinAmount (nHeight);
+    {
+      const int64_t coinAmount = GetNameCoinAmount (nHeight);
+
+      if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+        return coinAmount + 15 * COIN;
+
+      return coinAmount;
+    }
 
   if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
     return 0;

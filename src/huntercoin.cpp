@@ -219,19 +219,6 @@ string stringFromVch(const vector<unsigned char> &vch) {
     return res;
 }
 
-/* Return the minimum necessary amount of locked coins.  This replaces the
-   old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
-   change it with hard forks.  */
-int64_t
-GetNameCoinAmount (unsigned nHeight)
-{
-  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
-    return 200 * COIN;
-  if (ForkInEffect (FORK_POISON, nHeight))
-    return 10 * COIN;
-  return COIN;
-}
-
 bool
 IsValidPlayerName (const std::string& player)
 {
@@ -2579,7 +2566,7 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
 
             /* Before the life-stealing fork, enforce that the coin
                amount matches exactly.  Afterwards, we only require that
-               it is increasing over time (which is checked above).  */
+               it is increasing over time (which is checked below).  */
             /* FIXME: Remove check after the fork has passed.  */
             if (!ForkInEffect (FORK_LIFESTEAL, pindexBlock->nHeight)
                   && tx.vout[nOut].nValue != prevCoinAmount)

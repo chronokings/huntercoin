@@ -1,7 +1,8 @@
 Life-Steal Fork:
 ----------------
 
-* New game fee of 20 HUC for destruct.
+* New game fee of 20 HUC for destruct and 15 HUC (in addition
+  to the 200 HUC locked in the hunter) for spawning hunters.
 
 * Carrying capacity lowered to 100 HUC (crown holder is still exempt).
 
