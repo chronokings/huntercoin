@@ -508,7 +508,7 @@ Move::MinimumGameFee (unsigned nHeight) const
       const int64_t coinAmount = GetNameCoinAmount (nHeight);
 
       if (ForkInEffect (FORK_LIFESTEAL, nHeight))
-        return coinAmount + 15 * COIN;
+        return coinAmount + 5 * COIN;
 
       return coinAmount;
     }
