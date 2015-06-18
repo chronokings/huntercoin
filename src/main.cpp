@@ -1777,7 +1777,7 @@ bool CBlock::CheckProofOfWork(int nHeight) const
 
             if (auxpow->algo != algo)
                 return error("CheckProofOfWork() : AUX POW uses different algorithm");
-            if (!auxpow->Check(GetHash(), GetChainID()))
+            if (!auxpow->Check(GetHash(), GetChainID(), nHeight))
                 return error("CheckProofOfWork() : AUX POW is not valid");
             // Check proof of work matches claimed amount
             if (!::CheckProofOfWork(auxpow->GetParentBlockHash(), nBits, algo))
@@ -3731,7 +3731,9 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
         if (auxpow->algo != algo)
             return error("CheckWork() : AUX POW uses different algorithm");
 
-        if (!auxpow->Check(hashBlock, pblock->GetChainID()))
+        /* FIXME: Remove this hack for nHeight when the fork has passed
+           and we no longer need it anyway.  */
+        if (!auxpow->Check(hashBlock, pblock->GetChainID(), nBestHeight + 1))
             return error("AUX POW is not valid");
 
         uint256 hashParent = auxpow->GetParentBlockHash();
