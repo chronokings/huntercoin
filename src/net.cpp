@@ -711,7 +711,7 @@ void CNode::CloseSocketDisconnect()
     }
     // if this was the sync node, we'll need a new one
     if (this == pnodeSync)
-       pnodeSync = NULL;
+        pnodeSync = NULL;
 }
 
 void CNode::Cleanup()
@@ -1105,11 +1105,11 @@ void ThreadMapPort2(void* parg)
         char intPort[6];
 
 #ifndef UPNPDISCOVER_SUCCESS
-        /* miniupnpc 1.5 */ 
+        /* miniupnpc 1.5 */
         r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
                                 port, port, lanaddr, 0, "TCP", 0);
 #else
-        /* miniupnpc 1.6 */ 
+        /* miniupnpc 1.6 */
         r = UPNP_AddPortMapping(urls.controlURL, data.first.servicetype,
                                 port, port, lanaddr, 0, "TCP", 0, "0");
 #endif
@@ -1270,7 +1270,7 @@ void ThreadOpenConnections2(void* parg)
         if (fShutdown)
             return;
 
-        // Limit outbound connections	    
+        // Limit outbound connections
         loop
         {
             int nOutbound = 0;
@@ -1282,9 +1282,9 @@ void ThreadOpenConnections2(void* parg)
             nMaxOutboundConnections = min(nMaxOutboundConnections, (int)GetArg("-maxconnections", 125));
             if (nOutbound < nMaxOutboundConnections)
                 break;
-	        vnThreadsRunning[1]--;	    
+            vnThreadsRunning[1]--;
             MilliSleep(2000);
-            vnThreadsRunning[1]++;	    
+            vnThreadsRunning[1]++;
             if (fShutdown)
                 return;
         }
@@ -1439,7 +1439,7 @@ bool OpenNetworkConnection(const CAddress& addrConnect)
 // for now, use a very simple selection metric: the node from which we received
 // most recently
 double static NodeSyncScore(const CNode *pnode) {
-   return -pnode->nLastRecv;
+    return -pnode->nLastRecv;
 }
 
 void static StartSync(const vector<CNode*> &vNodes) {

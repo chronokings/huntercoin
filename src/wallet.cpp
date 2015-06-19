@@ -30,7 +30,7 @@ bool CWallet::AddKey(const CKey& key)
     return true;
 }
 
-// Based on Codeshark's pull reqeust: https://github.com/bitcoin/bitcoin/pull/2121/files
+// Based on Codeshark's pull request: https://github.com/bitcoin/bitcoin/pull/2121/files
 bool CWallet::AddAddress(const uint160& hash160)
 {
     if (!CKeyStore::AddAddress(hash160))
@@ -637,8 +637,8 @@ void CWalletTx::RelayWalletTransaction(CTxDB& txdb)
 
 void CWalletTx::RelayWalletTransaction()
 {
-   CTxDB txdb("r");
-   RelayWalletTransaction(txdb);
+    CTxDB txdb("r");
+    RelayWalletTransaction(txdb);
 }
 
 void EraseBadMoveTransactions();
@@ -847,14 +847,14 @@ bool CWallet::SelectCoinsMinConf(int64 nTargetValue, int nConfMine, int nConfThe
 
     CRITICAL_BLOCK(cs_mapWallet)
     {
-       vector<const CWalletTx*> vCoins;
-       vCoins.reserve(mapWallet.size());
-       for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
-           vCoins.push_back(&(*it).second);
-       random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+        vector<const CWalletTx*> vCoins;
+        vCoins.reserve(mapWallet.size());
+        for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
+            vCoins.push_back(&(*it).second);
+        random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
 
-       BOOST_FOREACH(const CWalletTx* pcoin, vCoins)
-       {
+        BOOST_FOREACH(const CWalletTx* pcoin, vCoins)
+        {
             if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
                 continue;
 

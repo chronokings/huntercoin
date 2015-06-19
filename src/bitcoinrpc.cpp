@@ -1,5 +1,5 @@
 // Copyright (c) 2010 Satoshi Nakamoto
- 
+
 // Distributed under the MIT/X11 software license, see the accompanying
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
@@ -27,7 +27,7 @@
 #include <list>
 
 #ifdef USE_SSL
-#include <boost/asio/ssl.hpp> 
+#include <boost/asio/ssl.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSLStream;
@@ -111,7 +111,7 @@ void EnsureWalletIsUnlocked()
     if (pwalletMain->IsLocked())
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 }
-  
+
 void RPCTypeCheck(const Array& params,
                   const list<Value_type>& typesExpected,
                   bool fAllowNull)
@@ -344,7 +344,7 @@ Value TxToValue(const CTransaction &tx)
             tx.vin[j].scriptSig.begin(),
             tx.vin[j].scriptSig.end(), false).c_str()));
         else
-            vino.push_back(Pair("scriptSig", 
+            vino.push_back(Pair("scriptSig",
             tx.vin[j].scriptSig.ToString().c_str()));
         if (tx.vin[j].nSequence != UINT_MAX)
             vino.push_back(Pair("sequence", (uint64_t)tx.vin[j].nSequence));
@@ -358,7 +358,7 @@ Value TxToValue(const CTransaction &tx)
 
         vouto.push_back(Pair("value",
             (double)tx.vout[j].nValue / (double)COIN));
-        vouto.push_back(Pair("scriptPubKey", 
+        vouto.push_back(Pair("scriptPubKey",
         tx.vout[j].scriptPubKey.ToString().c_str()));
 
         tx_vout.push_back(vouto);
@@ -758,7 +758,7 @@ Value getnewaddress(const Array& params, bool fHelp)
     string strAccount;
     if (params.size() > 0)
         strAccount = AccountFromValue(params[0]);
-        
+
     // Generate a new key that is added to wallet
     string strAddress = PubKeyToAddress(pwalletMain->GetKeyFromKeyPool());
 
@@ -1001,7 +1001,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
             tagScript << OP_RETURN << vchFromString (tagString);
             vecSend.push_back (std::make_pair (tagScript, OPRETURN_MIN_LOCKED));
           }
-    
+
         /* Perform the send.  */
         const std::string strError = pwalletMain->SendMoney (vecSend, wtx);
         if (strError != "")
@@ -1019,7 +1019,7 @@ Value listaddressgroupings(const Array& params, bool fHelp)
             "Lists groups of addresses which have had their common ownership\n"
             "made public by common use as inputs or as the resulting change\n"
             "in past transactions");
-            
+
     Array jsonGroupings;
     map<string, int64> balances = pwalletMain->GetAddressBalances();
     BOOST_FOREACH(set<string> grouping, pwalletMain->GetAddressGroupings())
@@ -1354,7 +1354,7 @@ Value sendmany(const Array& params, bool fHelp)
         CScript scriptPubKey;
         if (!scriptPubKey.SetBitcoinAddress(strAddress))
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid Huntercoin address:")+strAddress);
-        int64 nAmount = AmountFromValue(s.value_); 
+        int64 nAmount = AmountFromValue(s.value_);
         totalAmount += nAmount;
 
         vecSend.push_back(make_pair(scriptPubKey, nAmount));
@@ -1708,7 +1708,7 @@ Value listsinceblock(const Array& params, bool fHelp)
 
         lastblock = block ? block->GetBlockHash() : 0;
     }
-     
+
     Object ret;
     ret.push_back(Pair("transactions", transactions));
     ret.push_back(Pair("lastblock", lastblock.GetHex()));
@@ -1770,7 +1770,7 @@ Value listtransactions(const Array& params, bool fHelp)
         }
         // ret is now newest to oldest
     }
-    
+
     // Make sure we return only last nCount items (sends-to-self might give us an extra):
     if (ret.size() > nCount)
     {
@@ -2650,7 +2650,7 @@ Value importprivkey(const Array& params, bool fHelp)
     return Value::null;
 }
 
-// Based on Codeshark's pull reqeust: https://github.com/bitcoin/bitcoin/pull/2121/files
+// Based on Codeshark's pull request: https://github.com/bitcoin/bitcoin/pull/2121/files
 Value importaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
@@ -2704,7 +2704,7 @@ Value dumpprivkey(const Array& params, bool fHelp)
     uint160 hash160;
     if (!AddressToHash160(strAddress, hash160))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Huntercoin address");
-        
+
     CPrivKey privKey;
     bool found = false;
     CRITICAL_BLOCK(pwalletMain->cs_mapKeys)
@@ -2738,7 +2738,7 @@ Value signmessage(const Array& params, bool fHelp)
 
     string strAddress = params[0].get_str();
     string strMessage = params[1].get_str();
-    
+
     uint160 hash160;
     if (!AddressToHash160(strAddress, hash160))
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
@@ -2761,9 +2761,9 @@ Value signmessage(const Array& params, bool fHelp)
     std::vector<unsigned char> vchSig;
     CKey key;
     key.SetPrivKey(privKey);
-    if (!key.SignCompact(Hash(ss.begin(), ss.end()), vchSig)) 
+    if (!key.SignCompact(Hash(ss.begin(), ss.end()), vchSig))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Sign failed");
-    
+
     return EncodeBase64(&vchSig[0], vchSig.size());
 }
 
@@ -2793,7 +2793,7 @@ Value verifymessage(const Array& params, bool fHelp)
     ss << strMessage;
 
     CKey key;
-    if (!key.SetCompactSignature(Hash(ss.begin(), ss.end()), vchSig)) 
+    if (!key.SetCompactSignature(Hash(ss.begin(), ss.end()), vchSig))
         return false;
 
     return Hash160(key.GetPubKey()) == hash160;
@@ -2876,7 +2876,7 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
                 nameOp.push_back(Pair("rand", rand));
                 nameOp.push_back(Pair("value", val));
               }
-            
+
             /* New form without name_new?  */
             else
               {
@@ -3111,7 +3111,7 @@ Value listunspent(const Array& params, bool fHelp)
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid Huntercoin address: ")+input.get_str());
             if (setAddress.count(address))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+input.get_str());
-           setAddress.insert(address);
+            setAddress.insert(address);
         }
     }
 
@@ -3914,7 +3914,7 @@ class ClientConnectionOutput
 
 private:
 
-    /* The stream for outputting.  */   
+    /* The stream for outputting.  */
 #ifdef USE_SSL
   SSLStream* sslStream;
   SSLIOStreamDevice* d;
@@ -4345,7 +4345,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     BOOST_FOREACH(const std::string &param, strParams)
         params.push_back(param);
     RPCConvertValues(strMethod, params);
-    return params;   
+    return params;
 }
 
 void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
@@ -4383,7 +4383,7 @@ void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
     if (strMethod == "sendfrom"               && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "sendfrom"               && n > 3) ConvertTo<boost::int64_t>(params[3]);
     if (strMethod == "listtransactions"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "listsinceblock"         && n > 1) ConvertTo<boost::int64_t>(params[1]);    
+    if (strMethod == "listsinceblock"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "listtransactions"       && n > 2) ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "walletpassphrase"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getworkaux"             && n > 2) ConvertTo<boost::int64_t>(params[2]);
