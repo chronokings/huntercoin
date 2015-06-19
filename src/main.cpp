@@ -97,9 +97,8 @@ ForkInEffect (Fork type, unsigned nHeight)
     case FORK_LESSHEARTS:
       return nHeight >= (fTestNet ? 240000 : 590000);
 
-    /* FIXME: Decide about height!  */
     case FORK_LIFESTEAL:
-      return nHeight >= (fTestNet ? 1000000 : 1000000);
+      return nHeight >= (fTestNet ? 320000 : 775000);
 
     default:
       assert (false);
