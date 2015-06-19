@@ -2490,9 +2490,9 @@ Value getmemorypool(const Array& params, bool fHelp)
 
 Value getauxblock(const Array& params, bool fHelp)
 {
-    if (fHelp || (params.size() != 0 && params.size() != 2))
+    if (fHelp || (params.size() > 3))
         throw runtime_error(
-            "getauxblock [<hash> <auxpow>]\n"
+            "getauxblock [<hash> <auxpow>] [algo]\n"
             " create a new block"
             "If <hash>, <auxpow> is not specified, returns a new block hash.\n"
             "If <hash>, <auxpow> is specified, tries to solve the block based on "
@@ -2504,83 +2504,179 @@ Value getauxblock(const Array& params, bool fHelp)
     if (IsInitialBlockDownload())
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Huntercoin is downloading blocks...");
 
-    static map<uint256, CBlock*> mapNewBlock;
-    static vector<CBlock*> vNewBlock;
+    static map<uint256, CBlock*> mapNewBlockSHA256D, mapNewBlockSCRYPT;
+    static vector<CBlock*> vNewBlockSHA256D, vNewBlockSCRYPT;
     static CReserveKey reservekey(pwalletMain);
 
-    if (params.size() == 0)
-    {
-        // Update block
-        static unsigned int nTransactionsUpdatedLast;
-        static CBlockIndex* pindexPrev;
-        static int64 nStart;
-        static CBlock* pblock;
-        if (pindexPrev != pindexBest ||
-            (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60))
+    int algo = miningAlgo;
+    if (params.size() == 1 || params.size() == 3)
+        switch (params[params.size() - 1].get_int())
         {
-            if (pindexPrev != pindexBest)
-            {
-                // Deallocate old blocks since they're obsolete now
-                mapNewBlock.clear();
-                BOOST_FOREACH(CBlock* pblock, vNewBlock)
-                    delete pblock;
-                vNewBlock.clear();
-            }
-            nTransactionsUpdatedLast = nTransactionsUpdated;
-            pindexPrev = pindexBest;
-            nStart = GetTime();
-
-            // Create new block with nonce = 0 and extraNonce = 1
-            pblock = CreateNewBlock(reservekey, miningAlgo);
-
-            // Update nTime
-            pblock->nTime = max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
-            pblock->nNonce = 0;
-
-            // Push OP_2 just in case we want versioning later
-            pblock->vtx[0].vin[0].scriptSig = CScript() << pblock->nBits << CBigNum(1) << OP_2;
-            pblock->hashMerkleRoot = pblock->BuildMerkleTree(false);
-
-            // Sets the version
-            pblock->SetAuxPow(new CAuxPow(miningAlgo));
-
-            // Save
-            mapNewBlock[pblock->GetHash()] = pblock;
-
-            if (!pblock)
-                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
-            vNewBlock.push_back(pblock);
+        case 1:
+            algo = ALGO_SHA256D;
+            break;
+        case 2:
+            algo = ALGO_SCRYPT;
+            break;
         }
+    assert(algo == ALGO_SHA256D || algo == ALGO_SCRYPT);
 
-        uint256 hashTarget = CBigNum().SetCompact(pblock->nBits).getuint256();
-
-        Object result;
-        result.push_back(Pair("target",   HexStr(BEGIN(hashTarget), END(hashTarget))));
-        result.push_back(Pair("hash", pblock->GetHash().GetHex()));
-        result.push_back(Pair("chainid", pblock->GetChainID()));
-        return result;
-    }
-    else
+    if (algo == ALGO_SCRYPT)
     {
-        uint256 hash;
-        hash.SetHex(params[0].get_str());
-        vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
-        CDataStream ss(vchAuxPow, SER_GETHASH|SER_BLOCKHEADERONLY);
-        CAuxPow* pow = new CAuxPow(miningAlgo);
-        ss >> *pow;
-        if (!mapNewBlock.count(hash))
-            return ::error("getauxblock() : block not found");
-
-        CBlock* pblock = mapNewBlock[hash];
-        pblock->SetAuxPow(pow);
-
-        if (!CheckWork(pblock, *pwalletMain, reservekey))
+        if (params.size() == 0 || params.size() == 1)
         {
-            return false;
+            // Update block
+            static unsigned int nTransactionsUpdatedLastSCRYPT;
+            static CBlockIndex* pindexPrevSCRYPT;
+            static int64 nStartSCRYPT;
+            static CBlock* pblockSCRYPT;
+
+            if (pindexPrevSCRYPT != pindexBest || (nTransactionsUpdated != nTransactionsUpdatedLastSCRYPT && GetTime() - nStartSCRYPT > 60))
+            {
+                if (pindexPrevSCRYPT != pindexBest)
+                {
+                    // Deallocate old blocks since they're obsolete now
+                    mapNewBlockSCRYPT.clear();
+                    BOOST_FOREACH(CBlock* pblock, vNewBlockSCRYPT)
+                        delete pblock;
+                    vNewBlockSCRYPT.clear();
+                }
+                nTransactionsUpdatedLastSCRYPT = nTransactionsUpdated;
+                pindexPrevSCRYPT = pindexBest;
+                nStartSCRYPT = GetTime();
+
+                // Create new block with nonce = 0 and extraNonce = 1
+                pblockSCRYPT = CreateNewBlock(reservekey, algo);
+
+                // Update nTime
+                pblockSCRYPT->nTime = max(pindexPrevSCRYPT->GetMedianTimePast()+1, GetAdjustedTime());
+                pblockSCRYPT->nNonce = 0;
+
+                unsigned int nHeight = pindexPrevSCRYPT->nHeight + 1;
+                pblockSCRYPT->vtx[0].vin[0].scriptSig = CScript() << nHeight;
+                pblockSCRYPT->hashMerkleRoot = pblockSCRYPT->BuildMerkleTree(false);
+
+                // Sets the version
+                pblockSCRYPT->SetAuxPow(new CAuxPow(algo));
+
+                // Save
+                mapNewBlockSCRYPT[pblockSCRYPT->GetHash()] = pblockSCRYPT;
+
+                if (!pblockSCRYPT)
+                    throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+                vNewBlockSCRYPT.push_back(pblockSCRYPT);
+            }
+
+            Object result;
+            result.push_back(Pair("previousblockhash", pblockSCRYPT->hashPrevBlock.GetHex()));
+            result.push_back(Pair("height", pindexPrevSCRYPT->nHeight + 1));
+            union {
+                int32_t nBits;
+                char cBits[4];
+            } uBits;
+            uBits.nBits = htonl((int32_t)pblockSCRYPT->nBits);
+            result.push_back(Pair("bits", HexStr(BEGIN(uBits.cBits), END(uBits.cBits))));
+            result.push_back(Pair("hash", pblockSCRYPT->GetHash().GetHex()));
+            result.push_back(Pair("coinbasevalue", (int64_t)pblockSCRYPT->vtx[0].vout[0].nValue));
+            result.push_back(Pair("chainid", pblockSCRYPT->GetChainID()));
+            uint256 hashTarget = CBigNum().SetCompact(pblockSCRYPT->nBits).getuint256();
+            result.push_back(Pair("_target", HexStr(BEGIN(hashTarget), END(hashTarget)))); // deprecated, use bits instead
+            return result;
         }
         else
         {
-            return true;
+            uint256 hash;
+            hash.SetHex(params[0].get_str());
+            vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
+            CDataStream ss(vchAuxPow, SER_GETHASH | SER_BLOCKHEADERONLY);
+            CAuxPow* pow = new CAuxPow(algo);
+            ss >> *pow;
+            if (!mapNewBlockSCRYPT.count(hash))
+                return ::error("getauxblock() : block not found");
+
+            CBlock* pblock = mapNewBlockSCRYPT[hash];
+            pblock->SetAuxPow(pow);
+
+            return CheckWork(pblock, *pwalletMain, reservekey);
+        }
+    }
+    else
+    {
+        if (params.size() == 0 || params.size() == 1)
+        {
+            // Update block
+            static unsigned int nTransactionsUpdatedLastSHA256D;
+            static CBlockIndex* pindexPrevSHA256D;
+            static int64 nStartSHA256D;
+            static CBlock* pblockSHA256D;
+
+            if (pindexPrevSHA256D != pindexBest || (nTransactionsUpdated != nTransactionsUpdatedLastSHA256D && GetTime() - nStartSHA256D > 60))
+            {
+                if (pindexPrevSHA256D != pindexBest)
+                {
+                    // Deallocate old blocks since they're obsolete now
+                    mapNewBlockSHA256D.clear();
+                    BOOST_FOREACH(CBlock* pblock, vNewBlockSHA256D)
+                        delete pblock;
+                    vNewBlockSHA256D.clear();
+                }
+                nTransactionsUpdatedLastSHA256D = nTransactionsUpdated;
+                pindexPrevSHA256D = pindexBest;
+                nStartSHA256D = GetTime();
+
+                // Create new block with nonce = 0 and extraNonce = 1
+                pblockSHA256D = CreateNewBlock(reservekey, algo);
+
+                // Update nTime
+                pblockSHA256D->nTime = max(pindexPrevSHA256D->GetMedianTimePast()+1, GetAdjustedTime());
+                pblockSHA256D->nNonce = 0;
+
+                unsigned int nHeight = pindexPrevSHA256D->nHeight + 1;
+                pblockSHA256D->vtx[0].vin[0].scriptSig = CScript() << nHeight;
+                pblockSHA256D->hashMerkleRoot = pblockSHA256D->BuildMerkleTree(false);
+
+                // Sets the version
+                pblockSHA256D->SetAuxPow(new CAuxPow(algo));
+
+                // Save
+                mapNewBlockSHA256D[pblockSHA256D->GetHash()] = pblockSHA256D;
+
+                if (!pblockSHA256D)
+                    throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+                vNewBlockSHA256D.push_back(pblockSHA256D);
+            }
+
+            Object result;
+            result.push_back(Pair("previousblockhash", pblockSHA256D->hashPrevBlock.GetHex()));
+            result.push_back(Pair("height", pindexPrevSHA256D->nHeight + 1));
+            union {
+                int32_t nBits;
+                char cBits[4];
+            } uBits;
+            uBits.nBits = htonl((int32_t)pblockSHA256D->nBits);
+            result.push_back(Pair("bits", HexStr(BEGIN(uBits.cBits), END(uBits.cBits))));
+            result.push_back(Pair("hash", pblockSHA256D->GetHash().GetHex()));
+            result.push_back(Pair("coinbasevalue", (int64_t)pblockSHA256D->vtx[0].vout[0].nValue));
+            result.push_back(Pair("chainid", pblockSHA256D->GetChainID()));
+            uint256 hashTarget = CBigNum().SetCompact(pblockSHA256D->nBits).getuint256();
+            result.push_back(Pair("_target", HexStr(BEGIN(hashTarget), END(hashTarget)))); // deprecated, use bits instead
+            return result;
+        }
+        else
+        {
+            uint256 hash;
+            hash.SetHex(params[0].get_str());
+            vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
+            CDataStream ss(vchAuxPow, SER_GETHASH | SER_BLOCKHEADERONLY);
+            CAuxPow* pow = new CAuxPow(algo);
+            ss >> *pow;
+            if (!mapNewBlockSHA256D.count(hash))
+                return ::error("getauxblock() : block not found");
+
+            CBlock* pblock = mapNewBlockSHA256D[hash];
+            pblock->SetAuxPow(pow);
+
+            return CheckWork(pblock, *pwalletMain, reservekey);
         }
     }
 }
@@ -4436,6 +4532,7 @@ void RPCConvertValues(const std::string &strMethod, json_spirit::Array &params)
     if (strMethod == "game_getpath"           && n > 1) ConvertTo<Array>(params[1]);
     if (strMethod == "prune_gamedb"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "prune_nameindex"        && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getauxblock" && (n == 1 || n == 3)) ConvertTo<boost::int64_t>(params[n - 1]);
 }
 
 int CommandLineRPC(int argc, char *argv[])
