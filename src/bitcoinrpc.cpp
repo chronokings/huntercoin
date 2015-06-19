@@ -64,6 +64,8 @@ static CCriticalSection cs_nWalletUnlockTime;
 
 void ThreadCleanWalletPassphrase(void* parg);
 
+void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry);
+
 static inline unsigned short GetDefaultRPCPort()
 {
     return GetBoolArg("-testnet", false) ? 18399 : 8399;
@@ -455,6 +457,24 @@ Value BlockToValue(const CBlock &block, const CBlockIndex* blockindex)
     for (int i = 0; i < block.vGameMerkleTree.size(); i++)
         mrkl.push_back(block.vGameMerkleTree[i].ToString().c_str());
     obj.push_back(Pair("game_mrkl_tree", mrkl));
+
+    if (block.nVersion & BLOCK_VERSION_AUXPOW) {
+        Object auxpow;
+        Object coinbasetx;
+        TxToJSON(*block.auxpow, 0, coinbasetx);
+        auxpow.push_back(Pair("coinbasetx", Value(coinbasetx)));
+        Array coinbaseMerkle;
+        BOOST_FOREACH(const uint256 &hash, block.auxpow->vMerkleBranch)
+            coinbaseMerkle.push_back(hash.GetHex());
+        auxpow.push_back(Pair("coinbaseMerkleBranch", coinbaseMerkle));
+        auxpow.push_back(Pair("coinbaseIndex", block.auxpow->nIndex));
+        Array chainMerkle;
+        BOOST_FOREACH(const uint256 &hash, block.auxpow->vChainMerkleBranch)
+            chainMerkle.push_back(hash.GetHex());
+        auxpow.push_back(Pair("chainMerkleBranch", chainMerkle));
+        auxpow.push_back(Pair("chainIndex", (boost::uint64_t)block.auxpow->nChainIndex));
+        obj.push_back(Pair("auxpow", Value(auxpow)));
+    }
 
     return obj;
 }
