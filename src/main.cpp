@@ -789,7 +789,7 @@ CWalletTx::AcceptWalletTransaction (DatabaseSet& dbset, bool fCheckInputs)
     return false;
 }
 
-bool CWalletTx::AcceptWalletTransaction() 
+bool CWalletTx::AcceptWalletTransaction()
 {
     DatabaseSet dbset("r");
     return AcceptWalletTransaction (dbset);
@@ -1443,7 +1443,7 @@ CBlock::ConnectBlock (DatabaseSet& dbset, CBlockIndex* pindex)
     // nFees may include taxes from the game, so we check it after creating game transactions
     if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
     {
-	printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
+        printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
         printf("  vtx[0].GetValueOut() = %s\n", FormatMoney(vtx[0].GetValueOut()).c_str());
         printf("  GetBlockValue(pindex->nHeight, nFees) = %s\n", FormatMoney(GetBlockValue(pindex->nHeight, nFees)).c_str());
         printf("  nFees = %s\n", FormatMoney(nFees).c_str());
@@ -2156,7 +2156,7 @@ AppendBlockFile (DatabaseSet& dbset, unsigned int& nFileRet, unsigned size)
                 goto error;
               }
             printf ("Block file extended by %u bytes.\n", written);
-              
+
             reserved += addedChunk;
             if (fseek (file, -reserved, SEEK_END) != 0)
               goto error;
@@ -2450,7 +2450,7 @@ bool CAlert::ProcessAlert()
             {
                 printf("cancelling alert %d\n", alert.nID);
 #ifdef GUI
-                uiInterface.NotifyAlertChanged((*mi).first, CT_DELETED);  
+                uiInterface.NotifyAlertChanged((*mi).first, CT_DELETED);
 #endif
                 mapAlerts.erase(mi++);
             }
@@ -2482,7 +2482,7 @@ bool CAlert::ProcessAlert()
 #ifdef GUI
         // Notify UI if it applies to me
         if (AppliesToMe())
-            uiInterface.NotifyAlertChanged(GetHash(), CT_NEW); 
+            uiInterface.NotifyAlertChanged(GetHash(), CT_NEW);
 #endif
     }
 
