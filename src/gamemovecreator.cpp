@@ -343,10 +343,6 @@ std::vector<Coord> *UpdateQueuedPath(const CharacterState &ch, QueuedMoves &queu
     if (qpm == qm->second.end())
         return NULL;
 
-    // Self-destruction has higher priority than waypoints
-    if (qpm->second.destruct)
-        return NULL;
-
     if (qpm->second.waypoints.empty())
         return NULL;
 

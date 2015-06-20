@@ -1,7 +1,6 @@
 #ifndef GAMESTATE_H
 #define GAMESTATE_H
 
-#include <string>
 #ifndef Q_MOC_RUN
 #include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
@@ -10,12 +9,14 @@
 #include "uint256.h"
 #include "serialize.h"
 
+#include <map>
+#include <string>
+
 namespace Game
 {
 
 static const int NUM_TEAM_COLORS = 4;
 static const int MAX_WAYPOINTS = 100;                      // Maximum number of waypoints per character
-static const unsigned char MAX_STAY_IN_SPAWN_AREA = 30;
 static const int MAX_CHARACTERS_PER_PLAYER = 20;           // Maximum number of characters per player at the same time
 static const int MAX_CHARACTERS_PER_PLAYER_TOTAL = 1000;   // Maximum number of characters per player in the lifetime
 
@@ -56,9 +57,9 @@ struct CharacterID
 };
 
 class GameState;
-class RandomGenerator;
-class PlayerState;
 class KilledByInfo;
+class PlayerState;
+class RandomGenerator;
 class StepResult;
 
 // Define STL types used for killed player identification later on.
@@ -107,6 +108,9 @@ struct Move
 {
     PlayerID player;
 
+    // New amount of locked coins (equals name output of move tx).
+    int64_t newLocked;
+
     // Updates to the player state
     boost::optional<std::string> message;
     boost::optional<std::string> address;
@@ -114,13 +118,12 @@ struct Move
 
     /* For spawning moves.  */
     unsigned char color;
-    int64 coinAmount;
 
     std::map<int, WaypointVector> waypoints;
     std::set<int> destruct;
 
     Move ()
-      : color(0xFF), coinAmount(-1)
+      : newLocked(-1), color(0xFF)
     {}
 
     std::string AddressOperationPermission(const GameState &state) const;
@@ -137,6 +140,109 @@ struct Move
 
     // Returns true if move is initialized (i.e. was parsed successfully)
     operator bool() { return !player.empty(); }
+
+    /**
+     * Return the minimum required "game fee" for this move.  The block height
+     * must be passed because it is used to decide about hardfork states.
+     * @param nHeight Block height at which this move is.
+     * @return Minimum required game fee payment.
+     */
+    int64_t MinimumGameFee (unsigned nHeight) const;
+};
+
+/**
+ * A character on the map that stores information while processing attacks.
+ * Keep track of all attackers, so that we can both construct the killing gametx
+ * and also handle life-stealing.
+ */
+struct AttackableCharacter
+{
+
+  /** The character this represents.  */
+  CharacterID chid;
+
+  /** The character's colour.  */
+  unsigned char color;
+
+  /** The initial (before all attacks in the current step) value.  */
+  int64_t value;
+
+  /** All attackers that hit it.  */
+  std::set<CharacterID> attackers;
+
+  /**
+   * Perform an attack by the given character.  Its ID and state must
+   * correspond to the same attacker.
+   */
+  void AttackBy (const CharacterID& attackChid, const PlayerState& pl);
+
+  /**
+   * Handle self-effect of destruct.  The game state's height is used
+   * to determine whether or not this has an effect (before the life-steal
+   * fork).
+   */
+  void AttackSelf (const GameState& state);
+
+};
+
+/**
+ * Hold the map from tiles to attackable characters.  This is built lazily
+ * when attacks are done, so that we can save the processing time if not.
+ */
+struct CharactersOnTiles
+{
+
+  /** The map type used.  */
+  typedef std::multimap<Coord, AttackableCharacter> Map;
+
+  /** The actual map.  */
+  Map tiles;
+
+  /** Whether it is already built.  */
+  bool built;
+
+  /**
+   * Construct an empty object.
+   */
+  inline CharactersOnTiles ()
+    : tiles(), built(false)
+  {}
+
+  /**
+   * Build it from the game state if not yet built.
+   * @param state The game state from which to extract characters.
+   */
+  void EnsureIsBuilt (const GameState& state);
+
+  /**
+   * Perform all attacks in the moves.
+   * @param state The current game state to build it if necessary.
+   * @param moves All moves in the step.
+   */
+  void ApplyAttacks (const GameState& state, const std::vector<Move>& moves);
+
+  /**
+   * Kill characters with too many attackers.  This handles both the
+   * pre- and post-life-steal logic.
+   * @param state The game state, will be modified.
+   * @param result The step result object to fill in.
+   */
+  void KillAttacked (GameState& state, StepResult& result) const;
+
+  /**
+   * Remove mutual attacks from the attacker arrays.
+   * @param state The state to look up players.
+   */
+  void DefendMutualAttacks (const GameState& state);
+
+  /**
+   * Transfer life from victim to attackers.  If there are more attackers than
+   * available coins, distribute randomly.
+   * @param rnd The RNG to use.
+   * @param state The state to update.
+   */
+  void TransferLife (RandomGenerator& rnd, GameState& state) const;
+
 };
 
 // Do not use for user-provided coordinates, as abs can overflow on INT_MIN.
@@ -258,7 +364,7 @@ struct CharacterState
         READWRITE(stay_in_spawn_area);
     )
 
-    void Spawn(int color, RandomGenerator &rnd);
+    void Spawn(unsigned nHeight, int color, RandomGenerator &rnd);
 
     void StopMoving()
     {
@@ -289,10 +395,15 @@ struct PlayerState
 {
     /* Colour represents player team.  */
     unsigned char color;
-    /* Value locked by the general's name.  This is the amount that will
-       be placed back onto the map when the player dies, and it should
-       match the actual coin value.  */
-    int64 coinAmount;
+
+    /* Value locked in the general's name on the blockchain.  This is the
+       initial cost plus all "game fees" paid in the mean time.  It is compared
+       to the new output value given by a move tx in order to compute
+       the game fee as difference.  In that sense, it is a "cache" for
+       the prevout.  */
+    int64_t lockedCoins;
+    /* Actual value of the general in the game state.  */
+    int64_t value;
 
     std::map<int, CharacterState> characters;   // Characters owned by the player (0 is the main character)
     int next_character_index;                   // Index of the next spawned character
@@ -323,15 +434,22 @@ struct PlayerState
         READWRITE(address);
         READWRITE(addressLock);
 
-        READWRITE(coinAmount);
+        READWRITE(lockedCoins);
+        if (nVersion < 1030000)
+          {
+            assert (fRead);
+            const_cast<PlayerState*> (this)->value = lockedCoins;
+          }
+        else
+          READWRITE(value);
     )
 
     PlayerState ()
-      : color(0xFF), coinAmount(-1),
+      : color(0xFF), lockedCoins(0), value(-1),
         next_character_index(0), remainingLife(-1), message_block(0)
     {}
 
-    void SpawnCharacter(RandomGenerator &rnd);
+    void SpawnCharacter(unsigned nHeight, RandomGenerator &rnd);
     bool CanSpawnCharacter()
     {
         return characters.size() < MAX_CHARACTERS_PER_PLAYER && next_character_index < MAX_CHARACTERS_PER_PLAYER_TOTAL;
@@ -353,6 +471,10 @@ struct GameState
 
     std::map<Coord, LootInfo> loot;
     std::set<Coord> hearts;
+
+    /* Store banks together with their remaining life time.  */
+    std::map<Coord, unsigned> banks;
+
     Coord crownPos;
     CharacterID crownHolder;
 
@@ -382,14 +504,23 @@ struct GameState
       /* Should be only ever written to disk.  */
       assert (nType & SER_DISK);
 
-      /* Last version change is beyond the last version where the game db
-         is fully reconstructed.  */
+      /* This is the version at which we last do a full reconstruction
+         of the game DB.  No need to support older versions here.  */
       assert (nVersion >= 1001100);
 
       READWRITE(players);
       READWRITE(dead_players_chat);
       READWRITE(loot);
       READWRITE(hearts);
+      if (nVersion >= 1030000)
+        READWRITE(banks);
+      else
+        {
+          /* Simply clear the banks here.  UpdateVersion takes care of
+             setting them to the correct values for old states.  */
+          assert (fRead);
+          const_cast<GameState*> (this)->banks.clear ();
+        }
       READWRITE(crownPos);
       READWRITE(crownHolder.player);
       if (!crownHolder.player.empty())
@@ -421,11 +552,18 @@ struct GameState
      */
     unsigned GetNumInitialCharacters () const;
 
+    /**
+     * Check if a given location is a banking spot.
+     * @param c The coordinate to check.
+     * @return True iff it is a banking spot.
+     */
+    bool IsBank (const Coord& c) const;
+
     /* Handle loot of a killed character.  Depending on the circumstances,
        it may be dropped (with or without miner tax), refunded in a bounty
        transaction or added to the game fund.  */
     void HandleKilledLoot (const PlayerID& pId, int chInd,
-                           bool hasTax, bool canRefund, StepResult& step);
+                           const KilledByInfo& info, StepResult& step);
 
     /* For a given list of killed players, kill all their characters
        and collect the tax amount.  The killed players are removed from
@@ -445,10 +583,16 @@ struct GameState
        dropped to zero.  */
     void DecrementLife (StepResult& step);
 
+    /* Special action at the life-steal fork height:  Remove all hearts
+       on the map and kill all hearted players.  */
+    void RemoveHeartedCharacters (StepResult& step);
+
+    /* Update the banks randomly (eventually).  */
+    void UpdateBanks (RandomGenerator& rng);
+
     /* Return total amount of coins on the map (in loot and hold by players,
-       excluding coins locked by generals since they appear in the UTXO set
-       already).  */
-    int64 GetCoinsOnMap () const;
+       including also general values).  */
+    int64_t GetCoinsOnMap () const;
 
 };
 
@@ -513,11 +657,16 @@ struct KilledByInfo
   {}
 
   /* See if this killing reason pays out miner tax or not.  */
-  inline bool
-  HasDeathTax () const
-  {
-    return reason != KILLED_SPAWN;
-  }
+  bool HasDeathTax () const;
+
+  /* See if this killing should drop the coins.  Otherwise (e. g., for poison)
+     the coins are added to the game fund.  */
+  bool DropCoins (unsigned nHeight) const;
+
+  /* See if this killing allows a refund of the general cost to the player.
+     This depends on the height, since poison death refunds only after
+     the life-steal fork.  */
+  bool CanRefund (unsigned nHeight) const;
 
   /* Comparison necessary for STL containers.  */
 

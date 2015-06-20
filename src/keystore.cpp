@@ -47,7 +47,7 @@ bool CKeyStore::AddKey(const CKey& key)
     return true;
 }
 
-// Based on Codeshark's pull reqeust: https://github.com/bitcoin/bitcoin/pull/2121/files
+// Based on Codeshark's pull request: https://github.com/bitcoin/bitcoin/pull/2121/files
 bool CKeyStore::AddAddress(const uint160& hash160)
 {
     std::vector<unsigned char> vchEmpty;

@@ -1,0 +1,42 @@
+Life-Steal Fork:
+----------------
+
+* New game fee of 20 HUC for destruct and 5 HUC (in addition
+  to the 200 HUC locked in the hunter) for spawning hunters.
+
+* Carrying capacity lowered to 100 HUC (crown holder is still exempt).
+
+* Death on a bank happens now after 2 blocks, not 30 as before.
+
+* Hearts never spawn.
+
+* At the fork, all hearts are removed and all hearted characters
+  killed immediately.  Coins are handled as per disaster death.
+
+* Death by disaster now refunds the general cost.  The collected coins
+  are added to the game fund (minus miner tax).
+
+* Destructing is not lethal for the hunter itself.
+
+* Waypoints and destruct can be set at once in a valid move.
+
+* Use life-steal to handle destructs.  In particular:
+  1) Mutual attacks of a pair of hunters are considered "void" and not
+     processed at all.  Kind of like a "defense".
+  2) Hunters with at least as many attackers as their current value
+     die.  Their coins are dropped on the floor as before (including miner
+     tax).  Their value is not part of that.
+  3) Each attacker that is still alive gets life from each victim.  If the
+     victim has not enough for all alive attackers, this is done randomly.
+     If the victim has less than 200 HUC value, this is added to the game fund
+     instead.  The same is true if the "rightful owner" (attacker) has died
+     itself.
+
+*) Spawning of characters (and their initial direction) is now random
+   among all walkable tiles.
+
+*) Banks are no longer at the corners, but instead randomly placed.
+   At the fork height, 50 banks are placed with a random life time
+   between 25 and 100 blocks.  Whenever the life time of a bank
+   runs out, it is randomly re-created on a fresh walkable tile
+   and with a fresh life time.

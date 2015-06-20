@@ -97,9 +97,21 @@ ForkInEffect (Fork type, unsigned nHeight)
     case FORK_LESSHEARTS:
       return nHeight >= (fTestNet ? 240000 : 590000);
 
+    case FORK_LIFESTEAL:
+      return nHeight >= (fTestNet ? 320000 : 775000);
+
     default:
       assert (false);
     }
+}
+
+bool
+IsForkHeight (Fork type, unsigned nHeight)
+{
+  if (nHeight == 0)
+    return false;
+
+  return ForkInEffect (type, nHeight) && !ForkInEffect (type, nHeight - 1);
 }
 
 
@@ -580,6 +592,9 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         }
     }
 
+    if (!hooks->AcceptToMemoryPool (dbset, *this))
+        return error("%s: hook failed", __func__);
+
     // Store transaction in memory
     CRITICAL_BLOCK(cs_mapTransactions)
     {
@@ -594,8 +609,6 @@ CTransaction::AcceptToMemoryPool (DatabaseSet& dbset, bool fCheckInputs,
         }
         AddToMemoryPoolUnchecked();
     }
-
-    hooks->AcceptToMemoryPool (dbset, *this);
 
     ///// are we sure this is ok when loading transactions or restoring block txes
     // If updated, erase old tx from wallet
@@ -776,7 +789,7 @@ CWalletTx::AcceptWalletTransaction (DatabaseSet& dbset, bool fCheckInputs)
     return false;
 }
 
-bool CWalletTx::AcceptWalletTransaction() 
+bool CWalletTx::AcceptWalletTransaction()
 {
     DatabaseSet dbset("r");
     return AcceptWalletTransaction (dbset);
@@ -1430,7 +1443,7 @@ CBlock::ConnectBlock (DatabaseSet& dbset, CBlockIndex* pindex)
     // nFees may include taxes from the game, so we check it after creating game transactions
     if (pindex->nHeight && vtx[0].GetValueOut() > GetBlockValue(pindex->nHeight, nFees))
     {
-	printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
+        printf("ConnectBlock() : GetValueOut > GetBlockValue + fees\n");
         printf("  vtx[0].GetValueOut() = %s\n", FormatMoney(vtx[0].GetValueOut()).c_str());
         printf("  GetBlockValue(pindex->nHeight, nFees) = %s\n", FormatMoney(GetBlockValue(pindex->nHeight, nFees)).c_str());
         printf("  nFees = %s\n", FormatMoney(nFees).c_str());
@@ -1763,7 +1776,7 @@ bool CBlock::CheckProofOfWork(int nHeight) const
 
             if (auxpow->algo != algo)
                 return error("CheckProofOfWork() : AUX POW uses different algorithm");
-            if (!auxpow->Check(GetHash(), GetChainID()))
+            if (!auxpow->Check(GetHash(), GetChainID(), nHeight))
                 return error("CheckProofOfWork() : AUX POW is not valid");
             // Check proof of work matches claimed amount
             if (!::CheckProofOfWork(auxpow->GetParentBlockHash(), nBits, algo))
@@ -2143,7 +2156,7 @@ AppendBlockFile (DatabaseSet& dbset, unsigned int& nFileRet, unsigned size)
                 goto error;
               }
             printf ("Block file extended by %u bytes.\n", written);
-              
+
             reserved += addedChunk;
             if (fseek (file, -reserved, SEEK_END) != 0)
               goto error;
@@ -2437,7 +2450,7 @@ bool CAlert::ProcessAlert()
             {
                 printf("cancelling alert %d\n", alert.nID);
 #ifdef GUI
-                uiInterface.NotifyAlertChanged((*mi).first, CT_DELETED);  
+                uiInterface.NotifyAlertChanged((*mi).first, CT_DELETED);
 #endif
                 mapAlerts.erase(mi++);
             }
@@ -2469,7 +2482,7 @@ bool CAlert::ProcessAlert()
 #ifdef GUI
         // Notify UI if it applies to me
         if (AppliesToMe())
-            uiInterface.NotifyAlertChanged(GetHash(), CT_NEW); 
+            uiInterface.NotifyAlertChanged(GetHash(), CT_NEW);
 #endif
     }
 
@@ -3717,7 +3730,9 @@ bool CheckWork(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
         if (auxpow->algo != algo)
             return error("CheckWork() : AUX POW uses different algorithm");
 
-        if (!auxpow->Check(hashBlock, pblock->GetChainID()))
+        /* FIXME: Remove this hack for nHeight when the fork has passed
+           and we no longer need it anyway.  */
+        if (!auxpow->Check(hashBlock, pblock->GetChainID(), nBestHeight + 1))
             return error("AUX POW is not valid");
 
         uint256 hashParent = auxpow->GetParentBlockHash();

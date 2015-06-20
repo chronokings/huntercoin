@@ -25,12 +25,17 @@ static const unsigned PDISASTER_PROBABILITY = 10000;
 static const unsigned POISON_MIN_LIFE = 1;
 static const unsigned POISON_MAX_LIFE = 50;
 
+/* Parameters for dynamic banks after the life-steal fork.  */
+static const unsigned DYNBANKS_NUM_BANKS = 50;
+static const unsigned DYNBANKS_MIN_LIFE = 25;
+static const unsigned DYNBANKS_MAX_LIFE = 100;
+
 namespace Game
 {
 
-inline bool IsInSpawnArea(const Coord &c)
+inline bool IsOriginalSpawnArea(const Coord &c)
 {
-    return IsInSpawnArea(c.x, c.y);
+    return IsOriginalSpawnArea(c.x, c.y);
 }
 
 inline bool IsWalkable(const Coord &c)
@@ -38,15 +43,29 @@ inline bool IsWalkable(const Coord &c)
     return IsWalkable(c.x, c.y);
 }
 
+/**
+ * Keep a set of walkable tiles.  This is used for random selection of
+ * one of them for spawning / dynamic bank purposes.  Note that it is
+ * important how they are ordered (according to Coord::operator<) in order
+ * to reach consensus on the game state.
+ *
+ * This is filled in from IsWalkable() whenever it is empty (on startup).  It
+ * does not ever change.
+ */
+static std::vector<Coord> walkableTiles;
+
 /* Calculate carrying capacity.  This is where it is basically defined.
    It depends on the block height (taking forks changing it into account)
    and possibly properties of the player.  Returns -1 if the capacity
    is unlimited.  */
-inline static
-int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
+static int64_t
+GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
 {
   if (!ForkInEffect (FORK_CARRYINGCAP, nHeight) || isCrownHolder)
     return -1;
+
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 100 * COIN;
 
   if (ForkInEffect (FORK_LESSHEARTS, nHeight))
     return 2000 * COIN;
@@ -54,10 +73,23 @@ int64 GetCarryingCapacity (int nHeight, bool isGeneral, bool isCrownHolder)
   return (isGeneral ? 50 : 25) * COIN;
 }
 
+/* Return the minimum necessary amount of locked coins.  This replaces the
+   old NAME_COIN_AMOUNT constant and makes it more dynamic, so that we can
+   change it with hard forks.  */
+static int64_t
+GetNameCoinAmount (unsigned nHeight)
+{
+  if (ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return 200 * COIN;
+  if (ForkInEffect (FORK_POISON, nHeight))
+    return 10 * COIN;
+  return COIN;
+}
+
 /* Get the destruct radius a hunter has at a certain block height.  This
    may depend on whether or not it is a general.  */
-inline static
-int GetDestructRadius (int nHeight, bool isGeneral)
+static int
+GetDestructRadius (int nHeight, bool isGeneral)
 {
   if (ForkInEffect (FORK_LESSHEARTS, nHeight))
     return 1;
@@ -65,12 +97,49 @@ int GetDestructRadius (int nHeight, bool isGeneral)
   return isGeneral ? 2 : 1;
 }
 
-/* Check whether or not a heart should be dropped at the current height.  */
-inline static
-bool DropHeart (int nHeight)
+/* Get maximum allowed stay on a bank.  */
+static int
+MaxStayOnBank (int nHeight)
 {
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 2;
+
+  /* Between those two forks, spawn death was disabled.  */
+  if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
+        && !ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return -1;
+
+  /* Return original value.  */
+  return 30;
+}
+
+/* Check whether or not a heart should be dropped at the current height.  */
+static bool
+DropHeart (int nHeight)
+{
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return false;
+
   const int heartEvery = (ForkInEffect (FORK_LESSHEARTS, nHeight) ? 500 : 10);
   return nHeight % heartEvery == 0;
+} 
+
+/* Ensure that walkableTiles is filled.  */
+static void
+FillWalkableTiles ()
+{
+  if (!walkableTiles.empty ())
+    return;
+
+  for (int x = 0; x < MAP_WIDTH; ++x)
+    for (int y = 0; y < MAP_HEIGHT; ++y)
+      if (IsWalkable (x, y))
+        walkableTiles.push_back (Coord (x, y));
+
+  /* Do not forget to sort in the order defined by operator<!  */
+  std::sort (walkableTiles.begin (), walkableTiles.end ());
+
+  assert (!walkableTiles.empty ());
 }
 
 } // namespace Game
@@ -114,7 +183,51 @@ private:
 
 const CBigNum RandomGenerator::MIN_STATE = CBigNum().SetCompact(0x097FFFFFu);
 
-bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit::Value &v)
+/* ************************************************************************** */
+/* KilledByInfo.  */
+
+bool
+KilledByInfo::HasDeathTax () const
+{
+  return reason != KILLED_SPAWN;
+}
+
+bool
+KilledByInfo::DropCoins (unsigned nHeight) const
+{
+  if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return true;
+
+  return reason != KILLED_POISON;
+}
+
+bool
+KilledByInfo::CanRefund (unsigned nHeight) const
+{
+  if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
+    return false;
+
+  switch (reason)
+    {
+    case KILLED_SPAWN:
+      return true;
+
+    case KILLED_POISON:
+      return ForkInEffect (FORK_LIFESTEAL, nHeight);
+
+    default:
+      return false;
+    }
+
+  assert (false);
+}
+
+/* ************************************************************************** */
+/* Move.  */
+
+static bool
+ExtractField (json_spirit::Object& obj, const std::string field,
+              json_spirit::Value& v)
 {
     for (std::vector<json_spirit::Pair>::iterator i = obj.begin(); i != obj.end(); ++i)
     {
@@ -130,10 +243,41 @@ bool ExtractField(json_spirit::Object &obj, const std::string field, json_spirit
 
 bool Move::IsValid(const GameState &state) const
 {
-    if (IsSpawn())
-        return state.players.count(player) == 0;
-    else
-        return state.players.count(player) != 0;
+  PlayerStateMap::const_iterator mi = state.players.find (player);
+
+  /* Before the life-steal fork, check that the move does not contain
+     destruct and waypoints together.  This needs the height for its
+     decision, thus it is not done in Parse (as before).  */
+  /* FIXME: Remove check once the fork is passed.  */
+  if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight + 1))
+    for (std::map<int, WaypointVector>::const_iterator i = waypoints.begin ();
+         i != waypoints.end (); ++i)
+      if (destruct.count (i->first) > 0)
+        return error ("%s: destruct and waypoints together", __func__);
+
+  int64_t oldLocked;
+  if (mi == state.players.end ())
+    {
+      if (!IsSpawn ())
+        return false;
+      oldLocked = 0;
+    }
+  else
+    {
+      if (IsSpawn ())
+        return false;
+      oldLocked = mi->second.lockedCoins;
+    }
+
+  assert (oldLocked >= 0 && newLocked >= 0);
+  const int64_t gameFee = newLocked - oldLocked;
+  const int64_t required = MinimumGameFee (state.nHeight + 1);
+  assert (required >= 0);
+  if (gameFee < required)
+    return error ("%s: too little game fee attached, got %lld, required %lld",
+                  __func__, gameFee, required);
+
+  return true;
 }
 
 bool ParseWaypoints(json_spirit::Object &obj, std::vector<Coord> &result, bool &bWaypoints)
@@ -257,13 +401,9 @@ bool Move::Parse(const PlayerID &player, const std::string &json)
             return false;
 
         if (bDestruct)
-        {
-            if (bWaypoints)
-                return false;     // Cannot combine destruct and waypoints
             destruct.insert(i);
-        }
-        else if (bWaypoints)
-            waypoints[i] = wp;
+        if (bWaypoints)
+            waypoints.insert(std::make_pair(i, wp));
 
         if (!subobj.empty())      // Extra fields are not allowed in JSON string
             return false;
@@ -315,17 +455,27 @@ std::string Move::AddressOperationPermission(const GameState &state) const
 void
 Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 {
-  PlayerState &pl = state.players[player];
-  if (pl.next_character_index == 0)
-  {
-    pl.color = color;
-    assert (pl.coinAmount == -1 && coinAmount >= 0);
-    pl.coinAmount = coinAmount;
+  assert (state.players.count (player) == 0);
 
-    const unsigned limit = state.GetNumInitialCharacters ();
-    for (unsigned i = 0; i < limit; i++)
-      pl.SpawnCharacter (rnd);
-  }
+  PlayerState pl;
+  assert (pl.next_character_index == 0);
+  pl.color = color;
+
+  /* This is a fresh player and name.  Set its value to the height's
+     name coin amount and put the remainder in the game fee.  This prevents
+     people from "overpaying" on purpose in order to get beefed-up players.  */
+  const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
+  assert (pl.lockedCoins == 0 && pl.value == -1);
+  assert (newLocked >= coinAmount);
+  pl.value = coinAmount;
+  pl.lockedCoins = newLocked;
+  state.gameFund += newLocked - coinAmount;
+
+  const unsigned limit = state.GetNumInitialCharacters ();
+  for (unsigned i = 0; i < limit; i++)
+    pl.SpawnCharacter (state.nHeight, rnd);
+
+  state.players.insert (std::make_pair (player, pl));
 }
 
 void Move::ApplyWaypoints(GameState &state) const
@@ -350,8 +500,391 @@ void Move::ApplyWaypoints(GameState &state) const
     }
 }
 
+int64_t
+Move::MinimumGameFee (unsigned nHeight) const
+{
+  if (IsSpawn ())
+    {
+      const int64_t coinAmount = GetNameCoinAmount (nHeight);
+
+      if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+        return coinAmount + 5 * COIN;
+
+      return coinAmount;
+    }
+
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 0;
+
+  return 20 * COIN * destruct.size ();
+}
+
+std::string CharacterID::ToString() const
+{
+    if (!index)
+        return player;
+    return player + strprintf(".%d", int(index));
+}
+
+/* ************************************************************************** */
+/* AttackableCharacter and CharactersOnTiles.  */
+
+void
+AttackableCharacter::AttackBy (const CharacterID& attackChid,
+                               const PlayerState& pl)
+{
+  /* Do not attack same colour.  */
+  if (color == pl.color)
+    return;
+
+  assert (attackers.count (attackChid) == 0);
+  attackers.insert (attackChid);
+}
+
+void
+AttackableCharacter::AttackSelf (const GameState& state)
+{
+  if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight))
+    {
+      assert (attackers.count (chid) == 0);
+      attackers.insert (chid);
+    }
+}
+
+void
+CharactersOnTiles::EnsureIsBuilt (const GameState& state)
+{
+  if (built)
+    return;
+  assert (tiles.empty ());
+
+  BOOST_FOREACH (const PAIRTYPE(PlayerID, PlayerState)& p, state.players)
+    BOOST_FOREACH (const PAIRTYPE(int, CharacterState)& pc, p.second.characters)
+      {
+        AttackableCharacter a;
+        a.chid = CharacterID (p.first, pc.first);
+        a.color = p.second.color;
+        a.value = p.second.value;
+
+        tiles.insert (std::make_pair (pc.second.coord, a));
+      }
+  built = true;
+}
+
+void
+CharactersOnTiles::ApplyAttacks (const GameState& state,
+                                 const std::vector<Move>& moves)
+{
+  BOOST_FOREACH(const Move& m, moves)
+    {
+      if (m.destruct.empty ())
+        continue;
+
+      const PlayerStateMap::const_iterator miPl = state.players.find (m.player);
+      assert (miPl != state.players.end ());
+      const PlayerState& pl = miPl->second;
+      BOOST_FOREACH(int i, m.destruct)
+        {
+          const std::map<int, CharacterState>::const_iterator miCh
+            = pl.characters.find (i);
+          if (miCh == pl.characters.end ())
+            continue;
+          const CharacterID chid(m.player, i);
+          if (state.crownHolder == chid)
+            continue;
+
+          EnsureIsBuilt (state);
+
+          const int radius = GetDestructRadius (state.nHeight, i == 0);
+          const CharacterState& ch = miCh->second;
+          const Coord& c = ch.coord;
+          for (int y = c.y - radius; y <= c.y + radius; y++)
+            for (int x = c.x - radius; x <= c.x + radius; x++)
+              {
+                const std::pair<Map::iterator, Map::iterator> iters
+                  = tiles.equal_range (Coord (x, y));
+                for (Map::iterator it = iters.first; it != iters.second; ++it)
+                  {
+                    AttackableCharacter& a = it->second;
+                    if (a.chid == chid)
+                      a.AttackSelf (state);
+                    else
+                      a.AttackBy (chid, pl);
+                  }
+              }
+        }
+    }
+}
+
+void
+CharactersOnTiles::KillAttacked (GameState& state, StepResult& result) const
+{
+  if (!built)
+    return;
+
+  /* Find damage amount.  Before the life steal fork, this is "infinity"
+     so that no amount of general value is enough to balance.  */
+  const bool lifeSteal = ForkInEffect (FORK_LIFESTEAL, state.nHeight);
+  int64_t damage;
+  if (lifeSteal)
+    damage = GetNameCoinAmount (state.nHeight);
+
+  BOOST_FOREACH (const PAIRTYPE(Coord, AttackableCharacter)& tile, tiles)
+    {
+      const AttackableCharacter& a = tile.second;
+      if (a.attackers.empty ())
+        continue;
+
+      /* If this is a general and its health is larger than the total damage,
+         nothing needs to be done.  */
+      if (a.chid.index == 0 && lifeSteal
+            && damage * a.attackers.size () < a.value)
+        continue;
+
+      if (a.chid.index == 0)
+        for (std::set<CharacterID>::const_iterator at = a.attackers.begin ();
+             at != a.attackers.end (); ++at)
+          {
+            const KilledByInfo killer(*at);
+            result.KillPlayer (a.chid.player, killer);
+          }
+
+      PlayerStateMap::iterator vit = state.players.find (a.chid.player);
+      assert (vit != state.players.end ());
+      PlayerState& victim = vit->second;
+      if (victim.characters.count (a.chid.index) > 0)
+        {
+          assert (a.attackers.begin () != a.attackers.end ());
+          const KilledByInfo& info(*a.attackers.begin ());
+          state.HandleKilledLoot (a.chid.player, a.chid.index, info, result);
+          victim.characters.erase (a.chid.index);
+        }
+    }
+}
+
+void
+CharactersOnTiles::DefendMutualAttacks (const GameState& state)
+{
+  if (!built)
+    return;
+
+  /* Build up a set of all (directed) attacks happening.  The pairs
+     mean an attack (from, to).  This is then later used to determine
+     mutual attacks, and remove them accordingly.
+
+     One can probably do this in a more efficient way, but for now this
+     is how it is implemented.  */
+
+  typedef std::pair<CharacterID, CharacterID> Attack;
+  std::set<Attack> attacks;
+  BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
+    {
+      const AttackableCharacter& a = tile.second;
+      for (std::set<CharacterID>::const_iterator mi = a.attackers.begin ();
+           mi != a.attackers.end (); ++mi)
+        attacks.insert (std::make_pair (*mi, a.chid));
+    }
+
+  BOOST_FOREACH (PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
+    {
+      AttackableCharacter& a = tile.second;
+
+      std::set<CharacterID> notDefended;
+      for (std::set<CharacterID>::const_iterator mi = a.attackers.begin ();
+           mi != a.attackers.end (); ++mi)
+        {
+          const Attack counterAttack(a.chid, *mi);
+          if (attacks.count (counterAttack) == 0)
+            notDefended.insert (*mi);
+        }
+
+      a.attackers.swap (notDefended);
+    }
+}
+
+void
+CharactersOnTiles::TransferLife (RandomGenerator& rnd, GameState& state) const
+{
+  if (!built)
+    return;
+
+  const int64_t damage = GetNameCoinAmount (state.nHeight);
+
+  /* In a first step, we find all changes to values that should be performed
+     depending on the tiles data.  This is purely zero-sum as it should
+     be to preserve total coins.  The second step applies these changes
+     to the actual game state:  For players that are present, "just" update
+     their value accordingly.  Otherwise, put the remaining balance
+     (if any) to the game fund.  */
+
+  std::map<CharacterID, int64_t> deltas;
+  std::map<CharacterID, PlayerState*> alivePlayers;
+  BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
+    {
+      const AttackableCharacter& a = tile.second;
+      assert (alivePlayers.count (a.chid) == 0);
+      assert (deltas.count (a.chid) == 0);
+      deltas.insert (std::make_pair (a.chid, 0));
+
+      /* Only non-hearted characters should be around if this is called,
+         since this means that life-steal is in effect.  */
+      assert (a.chid.index == 0);
+
+      const PlayerStateMap::iterator pit
+        = state.players.find (a.chid.player);
+      if (pit != state.players.end ())
+        {
+          PlayerState& pl = pit->second;
+          assert (pl.value == a.value);
+          assert (pl.characters.count (a.chid.index) > 0);
+          alivePlayers.insert (std::make_pair (a.chid, &pl));
+        }
+    }
+
+  BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
+    {
+      const AttackableCharacter& a = tile.second;
+      if (a.attackers.empty ())
+        continue;
+
+      /* Find attackers that are still alive.  We will randomly distribute
+         coins to them later on.  */
+      std::vector<CharacterID> alive;
+      std::vector<CharacterID> dead;
+      for (std::set<CharacterID>::const_iterator mi = a.attackers.begin ();
+           mi != a.attackers.end (); ++mi)
+        if (alivePlayers.count (*mi) > 0)
+          alive.push_back (*mi);
+        else
+          dead.push_back (*mi);
+
+      int64_t myDamage = 0;
+      while ((!alive.empty () || !dead.empty ())
+              && myDamage + damage <= a.value)
+        {
+          std::vector<CharacterID>* arr;
+          if (alive.empty ())
+            arr = &dead;
+          else
+            arr = &alive;
+
+          assert (!arr->empty ());
+          const unsigned ind = rnd.GetIntRnd (arr->size ());
+          assert (deltas.count (arr->operator[] (ind)) > 0);
+
+          deltas[arr->operator[] (ind)] += damage;
+          myDamage += damage;
+
+          if (ind != arr->size () - 1)
+            std::swap (arr->operator[] (ind), arr->back ());
+          arr->pop_back ();
+        }
+
+      assert (myDamage <= a.value);
+      assert (myDamage + damage > a.value
+                || myDamage == damage * a.attackers.size ());
+      assert (deltas.count (a.chid) > 0);
+      deltas[a.chid] -= myDamage;
+    }
+
+  BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
+    {
+      const AttackableCharacter& a = tile.second;
+      assert (deltas.count (a.chid) > 0);
+      const int64_t delta = deltas[a.chid];
+
+      const std::map<CharacterID, PlayerState*>::iterator mit
+        = alivePlayers.find (a.chid);
+      if (mit == alivePlayers.end ())
+        {
+          assert (a.value + delta >= 0);
+          state.gameFund += a.value + delta;
+        }
+      else
+        {
+          PlayerState& pl = *mit->second;
+          assert (a.value == pl.value);
+          pl.value = a.value + delta;
+          assert (delta == 0 || pl.value >= damage);
+        }
+    }
+}
+
+/* ************************************************************************** */
+/* CharacterState and PlayerState.  */
+
+void
+CharacterState::Spawn (unsigned nHeight, int color, RandomGenerator &rnd)
+{
+  /* Pick a random walkable spawn location after the life-steal fork.  */
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    {
+      FillWalkableTiles ();
+
+      const int pos = rnd.GetIntRnd (walkableTiles.size ());
+      coord = walkableTiles[pos];
+
+      dir = rnd.GetIntRnd (1, 8);
+      if (dir >= 5)
+        ++dir;
+      assert (dir >= 1 && dir <= 9 && dir != 5);
+    }
+
+  /* Use old logic with fixed spawns in the corners before the fork.  */
+  else
+    {
+      const int pos = rnd.GetIntRnd(2 * SPAWN_AREA_LENGTH - 1);
+      const int x = pos < SPAWN_AREA_LENGTH ? pos : 0;
+      const int y = pos < SPAWN_AREA_LENGTH ? 0 : pos - SPAWN_AREA_LENGTH;
+      switch (color)
+        {
+        case 0: // Yellow (top-left)
+          coord = Coord(x, y);
+          break;
+        case 1: // Red (top-right)
+          coord = Coord(MAP_WIDTH - 1 - x, y);
+          break;
+        case 2: // Green (bottom-right)
+          coord = Coord(MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
+          break;
+        case 3: // Blue (bottom-left)
+          coord = Coord(x, MAP_HEIGHT - 1 - y);
+          break;
+        default:
+          throw std::runtime_error("CharacterState::Spawn: incorrect color");
+        }
+
+      // Set look-direction for the sprite
+      if (coord.x == 0)
+        {
+          if (coord.y == 0)
+            dir = 3;
+          else if (coord.y == MAP_HEIGHT - 1)
+            dir = 9;
+          else
+            dir = 6;
+        }
+      else if (coord.x == MAP_WIDTH - 1)
+        {
+          if (coord.y == 0)
+            dir = 1;
+          else if (coord.y == MAP_HEIGHT - 1)
+            dir = 7;
+          else
+            dir = 4;
+        }
+      else if (coord.y == 0)
+        dir = 2;
+      else if (coord.y == MAP_HEIGHT - 1)
+        dir = 8;
+    }
+
+  StopMoving();
+}
+
 // Returns direction from c1 to c2 as a number from 1 to 9 (as on the numeric keypad)
-unsigned char GetDirection(const Coord &c1, const Coord &c2)
+static unsigned char
+GetDirection (const Coord& c1, const Coord& c2)
 {
     int dx = c2.x - c1.x;
     int dy = c2.y - c1.y;
@@ -365,63 +898,6 @@ unsigned char GetDirection(const Coord &c1, const Coord &c2)
         dy = 1;
 
     return (1 - dy) * 3 + dx + 2;
-}
-
-std::string CharacterID::ToString() const
-{
-    if (!index)
-        return player;
-    return player + strprintf(".%d", int(index));
-}
-
-void CharacterState::Spawn(int color, RandomGenerator &rnd)
-{
-    int pos = rnd.GetIntRnd(2 * SPAWN_AREA_LENGTH - 1);
-    int x = pos < SPAWN_AREA_LENGTH ? pos : 0;
-    int y = pos < SPAWN_AREA_LENGTH ? 0 : pos - SPAWN_AREA_LENGTH;
-    switch (color)
-    {
-        case 0: // Yellow (top-left)
-            coord = Coord(x, y);
-            break;
-        case 1: // Red (top-right)
-            coord = Coord(MAP_WIDTH - 1 - x, y);
-            break;
-        case 2: // Green (bottom-right)
-            coord = Coord(MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
-            break;
-        case 3: // Blue (bottom-left)
-            coord = Coord(x, MAP_HEIGHT - 1 - y);
-            break;
-        default:
-            throw std::runtime_error("CharacterState::Spawn: incorrect color");
-    }
-
-    // Set look-direction for the sprite
-    if (coord.x == 0)
-    {
-        if (coord.y == 0)
-            dir = 3;
-        else if (coord.y == MAP_HEIGHT - 1)
-            dir = 9;
-        else
-            dir = 6;
-    }
-    else if (coord.x == MAP_WIDTH - 1)
-    {
-        if (coord.y == 0)
-            dir = 1;
-        else if (coord.y == MAP_HEIGHT - 1)
-            dir = 7;
-        else
-            dir = 4;
-    }
-    else if (coord.y == 0)
-        dir = 2;
-    else if (coord.y == MAP_HEIGHT - 1)
-        dir = 8;
-
-    StopMoving();
 }
 
 // Simple straight-line motion
@@ -606,9 +1082,10 @@ CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
   return remaining;
 }
 
-void PlayerState::SpawnCharacter(RandomGenerator &rnd)
+void
+PlayerState::SpawnCharacter (unsigned nHeight, RandomGenerator &rnd)
 {
-    characters[next_character_index++].Spawn(color, rnd);
+  characters[next_character_index++].Spawn (nHeight, color, rnd);
 }
 
 json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = false*/) const
@@ -617,7 +1094,7 @@ json_spirit::Value PlayerState::ToJsonValue(int crown_index, bool dead /* = fals
 
     Object obj;
     obj.push_back(Pair("color", (int)color));
-    obj.push_back(Pair("coinAmount", ValueFromAmount(coinAmount)));
+    obj.push_back(Pair("value", ValueFromAmount(value)));
 
     /* If the character is poisoned, write that out.  Otherwise just
        leave the field off.  */
@@ -684,6 +1161,35 @@ json_spirit::Value CharacterState::ToJsonValue(bool has_crown) const
     return obj;
 }
 
+/* ************************************************************************** */
+/* GameState.  */
+
+static void
+SetOriginalBanks (std::map<Coord, unsigned>& banks)
+{
+  assert (banks.empty ());
+  for (int d = 0; d < SPAWN_AREA_LENGTH; ++d)
+    {
+      banks.insert (std::make_pair (Coord (0, d), 0));
+      banks.insert (std::make_pair (Coord (d, 0), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - 1, d), 0));
+      banks.insert (std::make_pair (Coord (d, MAP_HEIGHT - 1), 0));
+      banks.insert (std::make_pair (Coord (0, MAP_HEIGHT - d - 1), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - d - 1, 0), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - 1,
+                                           MAP_HEIGHT - d - 1), 0));
+      banks.insert (std::make_pair (Coord (MAP_WIDTH - d - 1,
+                                           MAP_HEIGHT - 1), 0));
+    }
+
+  assert (banks.size () == 4 * (2 * SPAWN_AREA_LENGTH - 1));
+  BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
+    {
+      assert (IsOriginalSpawnArea (b.first));
+      assert (b.second == 0);
+    }
+}
+
 GameState::GameState()
 {
     crownPos.x = CROWN_START_X;
@@ -692,6 +1198,7 @@ GameState::GameState()
     nHeight = -1;
     nDisasterHeight = -1;
     hashBlock = 0;
+    SetOriginalBanks (banks);
 }
 
 void
@@ -701,7 +1208,20 @@ GameState::UpdateVersion(int oldVersion)
      is fully reconstructed.  */
   assert (oldVersion >= 1001100);
 
-  /* No upgrades to game state are necessary since this change.  */
+  /* If necessary, initialise the banks array to the original spawn area.
+     Make sure that we are not yet at the fork height!  Otherwise this
+     is completely wrong.  */
+  if (oldVersion < 1030000)
+    {
+      if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+        {
+          error ("game DB version upgrade while the life-steal fork is"
+                 " already active");
+          assert (false);
+        }
+
+      SetOriginalBanks (banks);
+    }
 }
 
 json_spirit::Value GameState::ToJsonValue() const
@@ -737,15 +1257,27 @@ json_spirit::Value GameState::ToJsonValue() const
         arr.push_back(subobj);
     }
     obj.push_back(Pair("loot", arr));
-    arr.resize(0);
-    BOOST_FOREACH(const Coord &c, hearts)
-    {
-        Object subobj;
-        subobj.push_back(Pair("x", c.x));
-        subobj.push_back(Pair("y", c.y));
-        arr.push_back(subobj);
-    }
-    obj.push_back(Pair("hearts", arr));
+
+    arr.clear ();
+    BOOST_FOREACH (const Coord& c, hearts)
+      {
+        subobj.clear ();
+        subobj.push_back (Pair ("x", c.x));
+        subobj.push_back (Pair ("y", c.y));
+        arr.push_back (subobj);
+      }
+    obj.push_back (Pair ("hearts", arr));
+
+    arr.clear ();
+    BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
+      {
+        subobj.clear ();
+        subobj.push_back (Pair ("x", b.first.x));
+        subobj.push_back (Pair ("y", b.first.y));
+        subobj.push_back (Pair ("life", static_cast<int> (b.second)));
+        arr.push_back (subobj);
+      }
+    obj.push_back (Pair ("banks", arr));
 
     subobj.clear();
     subobj.push_back(Pair("x", crownPos.x));
@@ -939,7 +1471,7 @@ void GameState::UpdateCrownState(bool &respawn_crown)
         return;
     }
 
-    if (IsInSpawnArea(mi2->second.coord))
+    if (IsBank (mi2->second.coord))
     {
         // Character entered spawn area, drop the crown
         crownHolder = CharacterID();
@@ -980,15 +1512,26 @@ GameState::GetNumInitialCharacters () const
   return (ForkInEffect (FORK_POISON, nHeight) ? 1 : 3);
 }
 
-int64
+bool
+GameState::IsBank (const Coord& c) const
+{
+  assert (!banks.empty ());
+  return banks.count (c) > 0;
+}
+
+int64_t
 GameState::GetCoinsOnMap () const
 {
   int64 onMap = 0;
   BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo)& l, loot)
     onMap += l.second.nAmount;
   BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState)& p, players)
-    BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc, p.second.characters)
-      onMap += pc.second.loot.nAmount;
+    {
+      onMap += p.second.value;
+      BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
+                    p.second.characters)
+        onMap += pc.second.loot.nAmount;
+    }
 
   return onMap;
 }
@@ -1030,7 +1573,7 @@ void GameState::CollectHearts(RandomGenerator &rnd)
         }
         if (i >= 0)
         {
-            v[i]->SpawnCharacter(rnd);
+            v[i]->SpawnCharacter(nHeight, rnd);
             hearts.erase(c);
         }
     }
@@ -1072,7 +1615,7 @@ void GameState::CollectCrown(RandomGenerator &rnd, bool respawn_crown)
 static Coord
 PushCoordOutOfSpawnArea(const Coord &c)
 {
-    if (!IsInSpawnArea(c))
+    if (!IsOriginalSpawnArea(c))
         return c;
     if (c.x == 0)
     {
@@ -1102,59 +1645,58 @@ PushCoordOutOfSpawnArea(const Coord &c)
 
 void
 GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
-                             bool hasTax, bool canRefund, StepResult& step)
+                             const KilledByInfo& info, StepResult& step)
 {
   const PlayerStateMap::const_iterator mip = players.find (pId);
   assert (mip != players.end ());
   const PlayerState& pc = mip->second;
+  assert (pc.value > 0);
   const std::map<int, CharacterState>::const_iterator mic
     = pc.characters.find (chInd);
   assert (mic != pc.characters.end ());
   const CharacterState& ch = mic->second;
 
-  /* Calculate loot.  If we kill a general, take the locked coin amount
-     into account, as well.  */
-  int64_t nAmount = ch.loot.nAmount;
-  if (chInd == 0)
+  /* If refunding is possible, do this for the locked amount right now.
+     Later on, exclude the amount from further considerations.  */
+  bool refunded = false;
+  if (chInd == 0 && info.CanRefund (nHeight))
     {
-      assert (pc.coinAmount >= 0);
-      nAmount += pc.coinAmount;
+      CollectedLootInfo loot;
+      loot.SetRefund (pc.value, nHeight);
+      CollectedBounty b(pId, chInd, loot, pc.address);
+      step.bounties.push_back (b);
+      refunded = true;
     }
 
+  /* Calculate loot.  If we kill a general, take the locked coin amount
+     into account, as well.  If the life-steal fork is already in effect,
+     this is not done since the coins are distributed in a different way.  */
+  int64_t nAmount = ch.loot.nAmount;
+  if (chInd == 0 && !refunded && !ForkInEffect (FORK_LIFESTEAL, nHeight))
+    nAmount += pc.value;
+
   /* Apply the miner tax: 4%.  */
-  if (hasTax)
+  if (info.HasDeathTax ())
     {
       const int64 nTax = nAmount / 25;
       step.nTaxAmount += nTax;
       nAmount -= nTax;
     }
 
-  /* Return early if nothing is to drop.  */
-  if (nAmount == 0)
-    return;
-  assert (nAmount > 0);
-
-
-  /* If the player is poisoned, loot is not dropped (or refunded) but instead
-     added to the game fund.  */
-  if (pc.remainingLife >= 0 && ForkInEffect (FORK_LESSHEARTS, nHeight))
+  /* If requested (and the corresponding fork is in effect), add the coins
+     to the game fund instead of dropping them.  */
+  if (!info.DropCoins (nHeight))
     {
       gameFund += nAmount;
       return;
     }
 
-  /* If refunding is possible, do that.  */
-  if (canRefund && ForkInEffect (FORK_LESSHEARTS, nHeight))
-    {
-      CollectedLootInfo loot;
-      loot.SetRefund (nAmount, nHeight);
-      CollectedBounty b(pId, chInd, loot, pc.address);
-      step.bounties.push_back (b);
-      return;
-    }
-
-  /* Just drop the loot.  Push the coordinate out of spawn if applicable.  */
-  AddLoot (PushCoordOutOfSpawnArea (ch.coord), nAmount);
+  /* Just drop the loot.  Push the coordinate out of spawn if applicable.
+     After the life-steal fork with dynamic banks, we no longer push.  */
+  Coord lootPos = ch.coord;
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
+    lootPos = PushCoordOutOfSpawnArea (lootPos);
+  AddLoot (lootPos, nAmount);
 }
 
 void
@@ -1168,15 +1710,16 @@ GameState::FinaliseKills (StepResult& step)
     {
       const PlayerState& victimState = players.find (victim)->second;
 
-      /* If killed by the game for staying in the spawn area, then no tax.  */
+      /* Take a look at the killed info to determine flags for handling
+         the player loot.  */
       const KilledByMap::const_iterator iter = killedBy.find (victim);
       assert (iter != killedBy.end ());
-      const bool apply_tax = iter->second.HasDeathTax ();
+      const KilledByInfo& info = iter->second;
 
       /* Kill all alive characters of the player.  */
       BOOST_FOREACH(const PAIRTYPE(int, CharacterState)& pc,
                     victimState.characters)
-        HandleKilledLoot (victim, pc.first, apply_tax, false, step);
+        HandleKilledLoot (victim, pc.first, info, step);
     }
 
   /* Erase killed players from the state.  */
@@ -1219,29 +1762,23 @@ GameState::KillSpawnArea (StepResult& step)
           const int i = pc.first;
           CharacterState &ch = pc.second;
 
-          if (!IsInSpawnArea (ch.coord))
+          if (!IsBank (ch.coord))
             {
               ch.stay_in_spawn_area = 0;
               continue;
             }
 
           /* Make sure to increment the counter in every case.  */
-          assert (IsInSpawnArea (ch.coord));
-          if (ch.stay_in_spawn_area++ < MAX_STAY_IN_SPAWN_AREA)
-            continue;
-
-          /* Between the two forks, spawn death was simply disabled.  */
-          if (ForkInEffect (FORK_CARRYINGCAP, nHeight)
-                && !ForkInEffect (FORK_LESSHEARTS, nHeight))
+          assert (IsBank (ch.coord));
+          const int maxStay = MaxStayOnBank (nHeight);
+          if (ch.stay_in_spawn_area++ < maxStay || maxStay == -1)
             continue;
 
           /* Handle the character's loot and kill the player.  */
-          HandleKilledLoot (p.first, i, false, true, step);
+          const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
+          HandleKilledLoot (p.first, i, killer, step);
           if (i == 0)
-            {
-              const KilledByInfo killer(KilledByInfo::KILLED_SPAWN);
-              step.KillPlayer (p.first, killer);
-            }
+            step.KillPlayer (p.first, killer);
 
           /* Cannot erase right now, because it will invalidate the
              iterator 'pc'.  */
@@ -1295,6 +1832,104 @@ GameState::DecrementLife (StepResult& step)
 }
 
 void
+GameState::RemoveHeartedCharacters (StepResult& step)
+{
+  assert (IsForkHeight (FORK_LIFESTEAL, nHeight));
+
+  /* Get rid of all hearts on the map.  */
+  hearts.clear ();
+
+  /* Immediately kill all hearted characters.  */
+  BOOST_FOREACH (PAIRTYPE(const PlayerID, PlayerState)& p, players)
+    {
+      std::set<int> toErase;
+      BOOST_FOREACH (PAIRTYPE(const int, CharacterState)& pc,
+                     p.second.characters)
+        {
+          const int i = pc.first;
+          if (i == 0)
+            continue;
+
+          const KilledByInfo info(KilledByInfo::KILLED_POISON);
+          HandleKilledLoot (p.first, i, info, step);
+
+          /* Cannot erase right now, because it will invalidate the
+             iterator 'pc'.  */
+          toErase.insert (i);
+        }
+      BOOST_FOREACH (int i, toErase)
+        p.second.characters.erase (i);
+    }
+}
+
+void
+GameState::UpdateBanks (RandomGenerator& rng)
+{
+  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return;
+
+  std::map<Coord, unsigned> newBanks;
+
+  /* Create initial set of banks at the fork itself.  */
+  if (IsForkHeight (FORK_LIFESTEAL, nHeight))
+    assert (newBanks.empty ());
+
+  /* Decrement life of existing banks and remove the ones that
+     have run out.  */
+  else
+    {
+      assert (banks.size () == DYNBANKS_NUM_BANKS);
+      assert (newBanks.empty ());
+
+      BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
+        {
+          assert (b.second >= 1);
+
+          /* Banks with life=1 run out now.  Since banking is done before
+             updating the banks in PerformStep, this means that banks that have
+             life=1 and are reached in the next turn are still available.  */
+          if (b.second > 1)
+            newBanks.insert (std::make_pair (b.first, b.second - 1));
+        }
+    }
+
+  /* Re-create banks that are missing now.  */
+
+  assert (newBanks.size () <= DYNBANKS_NUM_BANKS);
+
+  FillWalkableTiles ();
+  std::set<Coord> optionsSet(walkableTiles.begin (), walkableTiles.end ());
+  BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, newBanks)
+    {
+      assert (optionsSet.count (b.first) == 1);
+      optionsSet.erase (b.first);
+    }
+  assert (optionsSet.size () + newBanks.size () == walkableTiles.size ());
+
+  std::vector<Coord> options(optionsSet.begin (), optionsSet.end ());
+  for (unsigned cnt = newBanks.size (); cnt < DYNBANKS_NUM_BANKS; ++cnt)
+    {
+      const int ind = rng.GetIntRnd (options.size ());
+      const int life = rng.GetIntRnd (DYNBANKS_MIN_LIFE, DYNBANKS_MAX_LIFE);
+      const Coord& c = options[ind];
+
+      assert (newBanks.count (c) == 0);
+      newBanks.insert (std::make_pair (c, life));
+
+      /* Do not use a silly trick like swapping in the last element.
+         We want to keep the array ordered at all times.  The order is
+         important with respect to consensus, and this makes the consensus
+         protocol "clearer" to describe.  */
+      options.erase (options.begin () + ind);
+    }
+
+  banks.swap (newBanks);
+  assert (banks.size () == DYNBANKS_NUM_BANKS);
+}
+
+/* ************************************************************************** */
+
+void
 CollectedBounty::UpdateAddress (const GameState& state)
 {
   const PlayerID& p = character.player;
@@ -1303,31 +1938,6 @@ CollectedBounty::UpdateAddress (const GameState& state)
     return;
 
   address = i->second.address;
-}
-
-struct AttackableCharacter
-{
-    const std::string *name;
-    int index;
-    unsigned char color;
-};
-
-std::multimap<Coord, AttackableCharacter> *MapCharactersToTiles(const std::map<PlayerID, PlayerState> &players)
-{
-    std::multimap<Coord, AttackableCharacter> *m = new std::multimap<Coord, AttackableCharacter>();
-    for (std::map<PlayerID, PlayerState>::const_iterator p = players.begin(); p != players.end(); p++)
-        BOOST_FOREACH(const PAIRTYPE(int, CharacterState) &pc, p->second.characters)
-        {
-            int i = pc.first;
-            const CharacterState &ch = pc.second;
-
-            AttackableCharacter a;
-            a.name = &p->first;
-            a.index = i;
-            a.color = p->second.color;
-            m->insert(std::pair<Coord, AttackableCharacter>(ch.coord, a));
-        }
-    return m;
 }
 
 bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameState &outState, StepResult &stepResult)
@@ -1348,65 +1958,23 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     stepResult = StepResult();
 
-    // Apply attacks
-    std::multimap<Coord, AttackableCharacter> *charactersOnTile = NULL;   // Delayed creation - only if at least one attack happened
-    BOOST_FOREACH(const Move &m, stepData.vMoves)
-    {
-        if (m.destruct.empty())
-            continue;
-        const PlayerState &pl = inState.players.find(m.player)->second;
-        BOOST_FOREACH(int i, m.destruct)
+    // Pay out game fees (except for spawns) to the game fund.
+    BOOST_FOREACH(const Move& m, stepData.vMoves)
+      if (!m.IsSpawn ())
         {
-            if (!pl.characters.count(i))
-                continue;
-            CharacterID chid(m.player, i);
-            if (inState.crownHolder == chid)
-                continue;
-            if (!charactersOnTile)
-                charactersOnTile = MapCharactersToTiles(inState.players);
-            const int radius = GetDestructRadius (outState.nHeight, i == 0);
-            Coord c = pl.characters.find(i)->second.coord;
-            for (int y = c.y - radius; y <= c.y + radius; y++)
-                for (int x = c.x - radius; x <= c.x + radius; x++)
-                {
-                    std::pair<std::multimap<Coord, AttackableCharacter>::const_iterator, std::multimap<Coord, AttackableCharacter>::const_iterator> its =
-                                    charactersOnTile->equal_range(Coord(x, y));
-                    for (std::multimap<Coord, AttackableCharacter>::const_iterator it = its.first; it != its.second; it++)
-                    {
-                        const AttackableCharacter &a = it->second;
-                        PlayerState& victim = outState.players[*a.name];
-
-                        if (a.color == pl.color)
-                            continue;  // Do not kill same color
-                        if (a.index == 0)
-                        {
-                            const KilledByInfo killer(chid);
-                            stepResult.KillPlayer (*a.name, killer);
-                        }
-                        if (victim.characters.count(a.index))
-                        {
-                            outState.HandleKilledLoot (*a.name, a.index,
-                                                       true, false,
-                                                       stepResult);
-                            victim.characters.erase(a.index);
-                        }
-                    }
-                }
-            if (outState.players[m.player].characters.count(i))
-            {
-                outState.HandleKilledLoot (m.player, i, true, false,
-                                           stepResult);
-                outState.players[m.player].characters.erase(i);
-            }
-            if (i == 0)
-            {
-                const KilledByInfo killer(CharacterID(m.player, i));
-                stepResult.KillPlayer (m.player, killer);
-            }
+          const PlayerStateMap::iterator mi = outState.players.find (m.player);
+          assert (mi != outState.players.end ());
+          assert (m.newLocked >= mi->second.lockedCoins);
+          outState.gameFund += m.newLocked - mi->second.lockedCoins;
+          mi->second.lockedCoins = m.newLocked;
         }
-    }
 
-    delete charactersOnTile;
+    // Apply attacks
+    CharactersOnTiles attackedTiles;
+    attackedTiles.ApplyAttacks (outState, stepData.vMoves);
+    if (ForkInEffect (FORK_LIFESTEAL, outState.nHeight))
+      attackedTiles.DefendMutualAttacks (outState);
+    attackedTiles.KillAttacked (outState, stepResult);
 
     // Kill players who stay too long in the spawn area
     outState.KillSpawnArea (stepResult);
@@ -1417,6 +1985,13 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     /* Finalise the kills.  */
     outState.FinaliseKills (stepResult);
+
+    /* Special rule for the life-steal fork:  When it takes effect,
+       remove all hearted characters from the map.  Also heart creation
+       is disabled, so no hearted characters will ever be present
+       afterwards.  */
+    if (IsForkHeight (FORK_LIFESTEAL, outState.nHeight))
+      outState.RemoveHeartedCharacters (stepResult);
 
     /* Apply updates to target coordinate.  This ignores already
        killed players.  */
@@ -1442,7 +2017,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             int i = pc.first;
             CharacterState &ch = pc.second;
 
-            if (ch.loot.nAmount > 0 && IsInSpawnArea(ch.coord))
+            if (ch.loot.nAmount > 0 && outState.IsBank (ch.coord))
             {
                 // Tax from banking: 10%
                 int64 nTax = ch.loot.nAmount / 10;
@@ -1474,6 +2049,11 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         assert (outState.nHeight == outState.nDisasterHeight);
       }
 
+    /* Transfer life from attacks.  This is done randomly, but the decision
+       about who dies is non-random and already set above.  */
+    if (ForkInEffect (FORK_LIFESTEAL, outState.nHeight))
+      attackedTiles.TransferLife (rnd, outState);
+
     // Spawn new players
     BOOST_FOREACH(const Move &m, stepData.vMoves)
         if (m.IsSpawn())
@@ -1498,15 +2078,16 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         p.second.color = pl.color;
     }
 
-    int64 nCrownBonus = CROWN_BONUS * stepData.nTreasureAmount / TOTAL_HARVEST;
-
     // Drop a random rewards onto the harvest areas
-    int64 nTotalTreasure = 0;
+    const int64_t nCrownBonus
+      = CROWN_BONUS * stepData.nTreasureAmount / TOTAL_HARVEST;
+    int64_t nTotalTreasure = 0;
     for (int i = 0; i < NUM_HARVEST_AREAS; i++)
     {
         int a = rnd.GetIntRnd(HarvestAreaSizes[i]);
         Coord harvest(HarvestAreas[i][2 * a], HarvestAreas[i][2 * a + 1]);
-        int64 nTreasure = HarvestPortions[i] * stepData.nTreasureAmount / TOTAL_HARVEST;
+        const int64_t nTreasure
+          = HarvestPortions[i] * stepData.nTreasureAmount / TOTAL_HARVEST;
         outState.AddLoot(harvest, nTreasure);
         nTotalTreasure += nTreasure;
     }
@@ -1516,15 +2097,22 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     outState.DivideLootAmongPlayers();
     outState.CrownBonus(nCrownBonus);
 
-    // Drop heart onto the map (1 heart per 5 blocks)
+    /* Update the banks.  */
+    outState.UpdateBanks (rnd);
+
+    /* Drop heart onto the map.  They are not dropped onto the original
+       spawn area for historical reasons.  After the life-steal fork,
+       we simply remove this check (there are no hearts anyway).  */
     if (DropHeart (outState.nHeight))
     {
+        assert (!ForkInEffect (FORK_LIFESTEAL, outState.nHeight));
+
         Coord heart;
         do
         {
             heart.x = rnd.GetIntRnd(MAP_WIDTH);
             heart.y = rnd.GetIntRnd(MAP_HEIGHT);
-        } while (!IsWalkable(heart) || IsInSpawnArea(heart));
+        } while (!IsWalkable(heart) || IsOriginalSpawnArea (heart));
         outState.hearts.insert(heart);
     }
 

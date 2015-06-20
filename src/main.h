@@ -119,8 +119,17 @@ enum Fork
      radius only 1).  */
   FORK_LESSHEARTS,
 
+  /* Implement "life steal".  This adds a game fee for destructs (5 HUC),
+     completely disables hearts and removes all "hearted" hunters.  It also
+     randomises spawn and banking locations.  */
+  FORK_LIFESTEAL,
+
 };
 bool ForkInEffect (Fork type, unsigned nHeight);
+
+/* Check whether the height is *exactly* when the fork starts to take effect.
+   This is used sometimes to trigger special events in the game.  */
+bool IsForkHeight (Fork type, unsigned nHeight);
 
 
 extern CHooks* hooks;

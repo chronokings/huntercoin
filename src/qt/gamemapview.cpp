@@ -380,8 +380,11 @@ public:
 };
 
 GameMapView::GameMapView(QWidget *parent)
-    : QGraphicsView(parent), zoomFactor(1.0), panning(false), use_cross_cursor(false), scheduledZoom(1.0),
-    grobjs(new GameGraphicsObjects), playerPath(NULL), queuedPlayerPath(NULL)
+    : QGraphicsView(parent),
+      grobjs(new GameGraphicsObjects()),
+      zoomFactor(1.0),
+      playerPath(NULL), queuedPlayerPath(NULL), banks(),
+      panning(false), use_cross_cursor(false), scheduledZoom(1.0)
 {
     scene = new QGraphicsScene(this);
 
@@ -415,50 +418,22 @@ GameMapView::GameMapView(QWidget *parent)
         scene->addItem(layer);
     }
 
-    // Draw spawn areas
-    const int spawn_opacity = 40;
-
-    QPen no_pen(Qt::NoPen);
-
-    // Yellow (top-left)
-    scene->addRect(0, 0,
-        SPAWN_AREA_LENGTH * TILE_SIZE, TILE_SIZE,
-        no_pen, QColor(255, 255, 0, spawn_opacity));
-    scene->addRect(0, TILE_SIZE,
-        TILE_SIZE, (SPAWN_AREA_LENGTH - 1) * TILE_SIZE,
-        no_pen, QColor(255, 255, 0, spawn_opacity));
-    // Red (top-right)
-    scene->addRect((MAP_WIDTH - SPAWN_AREA_LENGTH) * TILE_SIZE, 0,
-        SPAWN_AREA_LENGTH * TILE_SIZE, TILE_SIZE,
-        no_pen, QColor(255, 0, 0, spawn_opacity));
-    scene->addRect((MAP_WIDTH - 1) * TILE_SIZE, TILE_SIZE,
-        TILE_SIZE, (SPAWN_AREA_LENGTH - 1) * TILE_SIZE,
-        no_pen, QColor(255, 0, 0, spawn_opacity));
-    // Green (bottom-right)
-    scene->addRect((MAP_WIDTH - SPAWN_AREA_LENGTH) * TILE_SIZE, (MAP_HEIGHT - 1) * TILE_SIZE,
-        SPAWN_AREA_LENGTH * TILE_SIZE, TILE_SIZE,
-        no_pen, QColor(0, 255, 0, spawn_opacity));
-    scene->addRect((MAP_WIDTH - 1) * TILE_SIZE, (MAP_HEIGHT - SPAWN_AREA_LENGTH) * TILE_SIZE,
-        TILE_SIZE, (SPAWN_AREA_LENGTH - 1) * TILE_SIZE,
-        no_pen, QColor(0, 255, 0, spawn_opacity));
-    // Blue (bottom-left)
-    scene->addRect(0, (MAP_HEIGHT - 1) * TILE_SIZE,
-        SPAWN_AREA_LENGTH * TILE_SIZE, TILE_SIZE,
-        no_pen, QColor(0, 0, 255, spawn_opacity));
-    scene->addRect(0, (MAP_HEIGHT - SPAWN_AREA_LENGTH) * TILE_SIZE,
-        TILE_SIZE, (SPAWN_AREA_LENGTH - 1) * TILE_SIZE,
-        no_pen, QColor(0, 0, 255, spawn_opacity));
-        
     crown = scene->addPixmap(grobjs->crown_sprite);
     crown->hide();
     crown->setOffset(CROWN_START_X * TILE_SIZE, CROWN_START_Y * TILE_SIZE);
     crown->setZValue(0.3);
 }
 
-GameMapView::~GameMapView()
+GameMapView::~GameMapView ()
 {
-    delete gameMapCache;
-    delete grobjs;
+  BOOST_FOREACH (QGraphicsRectItem* b, banks)
+    {
+      scene->removeItem (b);
+      delete b;
+    }
+
+  delete gameMapCache;
+  delete grobjs;
 }
 
 struct CharacterEntry
@@ -482,6 +457,23 @@ void GameMapView::updateGameMap(const GameState &gameState)
         delete queuedPlayerPath;
         queuedPlayerPath = NULL;
     }
+
+    /* Update the banks.  */
+    const int bankOpacity = 40;
+    BOOST_FOREACH (QGraphicsRectItem* b, banks)
+      {
+        scene->removeItem (b);
+        delete b;
+      }
+    banks.clear ();
+    BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, gameState.banks)
+      {
+        QGraphicsRectItem* r
+          = scene->addRect (TILE_SIZE * b.first.x, TILE_SIZE * b.first.y,
+                            TILE_SIZE, TILE_SIZE,
+                            Qt::NoPen, QColor (255, 255, 255, bankOpacity));
+        banks.push_back (r);
+      }
 
     gameMapCache->StartCachedScene();
     BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo) &loot, gameState.loot)

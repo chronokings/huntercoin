@@ -6,6 +6,7 @@
 #ifndef Q_MOC_RUN
 #include <boost/program_options/detail/config_file.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
@@ -316,7 +317,13 @@ inline int OutputDebugStringF(const char* pszFormat, ...)
 
             // Debug print useful for profiling
             if (fLogTimestamps && fStartedNewLine)
-                fprintf(fileout, "%s ", DateTimeStrFormat("%x %H:%M:%S", GetTime()).c_str());
+            {
+                std::locale loc(std::locale::classic(), new boost::posix_time::time_facet("%Y-%m-%dT%H:%M:%sZ"));
+                std::stringstream ss;
+                ss.imbue(loc);
+                ss << boost::posix_time::microsec_clock::universal_time();
+                fprintf(fileout, "[%s] ", ss.str().c_str());
+            }
             if (pszFormat[strlen(pszFormat) - 1] == '\n')
                 fStartedNewLine = true;
             else

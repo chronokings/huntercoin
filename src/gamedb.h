@@ -20,6 +20,9 @@ class CNameDB;
 class DatabaseSet;
 class CScript;
 
+/* Check a move tx for validity at the given game state.  */
+bool IsMoveValid (const Game::GameState& state, const CTransaction& tx);
+
 bool PerformStep (CNameDB& pnameDb, const Game::GameState& inState,
                   const CBlock* block, int64& nTax, Game::GameState& outState,
                   std::vector<CTransaction>* outvgametx = NULL);

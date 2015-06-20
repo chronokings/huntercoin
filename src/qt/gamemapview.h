@@ -9,6 +9,8 @@
 #include <QGraphicsPixmapItem>
 #include <QHash>
 
+#include <vector>
+
 namespace Game
 {
     class CharacterState;
@@ -62,6 +64,7 @@ private:
 
     GameMapCache *gameMapCache;
     QGraphicsPathItem *playerPath, *queuedPlayerPath;
+    std::vector<QGraphicsRectItem*> banks;
     QPainter::RenderHints defaultRenderHints;
 
     bool panning;

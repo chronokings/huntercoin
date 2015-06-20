@@ -156,7 +156,7 @@ public:
                       return "";
 
                     if (state.remainingLife == -1)
-                      return "";
+                      return QString("%1").arg (state.value / COIN);
 
                     assert (state.remainingLife > 0);
                     return QString("%1").arg (state.remainingLife);
@@ -204,7 +204,7 @@ public:
                     case Time:
                         return tr("Time until destination is reached (in blocks)");
                     case Life:
-                        return tr("Remaining life in blocks");
+                        return tr("Remaining life while poisoned or health value if not poisoned");
                 }
             }
         }
@@ -519,6 +519,8 @@ void ManageNamesPage::on_destructButton_clicked()
             continue;
         }
 
+        if (!ForkInEffect (FORK_LIFESTEAL, gameState.nHeight + 1))
+          queuedMoves[chid.player][chid.index].waypoints.clear ();
         queuedMoves[chid.player][chid.index].destruct = true;
     }    
 
@@ -558,25 +560,26 @@ void ManageNamesPage::on_goButton_clicked()
         json_spirit::Object obj;
         if (item.second.destruct)
             obj.push_back(json_spirit::Pair("destruct", json_spirit::Value(true)));
-        else
+
+        const std::vector<Game::Coord> *p = NULL;
+        if (mi != gameState.players.end())
         {
-            const std::vector<Game::Coord> *p = NULL;
-            if (mi != gameState.players.end())
-            {
-                std::map<int, Game::CharacterState>::const_iterator mi2 = mi->second.characters.find(item.first);
-                if (mi2 == mi->second.characters.end())
-                    continue;
-                const Game::CharacterState &ch = mi2->second;
-
-                // Caution: UpdateQueuedPath can modify the array queuedMoves that we are iterating over
-                p = UpdateQueuedPath(ch, queuedMoves, Game::CharacterID(strSelectedPlayer, item.first));
-            }
-
-            if (!p || p->empty())
-                p = &item.second.waypoints;
-
-            if (p->empty())
+            std::map<int, Game::CharacterState>::const_iterator mi2 = mi->second.characters.find(item.first);
+            if (mi2 == mi->second.characters.end())
                 continue;
+            const Game::CharacterState &ch = mi2->second;
+
+            // Caution: UpdateQueuedPath can modify the array queuedMoves that we are iterating over
+            p = UpdateQueuedPath(ch, queuedMoves, Game::CharacterID(strSelectedPlayer, item.first));
+        }
+
+        if (!p || p->empty())
+            p = &item.second.waypoints;
+
+        if (!p->empty())
+          {
+            assert (!item.second.destruct
+                      || ForkInEffect (FORK_LIFESTEAL, gameState.nHeight + 1));
 
             json_spirit::Array arr;
             if (p->size() == 1)
@@ -595,7 +598,8 @@ void ManageNamesPage::on_goButton_clicked()
                     arr.push_back((*p)[i].y);
                 }
             obj.push_back(json_spirit::Pair("wp", arr));
-        }
+          }
+
         json.push_back(json_spirit::Pair(strprintf("%d", item.first), obj));
     }
 
@@ -678,7 +682,12 @@ void ManageNamesPage::onTileClicked(int x, int y, bool ctrlPressed)
         if (mi2 == mi->second.characters.end())
             continue;
 
-        Game::WaypointVector &cwp = queuedMoves[chid.player][chid.index].waypoints;
+
+        QueuedMove& m = queuedMoves[chid.player][chid.index];
+        if (m.destruct && !ForkInEffect (FORK_LIFESTEAL, gameState.nHeight + 1))
+          continue;
+
+        Game::WaypointVector &cwp = m.waypoints;
         bool appendWP = (ctrlPressed && !cwp.empty());
         Game::Coord start = (appendWP) ? cwp.back() : mi2->second.coord;
         Game::WaypointVector wp = FindPath(start, target);

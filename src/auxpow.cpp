@@ -18,7 +18,7 @@ void RemoveMergedMiningHeader(vector<unsigned char>& vchAux)
     vchAux.erase(vchAux.begin(), vchAux.begin() + sizeof(pchMergedMiningHeader));
 }
 
-bool CAuxPow::Check(uint256 hashAuxBlock, int nChainID)
+bool CAuxPow::Check(uint256 hashAuxBlock, int nChainID, int nHeight)
 {
     if (nIndex != 0)
         return error("AuxPow is not a generate");
@@ -49,7 +49,8 @@ bool CAuxPow::Check(uint256 hashAuxBlock, int nChainID)
     CScript::const_iterator pc =
         std::search(script.begin(), script.end(), vchRootHash.begin(), vchRootHash.end());
 
-    if (pcHead == script.end())
+    /* FIXME: Remove these lines completely once the fork has passed.  */
+    if (!ForkInEffect(FORK_LIFESTEAL, nHeight) && pcHead == script.end())
         return error("MergedMiningHeader missing from parent coinbase");
 
     if (pc == script.end())

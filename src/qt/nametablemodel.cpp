@@ -326,18 +326,6 @@ NameTablePriv::listNames (std::map<vchType, NameTableEntry>& names,
           if (nameFilter && vchName != *nameFilter)
             continue;
 
-          /* If tx is unconfirmed, but invalid (won't get into a block),
-             ignore it.  */
-          if (!fConfirmed)
-            {
-              const std::string sName = stringFromVch (vchName);
-              const std::string sValue = stringFromVch (vchValue);
-              Game::Move m;
-              m.Parse (sName, sValue);
-              if (!m || !m.IsValid (GetCurrentGameState ()))
-                continue;
-            }
-
           /* Get last active name only.  */
           std::map<vchType, NameTableEntry>::iterator mi;
           mi = names.find (vchName);
