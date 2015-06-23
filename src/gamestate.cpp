@@ -193,12 +193,19 @@ KilledByInfo::HasDeathTax () const
 }
 
 bool
-KilledByInfo::DropCoins (unsigned nHeight) const
+KilledByInfo::DropCoins (unsigned nHeight, const PlayerState& victim) const
 {
   if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
     return true;
 
-  return reason != KILLED_POISON;
+  /* If the player is poisoned, no dropping of coins.  Note that we have
+     to allow ==0 here (despite what gamestate.h says), since that is the
+     case precisely when we are killing the player right now due to poison.  */
+  if (victim.remainingLife >= 0)
+    return false;
+
+  assert (victim.remainingLife == -1);
+  return true;
 }
 
 bool
@@ -1685,7 +1692,7 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
 
   /* If requested (and the corresponding fork is in effect), add the coins
      to the game fund instead of dropping them.  */
-  if (!info.DropCoins (nHeight))
+  if (!info.DropCoins (nHeight, pc))
     {
       gameFund += nAmount;
       return;

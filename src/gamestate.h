@@ -661,7 +661,7 @@ struct KilledByInfo
 
   /* See if this killing should drop the coins.  Otherwise (e. g., for poison)
      the coins are added to the game fund.  */
-  bool DropCoins (unsigned nHeight) const;
+  bool DropCoins (unsigned nHeight, const PlayerState& victim) const;
 
   /* See if this killing allows a refund of the general cost to the player.
      This depends on the height, since poison death refunds only after
