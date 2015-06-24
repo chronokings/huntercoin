@@ -470,13 +470,24 @@ Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 
   /* This is a fresh player and name.  Set its value to the height's
      name coin amount and put the remainder in the game fee.  This prevents
-     people from "overpaying" on purpose in order to get beefed-up players.  */
-  const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
-  assert (pl.lockedCoins == 0 && pl.value == -1);
-  assert (newLocked >= coinAmount);
-  pl.value = coinAmount;
-  pl.lockedCoins = newLocked;
-  state.gameFund += newLocked - coinAmount;
+     people from "overpaying" on purpose in order to get beefed-up players.
+     This rule, however, is only active after the life-steal fork.  Before
+     that, overpaying did, indeed, allow to set the hunter value
+     arbitrarily high.  */
+  if (ForkInEffect (FORK_LIFESTEAL, state.nHeight))
+    {
+      const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
+      assert (pl.lockedCoins == 0 && pl.value == -1);
+      assert (newLocked >= coinAmount);
+      pl.value = coinAmount;
+      pl.lockedCoins = newLocked;
+      state.gameFund += newLocked - coinAmount;
+    }
+  else
+    {
+      pl.value = newLocked;
+      pl.lockedCoins = newLocked;
+    }
 
   const unsigned limit = state.GetNumInitialCharacters ();
   for (unsigned i = 0; i < limit; i++)
