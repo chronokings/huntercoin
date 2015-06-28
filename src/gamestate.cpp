@@ -26,7 +26,7 @@ static const unsigned POISON_MIN_LIFE = 1;
 static const unsigned POISON_MAX_LIFE = 50;
 
 /* Parameters for dynamic banks after the life-steal fork.  */
-static const unsigned DYNBANKS_NUM_BANKS = 50;
+static const unsigned DYNBANKS_NUM_BANKS = 75;
 static const unsigned DYNBANKS_MIN_LIFE = 25;
 static const unsigned DYNBANKS_MAX_LIFE = 100;
 
