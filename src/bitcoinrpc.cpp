@@ -1872,6 +1872,30 @@ verifyutxo (const Array& params, bool fHelp)
   return db.Verify ();
 }
 
+Value
+getoutpoints (const Array& params, bool fHelp)
+{
+  if (fHelp || params.size () != 0)
+    throw runtime_error ("getoutpoints\n"
+                         "Get list of all UTXO outpoints.\n");
+
+  CUtxoDB db("r");
+  CUtxoDB::OutPointSet outPoints;
+  if (!db.GetUtxoSet (outPoints))
+    return false;
+
+  Array res;
+  BOOST_FOREACH(const COutPoint& out, outPoints)
+    {
+      Object obj;
+      obj.push_back (Pair ("txid", out.hash.GetHex ()));
+      obj.push_back (Pair ("n", static_cast<int> (out.n)));
+      res.push_back (obj);
+    }
+
+  return res;
+}
+
 Value gettransaction(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -3695,6 +3719,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("listaddressgroupings",  &listaddressgroupings),
     make_pair("listsinceblock",        &listsinceblock),
     make_pair("verifyutxo",            &verifyutxo),
+    make_pair("getoutpoints",          &getoutpoints),
     make_pair("getrawtransaction",     &getrawtransaction),
     make_pair("createrawtransaction",  &createrawtransaction),
     make_pair("decoderawtransaction",  &decoderawtransaction),
