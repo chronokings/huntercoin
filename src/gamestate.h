@@ -666,7 +666,7 @@ struct KilledByInfo
   /* See if this killing allows a refund of the general cost to the player.
      This depends on the height, since poison death refunds only after
      the life-steal fork.  */
-  bool CanRefund (unsigned nHeight) const;
+  bool CanRefund (unsigned nHeight, const PlayerState& victim) const;
 
   /* Comparison necessary for STL containers.  */
 

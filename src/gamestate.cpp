@@ -209,7 +209,7 @@ KilledByInfo::DropCoins (unsigned nHeight, const PlayerState& victim) const
 }
 
 bool
-KilledByInfo::CanRefund (unsigned nHeight) const
+KilledByInfo::CanRefund (unsigned nHeight, const PlayerState& victim) const
 {
   if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
     return false;
@@ -217,6 +217,11 @@ KilledByInfo::CanRefund (unsigned nHeight) const
   switch (reason)
     {
     case KILLED_SPAWN:
+
+      /* Before life-steal fork, poisoned players were not refunded.  */
+      if (!ForkInEffect (FORK_LIFESTEAL, nHeight) && victim.remainingLife >= 0)
+        return false;
+
       return true;
 
     case KILLED_POISON:
@@ -1677,7 +1682,7 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
   /* If refunding is possible, do this for the locked amount right now.
      Later on, exclude the amount from further considerations.  */
   bool refunded = false;
-  if (chInd == 0 && info.CanRefund (nHeight))
+  if (chInd == 0 && info.CanRefund (nHeight, pc))
     {
       CollectedLootInfo loot;
       loot.SetRefund (pc.value, nHeight);
