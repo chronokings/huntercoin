@@ -1073,12 +1073,12 @@ CharacterState::TimeToDestination (const WaypointVector* altWP) const
   return res;
 }
 
-int64
-CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
+int64_t
+CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64_t carryCap)
 {
-  const int64 totalBefore = loot.nAmount + newLoot.nAmount;
+  const int64_t totalBefore = loot.nAmount + newLoot.nAmount;
 
-  int64 freeCap = carryCap - loot.nAmount;
+  int64_t freeCap = carryCap - loot.nAmount;
   if (freeCap < 0)
     {
       /* This means that the character is carrying more than allowed
@@ -1087,7 +1087,7 @@ CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
       freeCap = 0;
     }
 
-  int64 remaining;
+  int64_t remaining;
   if (carryCap == -1 || newLoot.nAmount <= freeCap)
     remaining = 0;
   else
@@ -1320,7 +1320,7 @@ json_spirit::Value GameState::ToJsonValue() const
     return obj;
 }
 
-void GameState::AddLoot(Coord coord, int64 nAmount)
+void GameState::AddLoot(Coord coord, int64_t nAmount)
 {
     if (nAmount == 0)
         return;
@@ -1365,10 +1365,10 @@ public:
   int cid;
 
   CharacterState* ch;
-  int64 carryCap;
+  int64_t carryCap;
 
   /* Get remaining carrying capacity.  */
-  inline int64
+  inline int64_t
   GetRemainingCapacity () const
   {
     if (carryCap == -1)
@@ -1390,8 +1390,8 @@ public:
 bool
 operator< (const CharacterOnLootTile& a, const CharacterOnLootTile& b)
 {
-  const int64 remA = a.GetRemainingCapacity ();
-  const int64 remB = b.GetRemainingCapacity ();
+  const int64_t remA = a.GetRemainingCapacity ();
+  const int64_t remB = b.GetRemainingCapacity ();
 
   if (remA == remB)
     {
@@ -1464,8 +1464,8 @@ void GameState::DivideLootAmongPlayers()
            some of them will get nothing.  */
         if (lootInfo.nAmount > 0)
           {
-            const int64 rem = i->ch->CollectLoot (lootInfo, nHeight,
-                                                  i->carryCap);
+            const int64_t rem = i->ch->CollectLoot (lootInfo, nHeight,
+                                                    i->carryCap);
             AddLoot (coord, rem - lootInfo.nAmount);
           }
       }
@@ -1508,7 +1508,7 @@ void GameState::UpdateCrownState(bool &respawn_crown)
 }
 
 void
-GameState::CrownBonus (int64 nAmount)
+GameState::CrownBonus (int64_t nAmount)
 {
   if (!crownHolder.player.empty ())
     {
@@ -1516,9 +1516,9 @@ GameState::CrownBonus (int64 nAmount)
       CharacterState& ch = p.characters[crownHolder.index];
 
       const LootInfo loot(nAmount, nHeight);
-      const int64 cap = GetCarryingCapacity (nHeight, crownHolder.index == 0,
-                                             true);
-      const int64 rem = ch.CollectLoot (loot, nHeight, cap);
+      const int64_t cap = GetCarryingCapacity (nHeight, crownHolder.index == 0,
+                                               true);
+      const int64_t rem = ch.CollectLoot (loot, nHeight, cap);
 
       /* We keep to the logic of "crown on the floor -> game fund" and
          don't distribute coins that can not be hold by the crown holder
@@ -1545,7 +1545,7 @@ GameState::IsBank (const Coord& c) const
 int64_t
 GameState::GetCoinsOnMap () const
 {
-  int64 onMap = 0;
+  int64_t onMap = 0;
   BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo)& l, loot)
     onMap += l.second.nAmount;
   BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState)& p, players)
@@ -1701,7 +1701,7 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
   /* Apply the miner tax: 4%.  */
   if (info.HasDeathTax ())
     {
-      const int64 nTax = nAmount / 25;
+      const int64_t nTax = nAmount / 25;
       step.nTaxAmount += nTax;
       nAmount -= nTax;
     }
@@ -1981,16 +1981,22 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     stepResult = StepResult();
 
-    // Pay out game fees (except for spawns) to the game fund.
+    /* Pay out game fees (except for spawns) to the game fund.  This also
+       keeps track of the total fees paid into the game world by moves.  */
+    int64_t moneyIn = 0;
     BOOST_FOREACH(const Move& m, stepData.vMoves)
       if (!m.IsSpawn ())
         {
           const PlayerStateMap::iterator mi = outState.players.find (m.player);
           assert (mi != outState.players.end ());
           assert (m.newLocked >= mi->second.lockedCoins);
-          outState.gameFund += m.newLocked - mi->second.lockedCoins;
+          const int64_t newFee = m.newLocked - mi->second.lockedCoins;
+          outState.gameFund += newFee;
+          moneyIn += newFee;
           mi->second.lockedCoins = m.newLocked;
         }
+      else
+        moneyIn += m.newLocked;
 
     // Apply attacks
     CharactersOnTiles attackedTiles;
@@ -2043,7 +2049,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             if (ch.loot.nAmount > 0 && outState.IsBank (ch.coord))
             {
                 // Tax from banking: 10%
-                int64 nTax = ch.loot.nAmount / 10;
+                int64_t nTax = ch.loot.nAmount / 10;
                 stepResult.nTaxAmount += nTax;
                 ch.loot.nAmount -= nTax;
 
@@ -2141,6 +2147,26 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     outState.CollectHearts(rnd);
     outState.CollectCrown(rnd, respawn_crown);
+
+    /* Compute total money out of the game world via bounties paid.  */
+    int64_t moneyOut = stepResult.nTaxAmount;
+    BOOST_FOREACH(const CollectedBounty& b, stepResult.bounties)
+      moneyOut += b.loot.nAmount;
+
+    /* Compare total money before and after the step.  If there is a mismatch,
+       we have a bug in the logic.  Better not accept the new game state.  */
+    const int64_t moneyBefore = inState.GetCoinsOnMap () + inState.gameFund;
+    const int64_t moneyAfter = outState.GetCoinsOnMap () + outState.gameFund;
+    if (moneyBefore + stepData.nTreasureAmount + moneyIn
+          != moneyAfter + moneyOut)
+      {
+        printf ("Old game state: %lld (@%d)\n", moneyBefore, inState.nHeight);
+        printf ("New game state: %lld\n", moneyAfter);
+        printf ("Money in:  %lld\n", moneyIn);
+        printf ("Money out: %lld\n", moneyOut);
+        printf ("Treasure placed: %lld\n", stepData.nTreasureAmount);
+        return error ("total amount before and after step mismatch");
+      }
 
     return true;
 }
