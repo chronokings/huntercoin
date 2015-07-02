@@ -587,7 +587,7 @@ CharactersOnTiles::EnsureIsBuilt (const GameState& state)
         AttackableCharacter a;
         a.chid = CharacterID (p.first, pc.first);
         a.color = p.second.color;
-        a.value = p.second.value;
+        a.drawnLife = 0;
 
         tiles.insert (std::make_pair (pc.second.coord, a));
       }
@@ -640,29 +640,61 @@ CharactersOnTiles::ApplyAttacks (const GameState& state,
 }
 
 void
-CharactersOnTiles::KillAttacked (GameState& state, StepResult& result) const
+CharactersOnTiles::DrawLife (GameState& state, StepResult& result)
 {
   if (!built)
     return;
 
-  /* Find damage amount.  Before the life steal fork, this is "infinity"
-     so that no amount of general value is enough to balance.  */
+  /* Find damage amount if we have life steal in effect.  */
   const bool lifeSteal = ForkInEffect (FORK_LIFESTEAL, state.nHeight);
-  int64_t damage;
-  if (lifeSteal)
-    damage = GetNameCoinAmount (state.nHeight);
+  const int64_t damage = GetNameCoinAmount (state.nHeight);
 
-  BOOST_FOREACH (const PAIRTYPE(Coord, AttackableCharacter)& tile, tiles)
+  BOOST_FOREACH (PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
     {
-      const AttackableCharacter& a = tile.second;
+      AttackableCharacter& a = tile.second;
       if (a.attackers.empty ())
         continue;
+      assert (a.drawnLife == 0);
 
-      /* If this is a general and its health is larger than the total damage,
-         nothing needs to be done.  */
-      if (a.chid.index == 0 && lifeSteal
-            && damage * a.attackers.size () < a.value)
-        continue;
+      /* Find the player state of the attacked character.  */
+      PlayerStateMap::iterator vit = state.players.find (a.chid.player);
+      assert (vit != state.players.end ());
+      PlayerState& victim = vit->second;
+
+      /* In case of life steal, actually draw life.  The coins are not yet
+         added to the attacker, but instead their total amount is saved
+         for future redistribution.  */
+      if (lifeSteal)
+        {
+          assert (a.chid.index == 0);
+
+          int64_t fullDamage = damage * a.attackers.size ();
+          if (fullDamage > victim.value)
+            fullDamage = victim.value;
+
+          victim.value -= fullDamage;
+          a.drawnLife += fullDamage;
+
+          /* If less than the minimum amount remains, als that is drawn
+             and later added to the game fund.  */
+          assert (victim.value >= 0);
+          if (victim.value < damage)
+            {
+              a.drawnLife += victim.value;
+              victim.value = 0;
+            }
+        }
+      assert (victim.value >= 0);
+      assert (a.drawnLife >= 0);
+
+      /* If we have life steal and there is remaining health, let
+         the player survive.  Note that it must have at least the minimum
+         value.  If "split coins" are remaining, we still kill it.  */
+      if (lifeSteal && victim.value != 0)
+        {
+          assert (victim.value >= damage);
+          continue;
+        }
 
       if (a.chid.index == 0)
         for (std::set<CharacterID>::const_iterator at = a.attackers.begin ();
@@ -672,9 +704,6 @@ CharactersOnTiles::KillAttacked (GameState& state, StepResult& result) const
             result.KillPlayer (a.chid.player, killer);
           }
 
-      PlayerStateMap::iterator vit = state.players.find (a.chid.player);
-      assert (vit != state.players.end ());
-      PlayerState& victim = vit->second;
       if (victim.characters.count (a.chid.index) > 0)
         {
           assert (a.attackers.begin () != a.attackers.end ());
@@ -726,110 +755,74 @@ CharactersOnTiles::DefendMutualAttacks (const GameState& state)
 }
 
 void
-CharactersOnTiles::TransferLife (RandomGenerator& rnd, GameState& state) const
+CharactersOnTiles::DistributeDrawnLife (RandomGenerator& rnd,
+                                        GameState& state) const
 {
   if (!built)
     return;
 
   const int64_t damage = GetNameCoinAmount (state.nHeight);
 
-  /* In a first step, we find all changes to values that should be performed
-     depending on the tiles data.  This is purely zero-sum as it should
-     be to preserve total coins.  The second step applies these changes
-     to the actual game state:  For players that are present, "just" update
-     their value accordingly.  Otherwise, put the remaining balance
-     (if any) to the game fund.  */
-
-  std::map<CharacterID, int64_t> deltas;
+  /* Life is already drawn.  It remains to distribute the drawn balances
+     from each attacked character back to its attackers.  For this,
+     we first find the still alive players and assemble them in a map.  */
   std::map<CharacterID, PlayerState*> alivePlayers;
   BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
     {
       const AttackableCharacter& a = tile.second;
       assert (alivePlayers.count (a.chid) == 0);
-      assert (deltas.count (a.chid) == 0);
-      deltas.insert (std::make_pair (a.chid, 0));
 
       /* Only non-hearted characters should be around if this is called,
          since this means that life-steal is in effect.  */
       assert (a.chid.index == 0);
 
-      const PlayerStateMap::iterator pit
-        = state.players.find (a.chid.player);
+      const PlayerStateMap::iterator pit = state.players.find (a.chid.player);
       if (pit != state.players.end ())
         {
           PlayerState& pl = pit->second;
-          assert (pl.value == a.value);
           assert (pl.characters.count (a.chid.index) > 0);
           alivePlayers.insert (std::make_pair (a.chid, &pl));
         }
     }
 
+  /* Now go over all attacks and distribute life to the attackers.  */
   BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
     {
       const AttackableCharacter& a = tile.second;
-      if (a.attackers.empty ())
+      if (a.attackers.empty () || a.drawnLife == 0)
         continue;
 
       /* Find attackers that are still alive.  We will randomly distribute
          coins to them later on.  */
       std::vector<CharacterID> alive;
-      std::vector<CharacterID> dead;
       for (std::set<CharacterID>::const_iterator mi = a.attackers.begin ();
            mi != a.attackers.end (); ++mi)
         if (alivePlayers.count (*mi) > 0)
           alive.push_back (*mi);
-        else
-          dead.push_back (*mi);
 
-      int64_t myDamage = 0;
-      while ((!alive.empty () || !dead.empty ())
-              && myDamage + damage <= a.value)
+      /* Distribute the drawn life randomly until either all is spent
+         or all alive attackers have gotten some.  */
+      int64_t toSpend = a.drawnLife;
+      while (!alive.empty () && toSpend >= damage)
         {
-          std::vector<CharacterID>* arr;
-          if (alive.empty ())
-            arr = &dead;
-          else
-            arr = &alive;
+          const unsigned ind = rnd.GetIntRnd (alive.size ());
+          const std::map<CharacterID, PlayerState*>::iterator plIt
+            = alivePlayers.find (alive[ind]);
+          assert (plIt != alivePlayers.end ());
 
-          assert (!arr->empty ());
-          const unsigned ind = rnd.GetIntRnd (arr->size ());
-          assert (deltas.count (arr->operator[] (ind)) > 0);
+          toSpend -= damage;
+          plIt->second->value += damage;
 
-          deltas[arr->operator[] (ind)] += damage;
-          myDamage += damage;
-
-          if (ind != arr->size () - 1)
-            std::swap (arr->operator[] (ind), arr->back ());
-          arr->pop_back ();
+          /* Do not use a silly trick like swapping in the last element.
+             We want to keep the array ordered at all times.  The order is
+             important with respect to consensus, and this makes the consensus
+             protocol "clearer" to describe.  */
+          alive.erase (alive.begin () + ind);
         }
 
-      assert (myDamage <= a.value);
-      assert (myDamage + damage > a.value
-                || myDamage == damage * a.attackers.size ());
-      assert (deltas.count (a.chid) > 0);
-      deltas[a.chid] -= myDamage;
-    }
-
-  BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
-    {
-      const AttackableCharacter& a = tile.second;
-      assert (deltas.count (a.chid) > 0);
-      const int64_t delta = deltas[a.chid];
-
-      const std::map<CharacterID, PlayerState*>::iterator mit
-        = alivePlayers.find (a.chid);
-      if (mit == alivePlayers.end ())
-        {
-          assert (a.value + delta >= 0);
-          state.gameFund += a.value + delta;
-        }
-      else
-        {
-          PlayerState& pl = *mit->second;
-          assert (a.value == pl.value);
-          pl.value = a.value + delta;
-          assert (delta == 0 || pl.value >= damage);
-        }
+      /* Distribute the remaining value to the game fund.  */
+      assert (toSpend >= 0);
+      state.gameFund += toSpend;
     }
 }
 
@@ -1673,7 +1666,7 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
   const PlayerStateMap::const_iterator mip = players.find (pId);
   assert (mip != players.end ());
   const PlayerState& pc = mip->second;
-  assert (pc.value > 0);
+  assert (pc.value >= 0);
   const std::map<int, CharacterState>::const_iterator mic
     = pc.characters.find (chInd);
   assert (mic != pc.characters.end ());
@@ -1692,11 +1685,15 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
     }
 
   /* Calculate loot.  If we kill a general, take the locked coin amount
-     into account, as well.  If the life-steal fork is already in effect,
-     this is not done since the coins are distributed in a different way.  */
+     into account, as well.  When life-steal is in effect, the value
+     should already be drawn to zero (unless we have a cause of death
+     that refunds).  */
   int64_t nAmount = ch.loot.nAmount;
-  if (chInd == 0 && !refunded && !ForkInEffect (FORK_LIFESTEAL, nHeight))
-    nAmount += pc.value;
+  if (chInd == 0 && !refunded)
+    {
+      assert (!ForkInEffect (FORK_LIFESTEAL, nHeight) || pc.value == 0);
+      nAmount += pc.value;
+    }
 
   /* Apply the miner tax: 4%.  */
   if (info.HasDeathTax ())
@@ -2003,7 +2000,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     attackedTiles.ApplyAttacks (outState, stepData.vMoves);
     if (ForkInEffect (FORK_LIFESTEAL, outState.nHeight))
       attackedTiles.DefendMutualAttacks (outState);
-    attackedTiles.KillAttacked (outState, stepResult);
+    attackedTiles.DrawLife (outState, stepResult);
 
     // Kill players who stay too long in the spawn area
     outState.KillSpawnArea (stepResult);
@@ -2081,7 +2078,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     /* Transfer life from attacks.  This is done randomly, but the decision
        about who dies is non-random and already set above.  */
     if (ForkInEffect (FORK_LIFESTEAL, outState.nHeight))
-      attackedTiles.TransferLife (rnd, outState);
+      attackedTiles.DistributeDrawnLife (rnd, outState);
 
     // Spawn new players
     BOOST_FOREACH(const Move &m, stepData.vMoves)

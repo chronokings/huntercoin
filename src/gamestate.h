@@ -164,8 +164,11 @@ struct AttackableCharacter
   /** The character's colour.  */
   unsigned char color;
 
-  /** The initial (before all attacks in the current step) value.  */
-  int64_t value;
+  /**
+   * Amount of coins already drawn from the attacked character's life.
+   * This is the value that can be redistributed to the attackers.
+   */
+  int64_t drawnLife;
 
   /** All attackers that hit it.  */
   std::set<CharacterID> attackers;
@@ -222,12 +225,12 @@ struct CharactersOnTiles
   void ApplyAttacks (const GameState& state, const std::vector<Move>& moves);
 
   /**
-   * Kill characters with too many attackers.  This handles both the
-   * pre- and post-life-steal logic.
+   * Deduct life from attached characters.  This also handles killing
+   * of those with too many attackers, including pre-life-steal.
    * @param state The game state, will be modified.
    * @param result The step result object to fill in.
    */
-  void KillAttacked (GameState& state, StepResult& result) const;
+  void DrawLife (GameState& state, StepResult& result);
 
   /**
    * Remove mutual attacks from the attacker arrays.
@@ -236,12 +239,12 @@ struct CharactersOnTiles
   void DefendMutualAttacks (const GameState& state);
 
   /**
-   * Transfer life from victim to attackers.  If there are more attackers than
+   * Give drawn life back to attackers.  If there are more attackers than
    * available coins, distribute randomly.
    * @param rnd The RNG to use.
    * @param state The state to update.
    */
-  void TransferLife (RandomGenerator& rnd, GameState& state) const;
+  void DistributeDrawnLife (RandomGenerator& rnd, GameState& state) const;
 
 };
 
