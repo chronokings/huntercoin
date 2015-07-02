@@ -636,6 +636,11 @@ extern CWallet* pwalletMain;
 // valid for the current game state (e.g. attack on some player who's already killed)
 void EraseBadMoveTransactions()
 {
+    /* If we do not have a wallet yet, nothing to do.  This can happen
+       with a completely fresh initialisation.  */
+    if (!pwalletMain)
+        return;
+
     CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
     {
