@@ -32,11 +32,11 @@ Life-Steal Fork:
      instead.  The same is true if the "rightful owner" (attacker) has died
      itself.
 
-*) Spawning of characters (and their initial direction) is now random
-   among all walkable tiles.
+* Spawning of characters (and their initial direction) is now random
+  among all walkable tiles.
 
-*) Banks are no longer at the corners, but instead randomly placed.
-   At the fork height, 50 banks are placed with a random life time
-   between 25 and 100 blocks.  Whenever the life time of a bank
-   runs out, it is randomly re-created on a fresh walkable tile
-   and with a fresh life time.
+* Banks are no longer at the corners, but instead randomly placed.
+  At the fork height, 75 banks are placed with a random life time
+  between 25 and 100 blocks.  Whenever the life time of a bank
+  runs out, it is randomly re-created on a fresh walkable tile
+  and with a fresh life time.

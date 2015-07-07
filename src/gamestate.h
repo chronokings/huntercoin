@@ -164,8 +164,11 @@ struct AttackableCharacter
   /** The character's colour.  */
   unsigned char color;
 
-  /** The initial (before all attacks in the current step) value.  */
-  int64_t value;
+  /**
+   * Amount of coins already drawn from the attacked character's life.
+   * This is the value that can be redistributed to the attackers.
+   */
+  int64_t drawnLife;
 
   /** All attackers that hit it.  */
   std::set<CharacterID> attackers;
@@ -222,12 +225,12 @@ struct CharactersOnTiles
   void ApplyAttacks (const GameState& state, const std::vector<Move>& moves);
 
   /**
-   * Kill characters with too many attackers.  This handles both the
-   * pre- and post-life-steal logic.
+   * Deduct life from attached characters.  This also handles killing
+   * of those with too many attackers, including pre-life-steal.
    * @param state The game state, will be modified.
    * @param result The step result object to fill in.
    */
-  void KillAttacked (GameState& state, StepResult& result) const;
+  void DrawLife (GameState& state, StepResult& result);
 
   /**
    * Remove mutual attacks from the attacker arrays.
@@ -236,12 +239,12 @@ struct CharactersOnTiles
   void DefendMutualAttacks (const GameState& state);
 
   /**
-   * Transfer life from victim to attackers.  If there are more attackers than
+   * Give drawn life back to attackers.  If there are more attackers than
    * available coins, distribute randomly.
    * @param rnd The RNG to use.
    * @param state The state to update.
    */
-  void TransferLife (RandomGenerator& rnd, GameState& state) const;
+  void DistributeDrawnLife (RandomGenerator& rnd, GameState& state) const;
 
 };
 
@@ -254,14 +257,14 @@ inline int distLInf(const Coord &c1, const Coord &c2)
 
 struct LootInfo
 {
-    int64 nAmount;
+    int64_t nAmount;
     // Time span over the which this loot accumulated
     // This is merely for informative purposes, plus to make
     // hash of the loot tx unique
     int firstBlock, lastBlock;
 
     LootInfo() : nAmount(0), firstBlock(-1), lastBlock(-1) { }
-    LootInfo(int64 nAmount_, int nHeight) : nAmount(nAmount_), firstBlock(nHeight), lastBlock(nHeight) { }
+    LootInfo(int64_t nAmount_, int nHeight) : nAmount(nAmount_), firstBlock(nHeight), lastBlock(nHeight) { }
 
     IMPLEMENT_SERIALIZE
     (
@@ -304,7 +307,7 @@ struct CollectedLootInfo : public LootInfo
        the spawn area, and encoded differently in the game transactions.
        The block height is present to make the resulting tx unique.  */
     inline void
-    SetRefund (int64 refundAmount, int nHeight)
+    SetRefund (int64_t refundAmount, int nHeight)
     {
       assert (nAmount == 0);
       assert (collectedFirstBlock == -1 && collectedLastBlock == -1);
@@ -386,7 +389,7 @@ struct CharacterState
     /* Collect loot by this character.  This takes the carrying capacity
        into account and only collects until this limit is reached.  All
        loot amount that *remains* will be returned.  */
-    int64 CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap);
+    int64_t CollectLoot (LootInfo newLoot, int nHeight, int64_t carryCap);
 
     json_spirit::Value ToJsonValue(bool has_crown) const;
 };
@@ -479,7 +482,7 @@ struct GameState
     CharacterID crownHolder;
 
     /* Amount of coins in the "game fund" pool.  */
-    int64 gameFund;
+    int64_t gameFund;
 
     // Number of steps since the game start.
     // State with nHeight==i includes moves from i-th block
@@ -537,12 +540,12 @@ struct GameState
     json_spirit::Value ToJsonValue() const;
 
     // Helper functions
-    void AddLoot(Coord coord, int64 nAmount);
+    void AddLoot(Coord coord, int64_t nAmount);
     void DivideLootAmongPlayers();
     void CollectHearts(RandomGenerator &rnd);
     void UpdateCrownState(bool &respawn_crown);
     void CollectCrown(RandomGenerator &rnd, bool respawn_crown);
-    void CrownBonus(int64 nAmount);
+    void CrownBonus(int64_t nAmount);
 
     /**
      * Get the number of initial characters for players created in this
@@ -598,7 +601,7 @@ struct GameState
 
 struct StepData : boost::noncopyable
 {
-    int64 nTreasureAmount;
+    int64_t nTreasureAmount;
     uint256 newHash;
     std::vector<Move> vMoves;
 };
@@ -661,12 +664,12 @@ struct KilledByInfo
 
   /* See if this killing should drop the coins.  Otherwise (e. g., for poison)
      the coins are added to the game fund.  */
-  bool DropCoins (unsigned nHeight) const;
+  bool DropCoins (unsigned nHeight, const PlayerState& victim) const;
 
   /* See if this killing allows a refund of the general cost to the player.
      This depends on the height, since poison death refunds only after
      the life-steal fork.  */
-  bool CanRefund (unsigned nHeight) const;
+  bool CanRefund (unsigned nHeight, const PlayerState& victim) const;
 
   /* Comparison necessary for STL containers.  */
 
@@ -716,7 +719,7 @@ public:
 
     std::vector<CollectedBounty> bounties;
 
-    int64 nTaxAmount;
+    int64_t nTaxAmount;
 
     StepResult() : nTaxAmount(0) { }
 

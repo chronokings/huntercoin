@@ -465,15 +465,16 @@ class CUtxoDB : public CDB
 {
 public:
     CUtxoDB(const char* pszMode="r+") : CDB("utxo.dat", pszMode) { }
+
+    /** Set of COutPoints as used in the DB verification.  */
+    typedef std::set<COutPoint> OutPointSet;
+
 private:
     CUtxoDB(const CUtxoDB&);
     void operator=(const CUtxoDB&);
 
     /** Type used as key into the DB.  */
     typedef std::pair<std::string, COutPoint> KeyType;
-
-    /** Set of COutPoints as used in the DB verification.  */
-    typedef std::set<COutPoint> OutPointSet;
 
     /* Construct the look-up key for a given COutPoint.  This just prepends
        the key-string "txo" to it.  */
@@ -514,6 +515,9 @@ public:
     /* Read all entries to analyse the total money supply as well as
        the number of entries.  */
     bool Analyse (unsigned& nUtxo, int64_t& amount, int64_t& inNames);
+
+    /* Return UTXO set.  */
+    bool GetUtxoSet (OutPointSet& res);
 };
 
 

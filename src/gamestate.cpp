@@ -26,7 +26,7 @@ static const unsigned POISON_MIN_LIFE = 1;
 static const unsigned POISON_MAX_LIFE = 50;
 
 /* Parameters for dynamic banks after the life-steal fork.  */
-static const unsigned DYNBANKS_NUM_BANKS = 50;
+static const unsigned DYNBANKS_NUM_BANKS = 75;
 static const unsigned DYNBANKS_MIN_LIFE = 25;
 static const unsigned DYNBANKS_MAX_LIFE = 100;
 
@@ -193,16 +193,23 @@ KilledByInfo::HasDeathTax () const
 }
 
 bool
-KilledByInfo::DropCoins (unsigned nHeight) const
+KilledByInfo::DropCoins (unsigned nHeight, const PlayerState& victim) const
 {
   if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
     return true;
 
-  return reason != KILLED_POISON;
+  /* If the player is poisoned, no dropping of coins.  Note that we have
+     to allow ==0 here (despite what gamestate.h says), since that is the
+     case precisely when we are killing the player right now due to poison.  */
+  if (victim.remainingLife >= 0)
+    return false;
+
+  assert (victim.remainingLife == -1);
+  return true;
 }
 
 bool
-KilledByInfo::CanRefund (unsigned nHeight) const
+KilledByInfo::CanRefund (unsigned nHeight, const PlayerState& victim) const
 {
   if (!ForkInEffect (FORK_LESSHEARTS, nHeight))
     return false;
@@ -210,6 +217,11 @@ KilledByInfo::CanRefund (unsigned nHeight) const
   switch (reason)
     {
     case KILLED_SPAWN:
+
+      /* Before life-steal fork, poisoned players were not refunded.  */
+      if (!ForkInEffect (FORK_LIFESTEAL, nHeight) && victim.remainingLife >= 0)
+        return false;
+
       return true;
 
     case KILLED_POISON:
@@ -463,13 +475,24 @@ Move::ApplySpawn (GameState &state, RandomGenerator &rnd) const
 
   /* This is a fresh player and name.  Set its value to the height's
      name coin amount and put the remainder in the game fee.  This prevents
-     people from "overpaying" on purpose in order to get beefed-up players.  */
-  const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
-  assert (pl.lockedCoins == 0 && pl.value == -1);
-  assert (newLocked >= coinAmount);
-  pl.value = coinAmount;
-  pl.lockedCoins = newLocked;
-  state.gameFund += newLocked - coinAmount;
+     people from "overpaying" on purpose in order to get beefed-up players.
+     This rule, however, is only active after the life-steal fork.  Before
+     that, overpaying did, indeed, allow to set the hunter value
+     arbitrarily high.  */
+  if (ForkInEffect (FORK_LIFESTEAL, state.nHeight))
+    {
+      const int64_t coinAmount = GetNameCoinAmount (state.nHeight);
+      assert (pl.lockedCoins == 0 && pl.value == -1);
+      assert (newLocked >= coinAmount);
+      pl.value = coinAmount;
+      pl.lockedCoins = newLocked;
+      state.gameFund += newLocked - coinAmount;
+    }
+  else
+    {
+      pl.value = newLocked;
+      pl.lockedCoins = newLocked;
+    }
 
   const unsigned limit = state.GetNumInitialCharacters ();
   for (unsigned i = 0; i < limit; i++)
@@ -564,7 +587,7 @@ CharactersOnTiles::EnsureIsBuilt (const GameState& state)
         AttackableCharacter a;
         a.chid = CharacterID (p.first, pc.first);
         a.color = p.second.color;
-        a.value = p.second.value;
+        a.drawnLife = 0;
 
         tiles.insert (std::make_pair (pc.second.coord, a));
       }
@@ -617,29 +640,61 @@ CharactersOnTiles::ApplyAttacks (const GameState& state,
 }
 
 void
-CharactersOnTiles::KillAttacked (GameState& state, StepResult& result) const
+CharactersOnTiles::DrawLife (GameState& state, StepResult& result)
 {
   if (!built)
     return;
 
-  /* Find damage amount.  Before the life steal fork, this is "infinity"
-     so that no amount of general value is enough to balance.  */
+  /* Find damage amount if we have life steal in effect.  */
   const bool lifeSteal = ForkInEffect (FORK_LIFESTEAL, state.nHeight);
-  int64_t damage;
-  if (lifeSteal)
-    damage = GetNameCoinAmount (state.nHeight);
+  const int64_t damage = GetNameCoinAmount (state.nHeight);
 
-  BOOST_FOREACH (const PAIRTYPE(Coord, AttackableCharacter)& tile, tiles)
+  BOOST_FOREACH (PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
     {
-      const AttackableCharacter& a = tile.second;
+      AttackableCharacter& a = tile.second;
       if (a.attackers.empty ())
         continue;
+      assert (a.drawnLife == 0);
 
-      /* If this is a general and its health is larger than the total damage,
-         nothing needs to be done.  */
-      if (a.chid.index == 0 && lifeSteal
-            && damage * a.attackers.size () < a.value)
-        continue;
+      /* Find the player state of the attacked character.  */
+      PlayerStateMap::iterator vit = state.players.find (a.chid.player);
+      assert (vit != state.players.end ());
+      PlayerState& victim = vit->second;
+
+      /* In case of life steal, actually draw life.  The coins are not yet
+         added to the attacker, but instead their total amount is saved
+         for future redistribution.  */
+      if (lifeSteal)
+        {
+          assert (a.chid.index == 0);
+
+          int64_t fullDamage = damage * a.attackers.size ();
+          if (fullDamage > victim.value)
+            fullDamage = victim.value;
+
+          victim.value -= fullDamage;
+          a.drawnLife += fullDamage;
+
+          /* If less than the minimum amount remains, als that is drawn
+             and later added to the game fund.  */
+          assert (victim.value >= 0);
+          if (victim.value < damage)
+            {
+              a.drawnLife += victim.value;
+              victim.value = 0;
+            }
+        }
+      assert (victim.value >= 0);
+      assert (a.drawnLife >= 0);
+
+      /* If we have life steal and there is remaining health, let
+         the player survive.  Note that it must have at least the minimum
+         value.  If "split coins" are remaining, we still kill it.  */
+      if (lifeSteal && victim.value != 0)
+        {
+          assert (victim.value >= damage);
+          continue;
+        }
 
       if (a.chid.index == 0)
         for (std::set<CharacterID>::const_iterator at = a.attackers.begin ();
@@ -649,9 +704,6 @@ CharactersOnTiles::KillAttacked (GameState& state, StepResult& result) const
             result.KillPlayer (a.chid.player, killer);
           }
 
-      PlayerStateMap::iterator vit = state.players.find (a.chid.player);
-      assert (vit != state.players.end ());
-      PlayerState& victim = vit->second;
       if (victim.characters.count (a.chid.index) > 0)
         {
           assert (a.attackers.begin () != a.attackers.end ());
@@ -703,110 +755,74 @@ CharactersOnTiles::DefendMutualAttacks (const GameState& state)
 }
 
 void
-CharactersOnTiles::TransferLife (RandomGenerator& rnd, GameState& state) const
+CharactersOnTiles::DistributeDrawnLife (RandomGenerator& rnd,
+                                        GameState& state) const
 {
   if (!built)
     return;
 
   const int64_t damage = GetNameCoinAmount (state.nHeight);
 
-  /* In a first step, we find all changes to values that should be performed
-     depending on the tiles data.  This is purely zero-sum as it should
-     be to preserve total coins.  The second step applies these changes
-     to the actual game state:  For players that are present, "just" update
-     their value accordingly.  Otherwise, put the remaining balance
-     (if any) to the game fund.  */
-
-  std::map<CharacterID, int64_t> deltas;
+  /* Life is already drawn.  It remains to distribute the drawn balances
+     from each attacked character back to its attackers.  For this,
+     we first find the still alive players and assemble them in a map.  */
   std::map<CharacterID, PlayerState*> alivePlayers;
   BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
     {
       const AttackableCharacter& a = tile.second;
       assert (alivePlayers.count (a.chid) == 0);
-      assert (deltas.count (a.chid) == 0);
-      deltas.insert (std::make_pair (a.chid, 0));
 
       /* Only non-hearted characters should be around if this is called,
          since this means that life-steal is in effect.  */
       assert (a.chid.index == 0);
 
-      const PlayerStateMap::iterator pit
-        = state.players.find (a.chid.player);
+      const PlayerStateMap::iterator pit = state.players.find (a.chid.player);
       if (pit != state.players.end ())
         {
           PlayerState& pl = pit->second;
-          assert (pl.value == a.value);
           assert (pl.characters.count (a.chid.index) > 0);
           alivePlayers.insert (std::make_pair (a.chid, &pl));
         }
     }
 
+  /* Now go over all attacks and distribute life to the attackers.  */
   BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
     {
       const AttackableCharacter& a = tile.second;
-      if (a.attackers.empty ())
+      if (a.attackers.empty () || a.drawnLife == 0)
         continue;
 
       /* Find attackers that are still alive.  We will randomly distribute
          coins to them later on.  */
       std::vector<CharacterID> alive;
-      std::vector<CharacterID> dead;
       for (std::set<CharacterID>::const_iterator mi = a.attackers.begin ();
            mi != a.attackers.end (); ++mi)
         if (alivePlayers.count (*mi) > 0)
           alive.push_back (*mi);
-        else
-          dead.push_back (*mi);
 
-      int64_t myDamage = 0;
-      while ((!alive.empty () || !dead.empty ())
-              && myDamage + damage <= a.value)
+      /* Distribute the drawn life randomly until either all is spent
+         or all alive attackers have gotten some.  */
+      int64_t toSpend = a.drawnLife;
+      while (!alive.empty () && toSpend >= damage)
         {
-          std::vector<CharacterID>* arr;
-          if (alive.empty ())
-            arr = &dead;
-          else
-            arr = &alive;
+          const unsigned ind = rnd.GetIntRnd (alive.size ());
+          const std::map<CharacterID, PlayerState*>::iterator plIt
+            = alivePlayers.find (alive[ind]);
+          assert (plIt != alivePlayers.end ());
 
-          assert (!arr->empty ());
-          const unsigned ind = rnd.GetIntRnd (arr->size ());
-          assert (deltas.count (arr->operator[] (ind)) > 0);
+          toSpend -= damage;
+          plIt->second->value += damage;
 
-          deltas[arr->operator[] (ind)] += damage;
-          myDamage += damage;
-
-          if (ind != arr->size () - 1)
-            std::swap (arr->operator[] (ind), arr->back ());
-          arr->pop_back ();
+          /* Do not use a silly trick like swapping in the last element.
+             We want to keep the array ordered at all times.  The order is
+             important with respect to consensus, and this makes the consensus
+             protocol "clearer" to describe.  */
+          alive.erase (alive.begin () + ind);
         }
 
-      assert (myDamage <= a.value);
-      assert (myDamage + damage > a.value
-                || myDamage == damage * a.attackers.size ());
-      assert (deltas.count (a.chid) > 0);
-      deltas[a.chid] -= myDamage;
-    }
-
-  BOOST_FOREACH (const PAIRTYPE(const Coord, AttackableCharacter)& tile, tiles)
-    {
-      const AttackableCharacter& a = tile.second;
-      assert (deltas.count (a.chid) > 0);
-      const int64_t delta = deltas[a.chid];
-
-      const std::map<CharacterID, PlayerState*>::iterator mit
-        = alivePlayers.find (a.chid);
-      if (mit == alivePlayers.end ())
-        {
-          assert (a.value + delta >= 0);
-          state.gameFund += a.value + delta;
-        }
-      else
-        {
-          PlayerState& pl = *mit->second;
-          assert (a.value == pl.value);
-          pl.value = a.value + delta;
-          assert (delta == 0 || pl.value >= damage);
-        }
+      /* Distribute the remaining value to the game fund.  */
+      assert (toSpend >= 0);
+      state.gameFund += toSpend;
     }
 }
 
@@ -1050,12 +1066,12 @@ CharacterState::TimeToDestination (const WaypointVector* altWP) const
   return res;
 }
 
-int64
-CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
+int64_t
+CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64_t carryCap)
 {
-  const int64 totalBefore = loot.nAmount + newLoot.nAmount;
+  const int64_t totalBefore = loot.nAmount + newLoot.nAmount;
 
-  int64 freeCap = carryCap - loot.nAmount;
+  int64_t freeCap = carryCap - loot.nAmount;
   if (freeCap < 0)
     {
       /* This means that the character is carrying more than allowed
@@ -1064,7 +1080,7 @@ CharacterState::CollectLoot (LootInfo newLoot, int nHeight, int64 carryCap)
       freeCap = 0;
     }
 
-  int64 remaining;
+  int64_t remaining;
   if (carryCap == -1 || newLoot.nAmount <= freeCap)
     remaining = 0;
   else
@@ -1297,7 +1313,7 @@ json_spirit::Value GameState::ToJsonValue() const
     return obj;
 }
 
-void GameState::AddLoot(Coord coord, int64 nAmount)
+void GameState::AddLoot(Coord coord, int64_t nAmount)
 {
     if (nAmount == 0)
         return;
@@ -1342,10 +1358,10 @@ public:
   int cid;
 
   CharacterState* ch;
-  int64 carryCap;
+  int64_t carryCap;
 
   /* Get remaining carrying capacity.  */
-  inline int64
+  inline int64_t
   GetRemainingCapacity () const
   {
     if (carryCap == -1)
@@ -1367,8 +1383,8 @@ public:
 bool
 operator< (const CharacterOnLootTile& a, const CharacterOnLootTile& b)
 {
-  const int64 remA = a.GetRemainingCapacity ();
-  const int64 remB = b.GetRemainingCapacity ();
+  const int64_t remA = a.GetRemainingCapacity ();
+  const int64_t remB = b.GetRemainingCapacity ();
 
   if (remA == remB)
     {
@@ -1441,8 +1457,8 @@ void GameState::DivideLootAmongPlayers()
            some of them will get nothing.  */
         if (lootInfo.nAmount > 0)
           {
-            const int64 rem = i->ch->CollectLoot (lootInfo, nHeight,
-                                                  i->carryCap);
+            const int64_t rem = i->ch->CollectLoot (lootInfo, nHeight,
+                                                    i->carryCap);
             AddLoot (coord, rem - lootInfo.nAmount);
           }
       }
@@ -1485,7 +1501,7 @@ void GameState::UpdateCrownState(bool &respawn_crown)
 }
 
 void
-GameState::CrownBonus (int64 nAmount)
+GameState::CrownBonus (int64_t nAmount)
 {
   if (!crownHolder.player.empty ())
     {
@@ -1493,9 +1509,9 @@ GameState::CrownBonus (int64 nAmount)
       CharacterState& ch = p.characters[crownHolder.index];
 
       const LootInfo loot(nAmount, nHeight);
-      const int64 cap = GetCarryingCapacity (nHeight, crownHolder.index == 0,
-                                             true);
-      const int64 rem = ch.CollectLoot (loot, nHeight, cap);
+      const int64_t cap = GetCarryingCapacity (nHeight, crownHolder.index == 0,
+                                               true);
+      const int64_t rem = ch.CollectLoot (loot, nHeight, cap);
 
       /* We keep to the logic of "crown on the floor -> game fund" and
          don't distribute coins that can not be hold by the crown holder
@@ -1522,7 +1538,7 @@ GameState::IsBank (const Coord& c) const
 int64_t
 GameState::GetCoinsOnMap () const
 {
-  int64 onMap = 0;
+  int64_t onMap = 0;
   BOOST_FOREACH(const PAIRTYPE(Coord, LootInfo)& l, loot)
     onMap += l.second.nAmount;
   BOOST_FOREACH(const PAIRTYPE(PlayerID, PlayerState)& p, players)
@@ -1650,7 +1666,7 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
   const PlayerStateMap::const_iterator mip = players.find (pId);
   assert (mip != players.end ());
   const PlayerState& pc = mip->second;
-  assert (pc.value > 0);
+  assert (pc.value >= 0);
   const std::map<int, CharacterState>::const_iterator mic
     = pc.characters.find (chInd);
   assert (mic != pc.characters.end ());
@@ -1659,7 +1675,7 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
   /* If refunding is possible, do this for the locked amount right now.
      Later on, exclude the amount from further considerations.  */
   bool refunded = false;
-  if (chInd == 0 && info.CanRefund (nHeight))
+  if (chInd == 0 && info.CanRefund (nHeight, pc))
     {
       CollectedLootInfo loot;
       loot.SetRefund (pc.value, nHeight);
@@ -1669,23 +1685,27 @@ GameState::HandleKilledLoot (const PlayerID& pId, int chInd,
     }
 
   /* Calculate loot.  If we kill a general, take the locked coin amount
-     into account, as well.  If the life-steal fork is already in effect,
-     this is not done since the coins are distributed in a different way.  */
+     into account, as well.  When life-steal is in effect, the value
+     should already be drawn to zero (unless we have a cause of death
+     that refunds).  */
   int64_t nAmount = ch.loot.nAmount;
-  if (chInd == 0 && !refunded && !ForkInEffect (FORK_LIFESTEAL, nHeight))
-    nAmount += pc.value;
+  if (chInd == 0 && !refunded)
+    {
+      assert (!ForkInEffect (FORK_LIFESTEAL, nHeight) || pc.value == 0);
+      nAmount += pc.value;
+    }
 
   /* Apply the miner tax: 4%.  */
   if (info.HasDeathTax ())
     {
-      const int64 nTax = nAmount / 25;
+      const int64_t nTax = nAmount / 25;
       step.nTaxAmount += nTax;
       nAmount -= nTax;
     }
 
   /* If requested (and the corresponding fork is in effect), add the coins
      to the game fund instead of dropping them.  */
-  if (!info.DropCoins (nHeight))
+  if (!info.DropCoins (nHeight, pc))
     {
       gameFund += nAmount;
       return;
@@ -1958,23 +1978,29 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     stepResult = StepResult();
 
-    // Pay out game fees (except for spawns) to the game fund.
+    /* Pay out game fees (except for spawns) to the game fund.  This also
+       keeps track of the total fees paid into the game world by moves.  */
+    int64_t moneyIn = 0;
     BOOST_FOREACH(const Move& m, stepData.vMoves)
       if (!m.IsSpawn ())
         {
           const PlayerStateMap::iterator mi = outState.players.find (m.player);
           assert (mi != outState.players.end ());
           assert (m.newLocked >= mi->second.lockedCoins);
-          outState.gameFund += m.newLocked - mi->second.lockedCoins;
+          const int64_t newFee = m.newLocked - mi->second.lockedCoins;
+          outState.gameFund += newFee;
+          moneyIn += newFee;
           mi->second.lockedCoins = m.newLocked;
         }
+      else
+        moneyIn += m.newLocked;
 
     // Apply attacks
     CharactersOnTiles attackedTiles;
     attackedTiles.ApplyAttacks (outState, stepData.vMoves);
     if (ForkInEffect (FORK_LIFESTEAL, outState.nHeight))
       attackedTiles.DefendMutualAttacks (outState);
-    attackedTiles.KillAttacked (outState, stepResult);
+    attackedTiles.DrawLife (outState, stepResult);
 
     // Kill players who stay too long in the spawn area
     outState.KillSpawnArea (stepResult);
@@ -2020,7 +2046,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
             if (ch.loot.nAmount > 0 && outState.IsBank (ch.coord))
             {
                 // Tax from banking: 10%
-                int64 nTax = ch.loot.nAmount / 10;
+                int64_t nTax = ch.loot.nAmount / 10;
                 stepResult.nTaxAmount += nTax;
                 ch.loot.nAmount -= nTax;
 
@@ -2052,7 +2078,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
     /* Transfer life from attacks.  This is done randomly, but the decision
        about who dies is non-random and already set above.  */
     if (ForkInEffect (FORK_LIFESTEAL, outState.nHeight))
-      attackedTiles.TransferLife (rnd, outState);
+      attackedTiles.DistributeDrawnLife (rnd, outState);
 
     // Spawn new players
     BOOST_FOREACH(const Move &m, stepData.vMoves)
@@ -2118,6 +2144,26 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
 
     outState.CollectHearts(rnd);
     outState.CollectCrown(rnd, respawn_crown);
+
+    /* Compute total money out of the game world via bounties paid.  */
+    int64_t moneyOut = stepResult.nTaxAmount;
+    BOOST_FOREACH(const CollectedBounty& b, stepResult.bounties)
+      moneyOut += b.loot.nAmount;
+
+    /* Compare total money before and after the step.  If there is a mismatch,
+       we have a bug in the logic.  Better not accept the new game state.  */
+    const int64_t moneyBefore = inState.GetCoinsOnMap () + inState.gameFund;
+    const int64_t moneyAfter = outState.GetCoinsOnMap () + outState.gameFund;
+    if (moneyBefore + stepData.nTreasureAmount + moneyIn
+          != moneyAfter + moneyOut)
+      {
+        printf ("Old game state: %lld (@%d)\n", moneyBefore, inState.nHeight);
+        printf ("New game state: %lld\n", moneyAfter);
+        printf ("Money in:  %lld\n", moneyIn);
+        printf ("Money out: %lld\n", moneyOut);
+        printf ("Treasure placed: %lld\n", stepData.nTreasureAmount);
+        return error ("total amount before and after step mismatch");
+      }
 
     return true;
 }
