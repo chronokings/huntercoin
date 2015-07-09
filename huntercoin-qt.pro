@@ -1,7 +1,7 @@
 TEMPLATE = app
 TARGET = huntercoin-qt
 macx:TARGET = "HunterCoin-Qt"
-VERSION = 1.3.0.99
+VERSION = 1.3.1
 INCLUDEPATH += src src/json src/qt
 QT += network
 DEFINES += GUI QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE

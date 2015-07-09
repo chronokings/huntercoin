@@ -98,7 +98,7 @@ ForkInEffect (Fork type, unsigned nHeight)
       return nHeight >= (fTestNet ? 240000 : 590000);
 
     case FORK_LIFESTEAL:
-      return nHeight >= (fTestNet ? 301000 : 1000000);
+      return nHeight >= (fTestNet ? 301000 : 795000);
 
     default:
       assert (false);
