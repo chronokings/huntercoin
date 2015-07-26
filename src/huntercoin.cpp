@@ -2564,15 +2564,6 @@ CHuntercoinHooks::ConnectInputs (DatabaseSet& dbset,
               return error ("ConnectInputsHook: multiple name_update operations"
                             " on the same name");
 
-            /* Before the life-stealing fork, enforce that the coin
-               amount matches exactly.  Afterwards, we only require that
-               it is increasing over time (which is checked below).  */
-            /* FIXME: Remove check after the fork has passed.  */
-            if (!ForkInEffect (FORK_LIFESTEAL, pindexBlock->nHeight)
-                  && tx.vout[nOut].nValue != prevCoinAmount)
-              return error ("ConnectInputsHook: name_update tx:"
-                            " incorrect amount of the locked coin");
-
             /* Check that the locked amount is increasing over time.  The
                actual check for minimum fees is done by the move validation
                logic.  This is just an additional "safety net".  Note that
