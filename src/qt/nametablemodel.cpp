@@ -206,8 +206,43 @@ public:
             return false;
 
         const Game::GameState &gameState = GetCurrentGameState();
-        if (gameState.hashBlock == cachedLastBlock)
+
+
+        // pending tx monitor -- UI main loop
+        int64 t = GetTimeMillis();
+        if (pmon_state == PMONSTATE_START)
+        {
+            if (pmon_name_pending_start())
+            {
+                pmon_state = PMONSTATE_RUN;
+            }
+            else
+            {
+                pmon_state = PMONSTATE_STOPPED;
+                OutputDebugStringF("Warning: NameTablePriv::updateGameState: Couldn't start tx monitor (names.txt missing?)\n");
+            }
+
+            pmon_tick = t - (1000 * pmon_go - 250);
+        }
+        else if (t >= pmon_tick + (1000 * pmon_go))
+        {
+            pmon_tick = t;
+
+            if (((pmon_state == PMONSTATE_RUN) || (pmon_state == PMONSTATE_SHUTDOWN)) &&
+                (pmon_name_pending()))
+                pmon_new_data = true;
+        }
+        else
+        {
+            if (pmon_state == PMONSTATE_SHUTDOWN)
+            pmon_tick = t - (1000 * pmon_go - 250);
+        }
+
+        if ((gameState.hashBlock == cachedLastBlock) && (!pmon_new_data))
             return false;
+        if (pmon_new_data)
+            pmon_new_data = false;
+
 
         bool fChanged = false;
         for (int i = 0, n = size(); i < n; i++)

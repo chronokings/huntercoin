@@ -11,6 +11,14 @@
 #include "headers.h"
 #include "huntercoin.h"
 
+#ifdef GUI
+// pending tx monitor -- acoustic alarm
+#include <QUrl>
+#include <QDesktopServices>
+#include <boost/filesystem.hpp>
+#endif
+
+
 using namespace Game;
 
 json_spirit::Value ValueFromAmount(int64 amount);
@@ -2164,6 +2172,33 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         printf ("Treasure placed: %lld\n", stepData.nTreasureAmount);
         return error ("total amount before and after step mismatch");
       }
+
+#ifdef GUI
+    // pending tx monitor -- acoustic alarm
+    bool do_sound_alarm = false;
+    if (pmon_noisy)
+    {
+        for (int m = 0; m < PMON_MY_MAX; m++)
+        {
+            if (pmon_my_alarm_state[m] == 1)
+            {
+                 pmon_my_alarm_state[m] = 2;
+                 do_sound_alarm = true;
+            }
+        }
+
+        if (do_sound_alarm)
+        {
+            {
+                boost::filesystem::path pathDebug = boost::filesystem::path(GetDataDir()) / "small_wave_file.wav";
+
+                // Open file with the associated application
+                if (boost::filesystem::exists(pathDebug))
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(pathDebug.string())));
+            }
+        }
+    }
+#endif
 
     return true;
 }

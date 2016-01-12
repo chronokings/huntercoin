@@ -12,6 +12,11 @@
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 
+#ifdef GUI
+// better GUI -- includes
+#include "gamemap.h"
+#endif
+
 using namespace std;
 using namespace boost;
 
@@ -126,6 +131,132 @@ bool AppInit(int argc, char* argv[])
         StartShutdown();
     return fRet;
 }
+
+
+#ifdef GUI
+// better GUI -- asciiart map
+// note: need at least 3 additional columns (CR, LF, '\0') and 2 additional lines (2 tiles offset for cliffs because of their "height")
+char AsciiArtMap[Game::MAP_HEIGHT + 4][Game::MAP_WIDTH + 4];
+int AsciiArtTileCount[Game::MAP_HEIGHT + 4][Game::MAP_WIDTH + 4];
+
+int Displaycache_gamemapgood[Game::MAP_HEIGHT][Game::MAP_WIDTH];
+int Displaycache_gamemap[Game::MAP_HEIGHT][Game::MAP_WIDTH][Game::MAP_LAYERS + SHADOW_LAYERS + SHADOW_EXTRALAYERS];
+//bool Display_dbg_obstacle_marker = false;
+
+static bool Calculate_AsciiArtMap()
+{
+    FILE *fp;
+    fp = fopen("asciiartmap.txt", "r");
+    if (fp != NULL)
+    {
+        // need 2 additional lines (2 tiles offset for cliffs because of their "height")
+        for (int y = 0; y < Game::MAP_HEIGHT+2; y++)
+        {
+            fgets(AsciiArtMap[y], Game::MAP_WIDTH+3, fp);
+            AsciiArtMap[y][Game::MAP_WIDTH] = '\0';
+        }
+        fclose(fp);
+    }
+
+    // try to fix grass/dirt transition part 1
+    for (int y = 1; y < Game::MAP_HEIGHT - 1; y++)
+        for (int x = 1; x < Game::MAP_WIDTH - 1; x++)
+        {
+
+            int w = 0;
+            if ((AsciiArtMap[y][x] == '0') || (AsciiArtMap[y][x] == '1')) w = 1;
+            else if ( (ASCIIART_IS_ROCK(AsciiArtMap[y][x])) || (ASCIIART_IS_TREE(AsciiArtMap[y][x])) ) w = 2;
+
+            if (w)
+            {
+                bool f = false;
+
+                bool dirt_S = ((y < Game::MAP_HEIGHT - 1) && (AsciiArtMap[y + 1][x] == '.'));
+                bool dirt_N = ((y > 0) && (AsciiArtMap[y - 1][x] == '.'));
+                bool dirt_E = ((x < Game::MAP_WIDTH - 1) && (AsciiArtMap[y][x + 1] == '.'));
+                bool dirt_W = ((x > 0) && (AsciiArtMap[y][x - 1] == '.'));
+                bool dirt_SE = ((y < Game::MAP_HEIGHT - 1) && (x < Game::MAP_WIDTH - 1) && (AsciiArtMap[y + 1][x + 1] == '.'));
+                bool dirt_NE = ((y > 0) && (x < Game::MAP_WIDTH - 1) && (AsciiArtMap[y - 1][x + 1] == '.'));
+                bool dirt_NW = ((y > 0) && (x > 0) && (AsciiArtMap[y - 1][x - 1] == '.'));
+                bool dirt_SW = ((y < Game::MAP_HEIGHT - 1) && (x > 0) && (AsciiArtMap[y + 1][x - 1] == '.'));
+
+                // symmetric cases that cannot be resolved normally
+                if ((dirt_N) && (dirt_S))
+                {
+                    if (w > 1) AsciiArtMap[y + 1][x] = '0'; // = AsciiArtMap[y - 1][x] = '0';
+                    else f = true;
+                }
+                else if ((dirt_W) && (dirt_E))
+                {
+                    if (w > 1) AsciiArtMap[y][x + 1] = '0'; // = AsciiArtMap[y][x - 1] = '0';
+                    else f = true;
+                }
+                else if ((!dirt_N) && (!dirt_S) && (!dirt_E) && (!dirt_W))
+                {
+                    // version 1
+                    if (x % 4 >= 2)
+                    {
+                        if ((dirt_SE) && (dirt_NW)) AsciiArtMap[y + 1][x + 1] = '0';
+                        if ((dirt_SW) && (dirt_NE)) AsciiArtMap[y + 1][x - 1] = '0';
+                    }
+                    // version 2
+                    else
+                    {
+                        if (((dirt_SE) && (dirt_NW)) || ((dirt_SW) && (dirt_NE))) f = true; //AsciiArtMap[y][x] = '.';
+                    }
+                }
+
+                if (f) AsciiArtMap[y][x] = '.';
+            }
+        }
+
+    // if we don't have enough gamemap layers to paint everything on this tile
+    for (int y = Game::MAP_HEIGHT - 4; y >= 0; y--)
+        for (int x = Game::MAP_WIDTH - 4; x >= 0; x--)
+        {
+            int count0 = 0;
+            int count1 = 0;
+
+            for (int v = y; v <= y + 2; v++)
+                for (int u = x; u <= x + 2; u++)
+                {
+                    char c = AsciiArtMap[v][u];
+                    if ((u == x) && (v == y))
+                    {
+                        if ((ASCIIART_IS_TREE(c)) || (ASCIIART_IS_ROCK(c)))
+                            count0++;
+
+                        continue;
+                    }
+
+                    if ((c == 'B') || (c == 'b')) count1++;
+                    if (u > x + 1) continue;
+
+                    if ((c == 'C') || (c == 'c')) count1++;
+                    if (u > x) continue;
+
+                    if (v > y + 1) continue;
+
+                    if ((c == 'H') || (c == 'h')) count1++;
+                    if (v > y) continue;
+
+                    if ((c == 'G') || (c == 'g')) count1++;
+                }
+
+            AsciiArtTileCount[y][x] = count0 + count1;
+
+            if ((count0) && (count1 >= 3)) // MAP_LAYERS - 1 + SHADOW_EXTRALAYERS == 3
+            {
+                if ((AsciiArtMap[y][x] == 'B') || (AsciiArtMap[y][x] == 'b'))
+                    AsciiArtMap[y][x] = '0';
+                else
+                    AsciiArtMap[y][x] = '1';
+            }
+        }
+
+}
+#endif
+
 
 bool AppInit2(int argc, char* argv[])
 {
@@ -380,6 +511,11 @@ bool AppInit2(int argc, char* argv[])
         fprintf(stdout, "huntercoin server starting\n");
     strErrors = "";
     int64 nStart;
+
+#ifdef GUI
+    // better GUI -- asciiart map
+    Calculate_AsciiArtMap();
+#endif
 
     /* Start the RPC server already here.  This is to make it available
        "immediately" upon starting the daemon process.  Until everything
