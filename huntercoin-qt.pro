@@ -19,6 +19,15 @@ DEFINES += NOPCH FOURWAYSSE2 USE_SSL
 # Dependency library locations can be customized with:
 #    BOOST_INCLUDE_PATH, BOOST_LIB_PATH, BDB_INCLUDE_PATH,
 #    BDB_LIB_PATH, OPENSSL_INCLUDE_PATH and OPENSSL_LIB_PATH respectively
+windows: {
+BOOST_LIB_SUFFIX=-mgw46-mt-sd-1_54
+BOOST_INCLUDE_PATH=C:\deps\boost_1_54_0
+BOOST_LIB_PATH=C:\deps\boost_1_54_0\stage\lib
+BDB_INCLUDE_PATH=C:\deps\db-4.8.30.NC\build_unix
+BDB_LIB_PATH=C:\deps\db-4.8.30.NC\build_unix
+OPENSSL_INCLUDE_PATH=C:\deps\openssl-1.0.1q\include
+OPENSSL_LIB_PATH=C:\deps\openssl-1.0.1q
+}
 
 OBJECTS_DIR = build
 MOC_DIR = build
@@ -62,6 +71,8 @@ contains(USE_QRCODE, 1) {
 # use: qmake "USE_UPNP=1" ( enabled by default; default)
 #  or: qmake "USE_UPNP=0" (disabled by default)
 #  or: qmake "USE_UPNP=-" (not supported)
+USE_UPNP=-
+
 # miniupnpc (http://miniupnp.free.fr/files/) must be installed for support
 contains(USE_UPNP, -) {
     message(Building without UPNP support)
