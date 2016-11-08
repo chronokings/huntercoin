@@ -124,6 +124,11 @@ enum Fork
      randomises spawn and banking locations.  */
   FORK_LIFESTEAL,
 
+  /* "timesave"  This makes hunters and banks spawn always near harvest areas.
+     It also adds protection for newly spawned hunters and a spectator mode.
+     Fee for a new hunter and destruct fee is set to 1 HUC.
+     The refundable fee per hunter is set to 100 HUC   */
+  FORK_TIMESAVE,
 };
 bool ForkInEffect (Fork type, unsigned nHeight);
 

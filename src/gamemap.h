@@ -21,6 +21,21 @@ static const int NUM_TILE_IDS = 235;      // Total number of different tile text
 extern const short GameMap[MAP_LAYERS][MAP_HEIGHT][MAP_WIDTH];
 #endif
 
+// for FORK_TIMESAVE
+extern const unsigned char SpawnMap[MAP_HEIGHT][MAP_WIDTH];
+#define SPAWNMAPFLAG_BANK 1
+#define SPAWNMAPFLAG_PLAYER 2
+#define CHARACTER_MODE_NORMAL 6
+// difference of 2 means we can walk over (and along) the player spawn strip without logout
+#define CHARACTER_MODE_LOGOUT 8
+#define CHARACTER_MODE_SPECTATOR_BEGIN 9
+#define CHARACTER_HAS_SPAWN_PROTECTION(S) (S<CHARACTER_MODE_NORMAL)
+#define CHARACTER_IS_PROTECTED(S) ((S<CHARACTER_MODE_NORMAL)||(S>CHARACTER_MODE_LOGOUT))
+#define CHARACTER_SPAWN_PROTECTION_ALMOST_FINISHED(S) (S==CHARACTER_MODE_NORMAL-1)
+#define CHARACTER_IN_SPECTATOR_MODE(S) (S>CHARACTER_MODE_LOGOUT)
+#define CHARACTER_NO_LOGOUT(S) ((S!=CHARACTER_MODE_LOGOUT)&&(S<CHARACTER_MODE_SPECTATOR_BEGIN+15))
+
+
 extern const unsigned char ObstacleMap[MAP_HEIGHT][MAP_WIDTH];
 
 // HarvestAreas[i] has size 2*HarvestAreaSizes[i] and contains alternating x,y coordinates

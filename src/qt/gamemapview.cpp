@@ -60,6 +60,14 @@ struct GameGraphicsObjects
     }
 };
 
+// for FORK_TIMESAVE -- visualize player spawns
+QPen visualize_spawn_pen(Qt::NoPen);
+bool visualize_spawn_done = false;
+int visualize_nHeight;
+int visualize_x;
+int visualize_y;
+#define VISUALIZE_TIMESAVE_IN_EFFECT(H) (((fTestNet)&&(H>331500))||((!fTestNet)&&(H>1999999)))
+
 // Cache scene objects to avoid recreating them on each state update
 class GameMapCache
 {
@@ -85,6 +93,22 @@ class GameMapCache
             coin = scene->addPixmap(grobjs->coin_sprite);
             coin->setOffset(x, y);
             coin->setZValue(0.1);
+
+            // for FORK_TIMESAVE -- reward coordinated attack against 24/7 players, if any
+            if (VISUALIZE_TIMESAVE_IN_EFFECT (visualize_nHeight))
+            {
+                if ((((visualize_x % 2) + (visualize_y % 2) > 1) && (visualize_nHeight % 500 >= 300)) ||  // for 150 blocks, every 4th coin spawn is ghosted
+                    (((visualize_x % 2) + (visualize_y % 2) > 0) && (visualize_nHeight % 500 >= 450)) ||  // for 30 blocks, 3 out of 4 coin spawns are ghosted
+                    (visualize_nHeight % 500 >= 480))                                             // for 20 blocks, full ghosting
+                    coin->setOpacity(0.4);
+                else
+                    coin->setOpacity(1.0);
+            }
+            else
+            {
+                 coin->setOpacity(1.0);
+            }
+
             text = new QGraphicsTextItem(coin);
             text->setHtml(
                     "<center>"
@@ -97,6 +121,21 @@ class GameMapCache
 
         void Update(int64 amount)
         {
+            // for FORK_TIMESAVE -- reward coordinated attack against 24/7 players, if any
+            if (VISUALIZE_TIMESAVE_IN_EFFECT (visualize_nHeight))
+            {
+                if ((((visualize_x % 2) + (visualize_y % 2) > 1) && (visualize_nHeight % 500 >= 300)) ||  // for 150 blocks, every 4th coin spawn is ghosted
+                    (((visualize_x % 2) + (visualize_y % 2) > 0) && (visualize_nHeight % 500 >= 450)) ||  // for 30 blocks, 3 out of 4 coin spawns are ghosted
+                    (visualize_nHeight % 500 >= 480))                                             // for 20 blocks, full ghosting
+                    coin->setOpacity(0.4);
+                else
+                    coin->setOpacity(1.0);
+            }
+            else
+            {
+                 coin->setOpacity(1.0);
+            }
+
             referenced = true;
             if (amount == nAmount)
                 return;
@@ -308,6 +347,10 @@ public:
     {
         CachedCoin &c = cached_coins[coord];
 
+        // for FORK_TIMESAVE
+        visualize_x = coord.x;
+        visualize_y = coord.y;
+
         if (!c)
             c.Create(scene, grobjs, coord.x * TILE_SIZE, coord.y * TILE_SIZE, nAmount);
         else
@@ -458,6 +501,27 @@ void GameMapView::updateGameMap(const GameState &gameState)
         queuedPlayerPath = NULL;
     }
 
+    // for FORK_TIMESAVE -- visualize player spawns
+    // note: Formerly, the SpawnMap was calculated in init.cpp, after graphics initialization.
+    //       We could now move player spawn visualization code to GameMapView::GameMapView, but it would make the system less flexible.
+    visualize_nHeight = gameState.nHeight;
+    if (!visualize_spawn_done)
+    {
+        for (int y = 0; y < MAP_HEIGHT; y++)
+            for (int x = 0; x < MAP_WIDTH; x++)
+            {
+                if (SpawnMap[y][x] & SPAWNMAPFLAG_PLAYER)
+                {
+                    scene->addRect(x * TILE_SIZE, y * TILE_SIZE,
+                        TILE_SIZE, TILE_SIZE,
+                        visualize_spawn_pen, QColor(255, 255, 0, 40));
+
+                    if (!visualize_spawn_done) visualize_spawn_done = true;
+                }
+            }
+    }
+
+
     /* Update the banks.  */
     const int bankOpacity = 40;
     BOOST_FOREACH (QGraphicsRectItem* b, banks)
@@ -498,6 +562,25 @@ void GameMapView::updateGameMap(const GameState &gameState)
                 entry.name = QString::fromUtf8("\u2605") + entry.name;
             if (chid == gameState.crownHolder)
                 entry.name += QString::fromUtf8(" \u265B");
+
+            // for FORK_TIMESAVE -- show protected/spectator state
+            if (characterState.stay_in_spawn_area != CHARACTER_MODE_NORMAL)
+            {
+                entry.name += QString::fromStdString(" (");
+                entry.name += QString::number(characterState.stay_in_spawn_area);
+                if (VISUALIZE_TIMESAVE_IN_EFFECT(visualize_nHeight))
+                {
+                    if (CHARACTER_IN_SPECTATOR_MODE(characterState.stay_in_spawn_area))
+                        entry.name += QString::fromStdString(", spectator)");
+                    else if (CHARACTER_HAS_SPAWN_PROTECTION(characterState.stay_in_spawn_area))
+                        entry.name += QString::fromStdString(", protected)");
+                    else
+                        entry.name += QString::fromStdString(")");
+                }
+                else
+                    entry.name += QString::fromStdString(")");
+            }
+
             entry.color = pl.color;
             entry.state = &characterState;
             sortedPlayers.insert(std::make_pair(Coord(-coord.x, -coord.y), entry));
