@@ -94,7 +94,7 @@ class GameMapCache
             coin->setOffset(x, y);
             coin->setZValue(0.1);
 
-            // for FORK_TIMESAVE -- reward coordinated attack against 24/7 players, if any
+            // ghosting with phasing-in
             if (VISUALIZE_TIMESAVE_IN_EFFECT (visualize_nHeight))
             {
                 if ((((visualize_x % 2) + (visualize_y % 2) > 1) && (visualize_nHeight % 500 >= 300)) ||  // for 150 blocks, every 4th coin spawn is ghosted
@@ -121,7 +121,7 @@ class GameMapCache
 
         void Update(int64 amount)
         {
-            // for FORK_TIMESAVE -- reward coordinated attack against 24/7 players, if any
+            // ghosting with phasing-in
             if (VISUALIZE_TIMESAVE_IN_EFFECT (visualize_nHeight))
             {
                 if ((((visualize_x % 2) + (visualize_y % 2) > 1) && (visualize_nHeight % 500 >= 300)) ||  // for 150 blocks, every 4th coin spawn is ghosted
@@ -570,9 +570,9 @@ void GameMapView::updateGameMap(const GameState &gameState)
                 entry.name += QString::number(characterState.stay_in_spawn_area);
                 if (VISUALIZE_TIMESAVE_IN_EFFECT(visualize_nHeight))
                 {
-                    if (CHARACTER_IN_SPECTATOR_MODE(characterState.stay_in_spawn_area))
+                    if (CharacterInSpectatorMode(characterState.stay_in_spawn_area))
                         entry.name += QString::fromStdString(", spectator)");
-                    else if (CHARACTER_HAS_SPAWN_PROTECTION(characterState.stay_in_spawn_area))
+                    else if (CharacterIsProtected(characterState.stay_in_spawn_area))
                         entry.name += QString::fromStdString(", protected)");
                     else
                         entry.name += QString::fromStdString(")");

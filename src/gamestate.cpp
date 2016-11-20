@@ -585,10 +585,10 @@ Move::MinimumGameFee (unsigned nHeight) const
   if (ForkInEffect (FORK_TIMESAVE, nHeight))
     return COIN * destruct.size ();
 
-  if (!ForkInEffect (FORK_LIFESTEAL, nHeight))
-    return 0;
+  if (ForkInEffect (FORK_LIFESTEAL, nHeight))
+    return 20 * COIN * destruct.size ();
 
-  return 20 * COIN * destruct.size ();
+  return 0;
 }
 
 std::string CharacterID::ToString() const
@@ -635,7 +635,7 @@ CharactersOnTiles::EnsureIsBuilt (const GameState& state)
       {
         // newly spawned hunters not attackable
         if (ForkInEffect (FORK_TIMESAVE, state.nHeight))
-          if (CHARACTER_IS_PROTECTED(pc.second.stay_in_spawn_area))
+          if (CharacterIsProtected(pc.second.stay_in_spawn_area))
           {
             // printf("protection: character at x=%d y=%d is protected\n", pc.second.coord.x, pc.second.coord.y);
             continue;
@@ -673,18 +673,18 @@ CharactersOnTiles::ApplyAttacks (const GameState& state,
           if (state.crownHolder == chid)
             continue;
 
+          const CharacterState& ch = miCh->second;
+          // hunters in spectator mode can't attack
+          if ((ForkInEffect (FORK_TIMESAVE, state.nHeight)) &&
+              (CharacterInSpectatorMode(ch.stay_in_spawn_area)))
+          {
+              // printf("protection: character at x=%d y=%d can't attack\n", ch.coord.x, ch.coord.y);
+              continue;
+          }
+
           EnsureIsBuilt (state);
 
           const int radius = GetDestructRadius (state.nHeight, i == 0);
-          const CharacterState& ch = miCh->second;
-
-          // hunters in spectator mode can't attack
-          if (ForkInEffect (FORK_TIMESAVE, state.nHeight))
-            if (CHARACTER_IN_SPECTATOR_MODE(ch.stay_in_spawn_area))
-            {
-              // printf("protection: character at x=%d y=%d can't attack\n", ch.coord.x, ch.coord.y);
-              continue;
-            }
 
           const Coord& c = ch.coord;
           for (int y = c.y - radius; y <= c.y + radius; y++)
@@ -1507,7 +1507,6 @@ void GameState::DivideLootAmongPlayers()
 
           const Coord& coord = tileChar.ch->coord;
 
-          // reward coordinated attack against 24/7 players, if any
           // ghosting with phasing-in
           if (ForkInEffect (FORK_TIMESAVE, nHeight))
             if ((((coord.x % 2) + (coord.y % 2) > 1) && (nHeight % 500 >= 300)) ||  // for 150 blocks, every 4th coin spawn is ghosted
@@ -1875,12 +1874,11 @@ GameState::KillSpawnArea (StepResult& step)
           {
               if (IsBank (ch.coord))
               {
-                  assert (IsBank (ch.coord)); // pre-fork code has this line (why?)
                   ch.stay_in_spawn_area = CHARACTER_MODE_LOGOUT; // hunters will never be on bank tile while in spectator mode
               }
               else if (SpawnMap[ch.coord.y][ch.coord.x] & SPAWNMAPFLAG_PLAYER)
               {
-                  if (CHARACTER_SPAWN_PROTECTION_ALMOST_FINISHED(ch.stay_in_spawn_area))
+                  if (CharacterSpawnProtectionAlmostFinished(ch.stay_in_spawn_area))
                   {
                       // enter spectator mode if standing still
                       // notes : - movement will put the hunter in normal mode (when movement is processed)
@@ -1895,12 +1893,12 @@ GameState::KillSpawnArea (StepResult& step)
                           ch.stay_in_spawn_area++;
                   }
               }
-              else if (CHARACTER_IS_PROTECTED(ch.stay_in_spawn_area)) // catch all (for hunters who spawned pre-fork)
+              else if (CharacterIsProtected(ch.stay_in_spawn_area)) // catch all (for hunters who spawned pre-fork)
               {
                   ch.stay_in_spawn_area++;
               }
 
-              if (CHARACTER_NO_LOGOUT(ch.stay_in_spawn_area))
+              if (CharacterNoLogout(ch.stay_in_spawn_area))
                   continue;
           }
           else
@@ -2025,27 +2023,20 @@ GameState::UpdateBanks (RandomGenerator& rng)
       assert (banks.size () == DYNBANKS_NUM_BANKS);
       assert (newBanks.empty ());
 
-      // reinitialize all banks as to not break things,
-      // e.g. "assert (optionsSet.count (b.first) == 1)"
-      if (IsForkHeight (FORK_TIMESAVE, nHeight))
+      BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
       {
-        BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
-        {
-          assert (b.second >= 1);
-        }
-      }
-      else // pre-fork
-      {
-        BOOST_FOREACH (const PAIRTYPE(Coord, unsigned)& b, banks)
-        {
-          assert (b.second >= 1);
+        assert (b.second >= 1);
 
-          /* Banks with life=1 run out now.  Since banking is done before
-             updating the banks in PerformStep, this means that banks that have
-             life=1 and are reached in the next turn are still available.  */
-          if (b.second > 1)
-            newBanks.insert (std::make_pair (b.first, b.second - 1));
-        }
+        // reset all banks as to not break things,
+        // e.g. "assert (optionsSet.count (b.first) == 1)"
+        if (IsForkHeight (FORK_TIMESAVE, nHeight))
+          continue;
+
+        /* Banks with life=1 run out now.  Since banking is done before
+           updating the banks in PerformStep, this means that banks that have
+           life=1 and are reached in the next turn are still available.  */
+        if (b.second > 1)
+          newBanks.insert (std::make_pair (b.first, b.second - 1));
       }
     }
 
@@ -2201,7 +2192,7 @@ bool Game::PerformStep(const GameState &inState, const StepData &stepData, GameS
         if ((ForkInEffect (FORK_TIMESAVE, outState.nHeight)) &&
             ( ! (pc.second.waypoints.empty()) ))
         {
-            if (CHARACTER_IN_SPECTATOR_MODE(pc.second.stay_in_spawn_area))
+            if (CharacterInSpectatorMode(pc.second.stay_in_spawn_area))
                 pc.second.StopMoving();
             else
                 pc.second.stay_in_spawn_area = CHARACTER_MODE_NORMAL;
