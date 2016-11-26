@@ -985,7 +985,9 @@ int ReadWriteAuxPow(Stream& s, const boost::shared_ptr<CAuxPow>& auxpow, int nTy
 enum
 {
     // primary version
-    BLOCK_VERSION_DEFAULT        = (1 << 0),
+    // (1 << 0) ... not FORK_TIMESAVE capable
+    // (1 << 1) ... FORK_TIMESAVE capable
+    BLOCK_VERSION_DEFAULT        = (1 << 1),
 
     // modifiers
     BLOCK_VERSION_AUXPOW         = (1 << 8),

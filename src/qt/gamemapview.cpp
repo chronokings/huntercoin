@@ -66,7 +66,7 @@ bool visualize_spawn_done = false;
 int visualize_nHeight;
 int visualize_x;
 int visualize_y;
-#define VISUALIZE_TIMESAVE_IN_EFFECT(H) (((fTestNet)&&(H>331500))||((!fTestNet)&&(H>1999999)))
+#define VISUALIZE_TIMESAVE_IN_EFFECT(H) (((fTestNet)&&(H>331500))||((!fTestNet)&&(H>1521500)))
 
 // Cache scene objects to avoid recreating them on each state update
 class GameMapCache
