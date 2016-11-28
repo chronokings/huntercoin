@@ -298,16 +298,6 @@ bool Move::IsValid(const GameState &state) const
 {
   PlayerStateMap::const_iterator mi = state.players.find (player);
 
-  /* Before the life-steal fork, check that the move does not contain
-     destruct and waypoints together.  This needs the height for its
-     decision, thus it is not done in Parse (as before).  */
-  /* FIXME: Remove check once the fork is passed.  */
-  if (!ForkInEffect (FORK_LIFESTEAL, state.nHeight + 1))
-    for (std::map<int, WaypointVector>::const_iterator i = waypoints.begin ();
-         i != waypoints.end (); ++i)
-      if (destruct.count (i->first) > 0)
-        return error ("%s: destruct and waypoints together", __func__);
-
   int64_t oldLocked;
   if (mi == state.players.end ())
     {
