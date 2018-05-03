@@ -212,7 +212,7 @@ bool CDB::Rewrite(const string& strFile)
                 string strFileRes = strFile + ".rewrite";
                 { // surround usage of db with extra {}
                     CDB db(strFile.c_str(), "r");
-                    Db* pdbCopy = new Db(&dbenv, 0);
+                    auto* pdbCopy = new Db(&dbenv, 0);
 
                     int ret = pdbCopy->open(NULL,                 // Txn pointer
                                             strFileRes.c_str(),   // Filename
@@ -557,7 +557,7 @@ CBlockIndex static * InsertBlockIndex(uint256 hash)
         return (*mi).second;
 
     // Create new
-    CBlockIndex* pindexNew = new CBlockIndex();
+    auto* pindexNew = new CBlockIndex();
     if (!pindexNew)
         throw runtime_error("LoadBlockIndex() : new CBlockIndex failed");
     mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;

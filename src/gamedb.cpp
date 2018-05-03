@@ -74,7 +74,7 @@ public:
     GameStepValidator(DatabaseSet& dbset, CBlockIndex *pindex)
         : fOwnState(true), fOwnDb(false), pdbset(&dbset)
     {
-        GameState *newState = new GameState;
+        auto *newState = new GameState;
         if (!GetGameState (dbset, pindex, *newState))
         {
             delete newState;

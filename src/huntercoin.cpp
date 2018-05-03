@@ -69,47 +69,47 @@ uint256 hashHuntercoinGenesisBlock[2] = {
 class CHuntercoinHooks : public CHooks
 {
 public:
-    virtual bool IsStandard(const CScript& scriptPubKey);
-    virtual void AddToWallet(CWalletTx& tx);
-    virtual bool CheckTransaction(const CTransaction& tx);
-    virtual bool ConnectInputs(DatabaseSet& dbset, const CTestPool& testPool,
+    bool IsStandard(const CScript& scriptPubKey) override;
+    void AddToWallet(CWalletTx& tx) override;
+    bool CheckTransaction(const CTransaction& tx) override;
+    bool ConnectInputs(DatabaseSet& dbset, const CTestPool& testPool,
             const CTransaction& tx,
             const std::vector<CUtxoEntry>& vTxoPrev,
             const CBlockIndex* pindexBlock,
             const CDiskTxPos& txPos,
             bool fBlock,
-            bool fMiner);
-    virtual bool DisconnectInputs (DatabaseSet& dbset,
+            bool fMiner) override;
+    bool DisconnectInputs (DatabaseSet& dbset,
             const CTransaction& tx,
-            CBlockIndex* pindexBlock);
-    virtual bool ConnectBlock (CBlock& block, DatabaseSet& txdb,
+            CBlockIndex* pindexBlock) override;
+    bool ConnectBlock (CBlock& block, DatabaseSet& txdb,
                                CBlockIndex* pindex, int64 &nFees,
-                               unsigned int nPosAfterTx);
-    virtual void NewBlockAdded ();
-    virtual bool DisconnectBlock (CBlock& block, DatabaseSet& txdb,
-                                  CBlockIndex* pindex);
-    virtual bool ExtractAddress(const CScript& script, string& address);
-    virtual bool GenesisBlock(CBlock& block);
-    virtual bool Lockin(int nHeight, uint256 hash);
-    virtual int LockinHeight();
+                               unsigned int nPosAfterTx) override;
+    void NewBlockAdded () override;
+    bool DisconnectBlock (CBlock& block, DatabaseSet& txdb,
+                                  CBlockIndex* pindex) override;
+    bool ExtractAddress(const CScript& script, string& address) override;
+    bool GenesisBlock(CBlock& block) override;
+    bool Lockin(int nHeight, uint256 hash) override;
+    int LockinHeight() override;
     virtual string IrcPrefix();
-    virtual bool AcceptToMemoryPool (DatabaseSet& dbset,
-                                     const CTransaction& tx);
-    virtual void RemoveFromMemoryPool (const CTransaction& tx);
+    bool AcceptToMemoryPool (DatabaseSet& dbset,
+                                     const CTransaction& tx) override;
+    void RemoveFromMemoryPool (const CTransaction& tx) override;
 
-    virtual void MessageStart(char* pchMessageStart)
+    void MessageStart(char* pchMessageStart) override
     {
         // Make the message start different
         pchMessageStart[3] = 0xfe;
     }
-    virtual bool IsMine(const CTransaction& tx);
-    virtual bool IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new = false);
+    bool IsMine(const CTransaction& tx) override;
+    bool IsMine(const CTransaction& tx, const CTxOut& txout, bool ignore_name_new = false) override;
 
-    virtual void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
+    void GetMinFee(int64 &nMinFee, int64 &nBaseFee, const CTransaction &tx,
         unsigned int nBlockSize, bool fAllowFree, bool fForRelay,
-        unsigned int nBytes, unsigned int nNewBlockSize);
+        unsigned int nBytes, unsigned int nNewBlockSize) override;
 
-    virtual bool CheckFees (const CTransaction& tx, int64 nFees);
+    bool CheckFees (const CTransaction& tx, int64 nFees) override;
 
     string GetAlertPubkey1()
     {

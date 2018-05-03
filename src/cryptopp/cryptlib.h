@@ -182,7 +182,7 @@ class CRYPTOPP_DLL OS_Error : public Exception
 public:
 	OS_Error(ErrorType errorType, const std::string &s, const std::string& operation, int errorCode)
 		: Exception(errorType, s), m_operation(operation), m_errorCode(errorCode) {}
-	~OS_Error() throw() {}
+	~OS_Error() throw() override override override {}
 
 	// the operating system API that reported the error
 	const std::string & GetOperation() const {return m_operation;}
@@ -615,21 +615,21 @@ typedef HashTransformation HashFunction;
 class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE BlockCipher : public SimpleKeyingInterface, public BlockTransformation
 {
 protected:
-	const Algorithm & GetAlgorithm() const {return *this;}
+	const Algorithm & GetAlgorithm() const override override override {return *this;}
 };
 
 //! interface for one direction (encryption or decryption) of a stream cipher or cipher mode
 class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE SymmetricCipher : public SimpleKeyingInterface, public StreamTransformation
 {
 protected:
-	const Algorithm & GetAlgorithm() const {return *this;}
+	const Algorithm & GetAlgorithm() const override override override {return *this;}
 };
 
 //! interface for message authentication codes
 class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE MessageAuthenticationCode : public SimpleKeyingInterface, public HashTransformation
 {
 protected:
-	const Algorithm & GetAlgorithm() const {return *this;}
+	const Algorithm & GetAlgorithm() const override override override {return *this;}
 };
 
 //! interface for for one direction (encryption or decryption) of a stream cipher or block cipher mode with authentication
@@ -666,7 +666,7 @@ public:
 	virtual std::string AlgorithmName() const =0;
 
 protected:
-	const Algorithm & GetAlgorithm() const {return *static_cast<const MessageAuthenticationCode *>(this);}
+	const Algorithm & GetAlgorithm() const override override override {return *static_cast<const MessageAuthenticationCode *>(this);}
 	virtual void UncheckedSpecifyDataLengths(lword headerLength, lword messageLength, lword footerLength) {}
 };
 
@@ -837,8 +837,8 @@ public:
 
 	//!	\name WAITING
 	//@{
-		unsigned int GetMaxWaitObjectCount() const;
-		void GetWaitObjects(WaitObjectContainer &container, CallStack const& callStack);
+		unsigned int GetMaxWaitObjectCount() const override override override;
+		void GetWaitObjects(WaitObjectContainer &container, CallStack const& callStack) override override override;
 	//@}
 
 	//!	\name SIGNALS
@@ -1166,8 +1166,8 @@ class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE PublicKeyAlgorithm : public AsymmetricAlgo
 {
 public:
 	// VC60 workaround: no co-variant return type
-	CryptoMaterial & AccessMaterial() {return AccessPublicKey();}
-	const CryptoMaterial & GetMaterial() const {return GetPublicKey();}
+	CryptoMaterial & AccessMaterial() override override override {return AccessPublicKey();}
+	const CryptoMaterial & GetMaterial() const override override override {return GetPublicKey();}
 
 	virtual PublicKey & AccessPublicKey() =0;
 	virtual const PublicKey & GetPublicKey() const {return const_cast<PublicKeyAlgorithm *>(this)->AccessPublicKey();}
@@ -1178,8 +1178,8 @@ public:
 class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE PrivateKeyAlgorithm : public AsymmetricAlgorithm
 {
 public:
-	CryptoMaterial & AccessMaterial() {return AccessPrivateKey();}
-	const CryptoMaterial & GetMaterial() const {return GetPrivateKey();}
+	CryptoMaterial & AccessMaterial() override override override {return AccessPrivateKey();}
+	const CryptoMaterial & GetMaterial() const override override override {return GetPrivateKey();}
 
 	virtual PrivateKey & AccessPrivateKey() =0;
 	virtual const PrivateKey & GetPrivateKey() const {return const_cast<PrivateKeyAlgorithm *>(this)->AccessPrivateKey();}
@@ -1190,8 +1190,8 @@ public:
 class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE KeyAgreementAlgorithm : public AsymmetricAlgorithm
 {
 public:
-	CryptoMaterial & AccessMaterial() {return AccessCryptoParameters();}
-	const CryptoMaterial & GetMaterial() const {return GetCryptoParameters();}
+	CryptoMaterial & AccessMaterial() override override override {return AccessCryptoParameters();}
+	const CryptoMaterial & GetMaterial() const override override override {return GetCryptoParameters();}
 
 	virtual CryptoParameters & AccessCryptoParameters() =0;
 	virtual const CryptoParameters & GetCryptoParameters() const {return const_cast<KeyAgreementAlgorithm *>(this)->AccessCryptoParameters();}
@@ -1348,10 +1348,10 @@ class CRYPTOPP_DLL CRYPTOPP_NO_VTABLE PK_MessageAccumulator : public HashTransfo
 {
 public:
 	//! should not be called on PK_MessageAccumulator
-	unsigned int DigestSize() const
+	unsigned int DigestSize() const override override override
 		{throw NotImplemented("PK_MessageAccumulator: DigestSize() should not be called");}
 	//! should not be called on PK_MessageAccumulator
-	void TruncatedFinal(byte *digest, size_t digestSize) 
+	void TruncatedFinal(byte *digest, size_t digestSize) override override override 
 		{throw NotImplemented("PK_MessageAccumulator: TruncatedFinal() should not be called");}
 };
 

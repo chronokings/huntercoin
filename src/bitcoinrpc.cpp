@@ -2613,7 +2613,7 @@ Value getauxblock(const Array& params, bool fHelp)
             hash.SetHex(params[0].get_str());
             vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
             CDataStream ss(vchAuxPow, SER_GETHASH | SER_BLOCKHEADERONLY);
-            CAuxPow* pow = new CAuxPow(algo);
+            auto* pow = new CAuxPow(algo);
             ss >> *pow;
             if (!mapNewBlockSCRYPT.count(hash))
                 return ::error("getauxblock() : block not found");
@@ -2692,7 +2692,7 @@ Value getauxblock(const Array& params, bool fHelp)
             hash.SetHex(params[0].get_str());
             vector<unsigned char> vchAuxPow = ParseHex(params[1].get_str());
             CDataStream ss(vchAuxPow, SER_GETHASH | SER_BLOCKHEADERONLY);
-            CAuxPow* pow = new CAuxPow(algo);
+            auto* pow = new CAuxPow(algo);
             ss >> *pow;
             if (!mapNewBlockSHA256D.count(hash))
                 return ::error("getauxblock() : block not found");

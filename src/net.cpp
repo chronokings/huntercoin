@@ -675,7 +675,7 @@ CNode* ConnectNode(CAddress addrConnect, int64 nTimeout)
 #endif
 
         // Add node
-        CNode* pnode = new CNode(hSocket, addrConnect, false);
+        auto* pnode = new CNode(hSocket, addrConnect, false);
         if (nTimeout != 0)
             pnode->AddRef(nTimeout);
         else
@@ -901,7 +901,7 @@ void ThreadSocketHandler2(void* parg)
             else
             {
                 printf("accepted connection %s\n", addr.ToString().c_str());
-                CNode* pnode = new CNode(hSocket, addr, true);
+                auto* pnode = new CNode(hSocket, addr, true);
                 pnode->AddRef();
                 CRITICAL_BLOCK(cs_vNodes)
                     vNodes.push_back(pnode);
