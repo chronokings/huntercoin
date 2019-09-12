@@ -202,7 +202,7 @@ public:
 	size_t size() const {return this->m_size;}
 	void resize(size_t newSize)
 	{
-		member_ptr<T> *newPtr = new member_ptr<T>[newSize];
+		autober_ptr<T>[newSize];
 		for (size_t i=0; i<this->m_size && i<newSize; i++)
 			newPtr[i].reset(this->m_ptr[i].release());
 		delete [] this->m_ptr;

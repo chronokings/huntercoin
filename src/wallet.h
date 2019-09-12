@@ -82,9 +82,9 @@ public:
     std::vector<unsigned char> vchDefaultKey;
 
     // Adds a key to the store, and saves it to disk.
-    bool AddKey(const CKey& key);
+    bool AddKey(const CKey& key) override override override override override override override override override override override override override override override override override;
     // Adds a watching address to the store, saves it to disk. 
-    bool AddAddress(const uint160& hash160);
+    bool AddAddress(const uint160& hash160) override override override override override override override override override override override override override override override override override;
     // Adds a key to the store, without saving it to disk (used by LoadWallet)
     bool LoadKey(const CKey& key) { return CKeyStore::AddKey(key); }
     // Adds a watching address to the store, without saving it to disk (used by LoadWallet) 
@@ -259,7 +259,7 @@ public:
     bool EncryptWallet(const SecureString& strWalletPassphrase);
     
     // Adds an encrypted key to the store, and saves it to disk.
-    bool AddCryptedKey(const std::vector<unsigned char> &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret);
+    bool AddCryptedKey(const std::vector<unsigned char> &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret) override override override override override override override override override override override override override override;
     // Adds an encrypted key to the store, without saving it to disk (used by LoadWallet)
     bool LoadCryptedKey(const std::vector<unsigned char> &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret) { /*SetMinVersion(FEATURE_WALLETCRYPT);*/ return CKeyStore::AddCryptedKey(vchPubKey, vchCryptedSecret); }
 

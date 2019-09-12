@@ -526,7 +526,7 @@ namespace json_spirit
     
         mtx_parser.lock();
         Semantic_actions< Value_type, Iter_type > semantic_actions( value );
-        Json_grammer< Value_type, Iter_type > *jg = new Json_grammer< Value_type, Iter_type>( semantic_actions );
+        auto);
         const spirit_namespace::parse_info< Iter_type > info = 
                             spirit_namespace::parse( begin, end, *jg, 
                                                     spirit_namespace::space_p );
